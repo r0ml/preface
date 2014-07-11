@@ -2,10 +2,11 @@
 module Preface (module X, module Preface) where
 
 import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$))
-import Control.Concurrent as X (forkIO, forkOS, Chan, newChan, writeChan, readChan,
-	QSem, newQSem, waitQSem, signalQSem,
-	MVar, newEmptyMVar, takeMVar, putMVar
-	)
+import Control.Concurrent as X (forkIO, forkOS, ThreadId,
+                                Chan, newChan, writeChan, readChan,
+                                QSem, newQSem, waitQSem, signalQSem,
+                                MVar, newEmptyMVar, takeMVar, putMVar
+                               )
 import Control.Exception as X (catch, bracket, SomeException)
 import Control.Monad as X (mzero, mplus, filterM, msum, forM, void, join, when, unless, forever)
 import Control.Monad.State as X (State, liftM2, liftM, execState)
