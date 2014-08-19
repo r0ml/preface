@@ -2,7 +2,7 @@
 module Preface (module X, module Preface) where
 
 import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$))
-import Control.Concurrent as X (forkIO, forkOS, ThreadId,
+import Control.Concurrent as X (forkIO, forkOS, ThreadId, threadDelay, killThread, 
                                 Chan, newChan, writeChan, readChan,
                                 QSem, newQSem, waitQSem, signalQSem,
                                 MVar, newEmptyMVar, takeMVar, putMVar
@@ -13,11 +13,12 @@ import Control.Monad.State as X (State, liftM2, liftM, execState)
 import Control.Monad.Trans as X (liftIO)
 
 import Data.Binary as X (Binary, Get, Put, get, put)
-import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, runGet)
-import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, runPut)
+import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, getWord64be,
+                             runGet)
+import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, putWord64be,
+                             runPut)
 import Data.Bits as X ((.&.), shiftR, (.|.), complement, xor, rotateL)
 import Data.ByteString as X (ByteString)
-import qualified Data.ByteString as B (concat, null, empty, readFile)
 
 import Data.Char as X (isSpace, chr, ord, toLower, digitToInt, isDigit)
 import Data.Int as X (Int8, Int16, Int32, Int64)
@@ -59,14 +60,14 @@ import Text.Regex.TDFA as X ((=~), (=~~))
 import qualified Control.Monad.State as State (get, put)
 import qualified Control.Monad.State.Class as State (MonadState)
 
-import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
-import qualified Data.Text as T (pack, unpack)
-
 import Data.Text as X (Text)
 
 import qualified Network.Socket.ByteString as S (recv, send)
-import qualified Network.Socket as S (accept)
-import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..) )
+import qualified Network.Socket as S (accept, connect)
+import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..),
+     addrAddress, defaultProtocol, SocketType(..), Family(..), getAddrInfo, defaultHints,
+     socket, addrSocketType, addrFamily ) 
+
 import Network as X (PortID(..), listenOn )
 import Network.Mime as X (defaultMimeLookup)
 import Network.URI as X (unEscapeString)
@@ -91,19 +92,6 @@ getState = State.get
 putState :: (Monad m, State.MonadState s m) => s -> m ()
 putState = State.put
 
-byteStringToString :: ByteString -> String
-byteStringToString = T.unpack . T.decodeUtf8
-
-stringFromByteString :: ByteString -> String
-stringFromByteString = byteStringToString
-
-
-stringToByteString :: String -> ByteString
-stringToByteString = T.encodeUtf8 . T.pack
-
-byteStringFromString :: String -> ByteString
-byteStringFromString = stringToByteString
-
 sktRecv :: Socket -> Int -> IO ByteString
 sktRecv = S.recv
 
@@ -113,23 +101,8 @@ sktSend = S.send
 sktAccept :: Socket -> IO (Socket, SockAddr)
 sktAccept = S.accept
 
-stringToText :: String -> Text
-stringToText = T.pack
-
-textFromString :: String -> Text
-textFromString = T.pack
-
-byteConcat :: [ByteString] -> ByteString
-byteConcat = B.concat
-
-byteNull :: ByteString -> Bool
-byteNull = B.null
-
-byteEmpty :: ByteString 
-byteEmpty = B.empty
-
-byteReadFile :: FilePath -> IO ByteString
-byteReadFile = B.readFile
+sktConnect :: Socket -> SockAddr -> IO ()
+sktConnect = S.connect
 
 lookupWithDefault :: (Eq a) => b -> a -> [(a,b)] -> b
 lookupWithDefault d k l = let r = lookup k l in case r of { Nothing -> d ; Just e -> e }
