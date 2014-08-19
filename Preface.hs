@@ -12,7 +12,8 @@ import Control.Monad as X (mzero, mplus, filterM, msum, forM, void, join, when, 
 import Control.Monad.State as X (State, liftM2, liftM, execState)
 import Control.Monad.Trans as X (liftIO)
 
--- import Data.Binary (Binary, Get, Put, get, put)
+import Data.Binary as X (Binary, Get, Put) 
+import Data.Binary as X (get, put) -- I need to export these in order to create Binary classes
 import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, getWord64be,
                              runGet)
 import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, putWord64be,
