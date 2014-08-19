@@ -12,7 +12,7 @@ import Control.Monad as X (mzero, mplus, filterM, msum, forM, void, join, when, 
 import Control.Monad.State as X (State, liftM2, liftM, execState)
 import Control.Monad.Trans as X (liftIO)
 
-import Data.Binary as X (Binary, Get, Put, get, put)
+-- import Data.Binary (Binary, Get, Put, get, put)
 import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, getWord64be,
                              runGet)
 import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, putWord64be,
@@ -41,7 +41,8 @@ import Foreign.ForeignPtr as X (withForeignPtr)
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist, getDirectoryContents,
                          createDirectoryIfMissing, copyFile, getModificationTime,
-                         getHomeDirectory)
+                         getHomeDirectory,
+                         removeDirectoryRecursive, createDirectory, removeFile )
 import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory,
                         takeBaseName, takeExtension, takeFileName, joinPath, splitPath,
                         normalise, isAbsolute)
