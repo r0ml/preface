@@ -27,22 +27,25 @@ instance Scalary Word8 where
 	asChar = chr . fromEnum
 	asByte = id
 
-type Length = Integer
-
 class Stringy a where
     strCat :: [a] -> a
+    strEmpty :: a
+    strEmpty = zilde
     zilde :: a
     strNull :: a -> Bool
-    strLen :: a -> Length
-    strDrop :: Length -> a -> a
-    strTake :: Length -> a -> a
+    strLen :: a -> Integer
+    strDrop :: Integral b => b -> a -> a
+    strTake :: Integral b => b -> a -> a
     strBrk :: (Char -> Bool) -> a -> (a,a)
-    strSplitAt :: Length -> a -> (a,a)
+    strBreak :: (Char -> Bool) -> a -> (a,a)
+    strBreak = strBrk
+    
+    strSplitAt :: Integral b => b -> a -> (a,a)
     strChar :: Scalary b => b -> a
-    strReplicate :: Scalary b => Length -> b -> a
+    strReplicate :: (Scalary b, Integral c) => c -> b -> a
     strCons :: Scalary b => b -> a -> a
     strHGetContents :: Handle -> IO a
-    nthChar :: a -> Length -> Char
+    nthChar :: Integral b => a -> b -> Char
     
     asByteString :: a -> ByteString
     asString :: a -> String
@@ -52,10 +55,10 @@ class Stringy a where
     asLazyByteString x = L.fromChunks [asByteString x]
 
     strTail :: a -> a
-    strTail = strDrop 1
+    strTail = strDrop (1 :: Int)
 
     strHead :: a -> Char
-    strHead = flip nthChar 0
+    strHead = flip nthChar ( 0 :: Int)
 
     strLast :: a -> Char
     strLast x = nthChar x (strLen x - 1)
@@ -71,6 +74,7 @@ class Stringy a where
     strReverse :: a -> a
     
     strInit :: a -> a
+    strPut :: a -> IO ()
     
 {-
   strReplace
@@ -97,15 +101,15 @@ instance Stringy T.Text where
   zilde = T.empty
   strNull = T.null
   strLen = toInteger . T.length
-  strDrop = T.drop . fromInteger
-  strTake = T.take . fromInteger
+  strDrop = T.drop . fromIntegral
+  strTake = T.take . fromIntegral
   strBrk = T.break 
-  strSplitAt = T.splitAt . fromInteger
+  strSplitAt = T.splitAt . fromIntegral
   strChar = T.singleton . asChar
-  strReplicate n x = T.replicate (fromInteger n) (strChar (asChar x))
+  strReplicate n x = T.replicate (fromIntegral n) (strChar (asChar x))
   strCons a b = T.cons (asChar a) b
   strHGetContents = T.hGetContents
-  nthChar t n = T.index t (fromInteger n)
+  nthChar t n = T.index t (fromIntegral n)
   asByteString = T.encodeUtf8
   asString = T.unpack
   asText = id
@@ -115,21 +119,22 @@ instance Stringy T.Text where
 
   strReverse = T.reverse
   strInit = T.init
+  strPut = T.putStr
   
 instance Stringy B.ByteString where
   strCat = B.concat
   zilde = B.empty
   strNull = B.null
   strLen = toInteger . B.length
-  strDrop = B.drop . fromInteger
-  strTake = B.take . fromInteger
+  strDrop = B.drop . fromIntegral
+  strTake = B.take . fromIntegral
   strBrk f = B.break (f . asChar)
-  strSplitAt = B.splitAt . fromInteger
+  strSplitAt = B.splitAt . fromIntegral
   strChar = B.singleton . asByte
-  strReplicate n w = B.replicate (fromInteger n) (asByte w)
+  strReplicate n w = B.replicate (fromIntegral n) (asByte w)
   strCons a b = B.cons (asByte a) b
   strHGetContents = B.hGetContents
-  nthChar a b = asChar (B.index a (fromInteger b))
+  nthChar a b = asChar (B.index a (fromIntegral b))
   asByteString = id
   asString = T.unpack . T.decodeUtf8
   asText = T.decodeUtf8
@@ -139,21 +144,22 @@ instance Stringy B.ByteString where
 
   strReverse = B.reverse
   strInit = B.init
-
+  strPut = B.putStr
+  
 instance Stringy L.ByteString where
   strCat = L.concat
   zilde = L.empty
   strNull = L.null
   strLen = toInteger . L.length
-  strDrop = L.drop . fromInteger
-  strTake = L.take . fromInteger
+  strDrop = L.drop . fromIntegral
+  strTake = L.take . fromIntegral
   strBrk f = L.break (f . asChar)
-  strSplitAt = L.splitAt . fromInteger 
+  strSplitAt = L.splitAt . fromIntegral
   strChar = L.singleton . asByte
-  strReplicate n w = L.replicate (fromInteger n) (asByte w)
+  strReplicate n w = L.replicate (fromIntegral n) (asByte w)
   strCons a b = L.cons (asByte a) b
   strHGetContents = L.hGetContents
-  nthChar a b = asChar (L.index a (fromInteger b))
+  nthChar a b = asChar (L.index a (fromIntegral b))
   asByteString = L.toStrict
   asString = T.unpack . T.decodeUtf8 . asByteString
   asText = T.decodeUtf8 . asByteString
@@ -163,21 +169,22 @@ instance Stringy L.ByteString where
 
   strReverse = L.reverse
   strInit = L.init
+  strPut = L.putStr
   
 instance Stringy [Char] where
   strCat = concat
   zilde = ""
   strNull = null
   strLen = toInteger . length
-  strDrop = drop . fromInteger
-  strTake = take . fromInteger
+  strDrop = drop . fromIntegral
+  strTake = take . fromIntegral
   strBrk = break 
-  strSplitAt = splitAt . fromInteger
+  strSplitAt = splitAt . fromIntegral
   strChar = (:[]) . asChar
-  strReplicate n x = replicate (fromInteger n) (asChar x)
+  strReplicate n x = replicate (fromIntegral n) (asChar x)
   strCons a b = asChar a : b
   strHGetContents = hGetContents
-  nthChar a b = (!!) a (fromInteger b)
+  nthChar a b = (!!) a (fromIntegral b)
   asByteString = T.encodeUtf8 . T.pack
   asString = id
   asText = T.pack
@@ -187,12 +194,14 @@ instance Stringy [Char] where
   
   strReverse = reverse
   strInit = init
-
-nthByte :: B.ByteString -> Length -> Word8
-nthByte b n = B.index b (fromInteger n)
+  strPut = putStr
+  
+nthByte :: Integral a => B.ByteString -> a -> Word8
+nthByte b n = B.index b (fromIntegral n)
 
 packBytes :: [Word8] -> B.ByteString
 packBytes = B.pack
+
 
 {-
 byteStringToString :: ByteString -> String

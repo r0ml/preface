@@ -19,7 +19,7 @@ import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, 
 import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, putWord64be,
                              runPut)
 import Data.Bits as X ((.&.), shiftR, (.|.), complement, xor, rotateL)
-import Data.ByteString as X (ByteString)
+import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
 
 import Data.Char as X (isSpace, chr, ord, toLower, digitToInt, isDigit)
 import Data.Int as X (Int8, Int16, Int32, Int64)
@@ -36,9 +36,14 @@ import Data.Time as X (UTCTime(..), fromGregorian, secondsToDiffTime, getCurrent
 import Data.Time.Format as X (formatTime, parseTime, readsTime)
 import Data.Word as X (Word8, Word16, Word32, Word64)
 
+import Foreign.C.Types as X (CInt, CDouble, CFloat, CShort, CLong)
+import Foreign.C.String as X (CString, withCString, peekCString)
+import Foreign.Marshal as X (alloca, fromBool)
 import Foreign.Marshal.Array as X (peekArray)
-import Foreign.Ptr as X (Ptr, plusPtr, castPtr)
-import Foreign.ForeignPtr as X (withForeignPtr)
+import Foreign.Ptr as X (Ptr, plusPtr, castPtr, nullPtr)
+import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, castForeignPtr, ForeignPtr)
+import Foreign.Storable as X (peek, poke)
+import Foreign.Concurrent as X (newForeignPtr)
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist, getDirectoryContents,
                          createDirectoryIfMissing, copyFile, getModificationTime,
