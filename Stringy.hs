@@ -1,4 +1,7 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies #-}
+
+-- MultiParamTypeClasses ?
+-- TypeFamilies ?
 
 module Stringy where
 
@@ -14,7 +17,7 @@ import Data.Word (Word8)
 import Data.Char (chr, ord)
 -- import Data.List ((!!))
 import System.IO (Handle, hGetContents)
-import Data.List (isPrefixOf, isSuffixOf)
+import Data.List (isPrefixOf, isSuffixOf, mapAccumL)
 
 class Scalary a where
     asChar :: a -> Char
@@ -27,25 +30,31 @@ instance Scalary Word8 where
 	asChar = chr . fromEnum
 	asByte = id
 
-class Stringy a where
+class Stringy a b | a -> b where
     strCat :: [a] -> a
+    strAppend :: a -> a -> a
+    strAppend x y = strCat [x,y]
+    
     strEmpty :: a
     strEmpty = zilde
     zilde :: a
     strNull :: a -> Bool
     strLen :: a -> Integer
-    strDrop :: Integral b => b -> a -> a
-    strTake :: Integral b => b -> a -> a
-    strBrk :: (Char -> Bool) -> a -> (a,a)
-    strBreak :: (Char -> Bool) -> a -> (a,a)
+    strDrop :: Integral c => c -> a -> a
+    strTake :: Integral c => c -> a -> a
+    strBrk :: (b -> Bool) -> a -> (a,a)
+    strBreak :: (b -> Bool) -> a -> (a,a)
     strBreak = strBrk
     
-    strSplitAt :: Integral b => b -> a -> (a,a)
-    strChar :: Scalary b => b -> a
-    strReplicate :: (Scalary b, Integral c) => c -> b -> a
-    strCons :: Scalary b => b -> a -> a
+    strBreakSubstring :: a -> a -> (a,a)
+    
+    strSplitAt :: Integral c => c -> a -> (a,a)
+    strChar :: b -> a
+    strReplicate :: (Integral c) => c -> b -> a
+    strCons :: b -> a -> a
+    strSnoc :: a -> b -> a
     strHGetContents :: Handle -> IO a
-    nthChar :: Integral b => a -> b -> Char
+    nthChar :: Integral c => a -> c -> Char
     
     asByteString :: a -> ByteString
     asString :: a -> String
@@ -76,6 +85,8 @@ class Stringy a where
     strInit :: a -> a
     strPut :: a -> IO ()
     
+    strMapAccumL :: (d -> b -> (d, b)) -> d -> a -> (d, a)
+    
 {-
   strReplace
   strLast
@@ -86,7 +97,6 @@ class Stringy a where
   strCapitalize
   strMap
   strJoin
-  strAppend
   strTrim
   strPadLeft
   strPadRight
@@ -96,7 +106,7 @@ class Stringy a where
 
 -- Text, Lazy.Text, ByteString, Lazy.ByteString, String 
 
-instance Stringy T.Text where
+instance Stringy T.Text Char where
   strCat = T.concat
   zilde = T.empty
   strNull = T.null
@@ -104,10 +114,14 @@ instance Stringy T.Text where
   strDrop = T.drop . fromIntegral
   strTake = T.take . fromIntegral
   strBrk = T.break 
+  strBreakSubstring = T.breakOn
+    
   strSplitAt = T.splitAt . fromIntegral
   strChar = T.singleton . asChar
   strReplicate n x = T.replicate (fromIntegral n) (strChar (asChar x))
-  strCons a b = T.cons (asChar a) b
+  strCons a b = T.cons a b
+  strSnoc a b = T.snoc a b
+  
   strHGetContents = T.hGetContents
   nthChar t n = T.index t (fromIntegral n)
   asByteString = T.encodeUtf8
@@ -121,18 +135,24 @@ instance Stringy T.Text where
   strInit = T.init
   strPut = T.putStr
   
-instance Stringy B.ByteString where
+  strMapAccumL = T.mapAccumL
+  
+instance Stringy B.ByteString Word8 where
   strCat = B.concat
   zilde = B.empty
   strNull = B.null
   strLen = toInteger . B.length
   strDrop = B.drop . fromIntegral
   strTake = B.take . fromIntegral
-  strBrk f = B.break (f . asChar)
+  strBrk f = B.break f -- (f . asChar)
+  strBreakSubstring = B.breakSubstring
+  
   strSplitAt = B.splitAt . fromIntegral
   strChar = B.singleton . asByte
   strReplicate n w = B.replicate (fromIntegral n) (asByte w)
-  strCons a b = B.cons (asByte a) b
+  strCons a b = B.cons a b
+  strSnoc a b = B.snoc a b
+  
   strHGetContents = B.hGetContents
   nthChar a b = asChar (B.index a (fromIntegral b))
   asByteString = id
@@ -146,18 +166,27 @@ instance Stringy B.ByteString where
   strInit = B.init
   strPut = B.putStr
   
-instance Stringy L.ByteString where
+  strMapAccumL = B.mapAccumL
+  
+instance Stringy L.ByteString Word8 where
   strCat = L.concat
   zilde = L.empty
   strNull = L.null
   strLen = toInteger . L.length
   strDrop = L.drop . fromIntegral
   strTake = L.take . fromIntegral
-  strBrk f = L.break (f . asChar)
+  strBrk f = L.break f -- (f . asChar)
+  strBreakSubstring pat src = search 0 src
+    where search n s
+            | strNull s             = (src, zilde :: L.ByteString )
+            | pat `L.isPrefixOf` s = (L.take n src,s)
+            | otherwise          = search (n+1) (L.tail s)
+  
   strSplitAt = L.splitAt . fromIntegral
   strChar = L.singleton . asByte
   strReplicate n w = L.replicate (fromIntegral n) (asByte w)
-  strCons a b = L.cons (asByte a) b
+  strCons a b = L.cons a b
+  strSnoc a b = L.snoc a b
   strHGetContents = L.hGetContents
   nthChar a b = asChar (L.index a (fromIntegral b))
   asByteString = L.toStrict
@@ -171,7 +200,9 @@ instance Stringy L.ByteString where
   strInit = L.init
   strPut = L.putStr
   
-instance Stringy [Char] where
+  strMapAccumL = L.mapAccumL
+  
+instance Stringy [Char] Char where
   strCat = concat
   zilde = ""
   strNull = null
@@ -179,10 +210,17 @@ instance Stringy [Char] where
   strDrop = drop . fromIntegral
   strTake = take . fromIntegral
   strBrk = break 
+  strBreakSubstring pat src = search 0 src
+    where search n s
+            | null s             = (src,[])
+            | pat `isPrefixOf` s = (take n src,s)
+            | otherwise          = search (n+1) (tail s)
+
   strSplitAt = splitAt . fromIntegral
   strChar = (:[]) . asChar
   strReplicate n x = replicate (fromIntegral n) (asChar x)
-  strCons a b = asChar a : b
+  strCons a b = a : b
+  strSnoc a b = a ++ [b]
   strHGetContents = hGetContents
   nthChar a b = (!!) a (fromIntegral b)
   asByteString = T.encodeUtf8 . T.pack
@@ -196,6 +234,8 @@ instance Stringy [Char] where
   strInit = init
   strPut = putStr
   
+  strMapAccumL = mapAccumL
+
 nthByte :: Integral a => B.ByteString -> a -> Word8
 nthByte b n = B.index b (fromIntegral n)
 
@@ -240,7 +280,7 @@ byteReadFile = B.readFile
 
 -- ------------------------------------------------------------------------------
 
-base64 :: Stringy a => a -> String
+base64 :: Stringy a b => a -> String
 base64 a = let fe = fromIntegral . fromEnum
                q' = fe (strHead a)
                a' = strTail a
@@ -272,3 +312,4 @@ urlEncode
     -> String
 urlEncode True  = urlEncode' "-_.~"
 urlEncode False = urlEncode' ":@&=+$,"
+

@@ -7,7 +7,7 @@ import Control.Concurrent as X (forkIO, forkOS, ThreadId, threadDelay, killThrea
                                 QSem, newQSem, waitQSem, signalQSem,
                                 MVar, newEmptyMVar, takeMVar, putMVar
                                )
-import Control.Exception as X (catch, bracket, SomeException)
+import Control.Exception as X (catch, bracket, finally, SomeException)
 import Control.Monad as X (mzero, mplus, filterM, msum, forM, void, join, when, unless, forever)
 import Control.Monad.State as X (State, liftM2, liftM, execState)
 import Control.Monad.Trans as X (liftIO)
@@ -23,11 +23,13 @@ import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
 
 import Data.Char as X (isSpace, chr, ord, toLower, digitToInt, isDigit)
 import Data.Int as X (Int8, Int16, Int32, Int64)
-import Data.IORef as X (IORef , newIORef, readIORef, writeIORef)
+import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
+    atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
 import Data.List as X (intercalate, intersperse, 
 	sortBy, isPrefixOf, isSuffixOf, inits, tails, unfoldr, foldl')
 import Data.Map as X (Map)
+import qualified Data.Map as M
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust)
 import Data.Monoid as X (mconcat, mappend, mempty)
 import Data.Set as X (Set)
@@ -57,7 +59,7 @@ import System.IO as X (Handle, hClose, hFlush, hPutStrLn, openFile, IOMode(..), 
 import System.IO.Unsafe as X (unsafePerformIO)
 
 import System.Environment as X (getArgs, getEnvironment, getEnv)
-import System.Exit as X (ExitCode)
+import System.Exit as X (ExitCode, exitSuccess, exitFailure, exitWith )
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   CreateProcess(..))
 
@@ -73,7 +75,7 @@ import qualified Network.Socket.ByteString as S (recv, send)
 import qualified Network.Socket as S (accept, connect)
 import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..),
      addrAddress, defaultProtocol, SocketType(..), Family(..), getAddrInfo, defaultHints,
-     socket, addrSocketType, addrFamily ) 
+     socket, addrSocketType, addrFamily, fdSocket, mkSocket ) 
 
 import Network as X (PortID(..), listenOn )
 import Network.Mime as X (defaultMimeLookup)
@@ -113,3 +115,12 @@ sktConnect = S.connect
 
 lookupWithDefault :: (Eq a) => b -> a -> [(a,b)] -> b
 lookupWithDefault d k l = let r = lookup k l in case r of { Nothing -> d ; Just e -> e }
+
+mapInsert :: (Ord k) => k -> a -> Map k a -> Map k a
+mapInsert = M.insert
+
+mapLookup :: (Ord k) => k -> Map k a -> Maybe a
+mapLookup = M.lookup
+
+mapFromList :: Ord k => [(k, a)] -> Map k a 
+mapFromList = M.fromList
