@@ -14,7 +14,7 @@ Source-Repository head
 
 Library
   Build-Depends: base >=4 && < 5,
-                 regex-tdfa, text, mtl, process, time, directory, filepath,
+                 text, mtl, process, time, directory, filepath,
                  network, bytestring, mime-types, network-uri,
                  old-locale, binary, containers
   Exposed-modules: Preface

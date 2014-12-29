@@ -21,13 +21,12 @@ import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, 
 import Data.Bits as X ((.&.), shiftR, (.|.), complement, xor, rotateL)
 import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
 
-import Data.Char as X (isSpace, chr, ord, toLower, digitToInt, isDigit)
+import Data.Char as X (chr, ord, toLower, digitToInt, isDigit)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
-import Data.List as X (intercalate, intersperse, 
-	sortBy, isPrefixOf, isSuffixOf, inits, tails, unfoldr, foldl')
+import Data.List as X (sortBy, inits, tails, unfoldr, foldl')
 import Data.Map as X (Map)
 import qualified Data.Map as M
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust)
@@ -63,7 +62,7 @@ import System.Exit as X (ExitCode, exitSuccess, exitFailure, exitWith )
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   CreateProcess(..))
 
-import Text.Regex.TDFA as X ((=~), (=~~))
+-- import Text.Regex.TDFA as X ((=~), (=~~))
 
 
 import qualified Control.Monad.State as State (get, put)

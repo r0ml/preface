@@ -1,7 +1,4 @@
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies #-}
-
--- MultiParamTypeClasses ?
--- TypeFamilies ?
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies, UndecidableInstances #-}
 
 module Stringy where
 
@@ -14,24 +11,36 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import Data.Bits
 import Data.Word (Word8)
-import Data.Char (chr, ord)
--- import Data.List ((!!))
+import qualified Data.Char as C
 import System.IO (Handle, hGetContents)
-import Data.List (isPrefixOf, isSuffixOf, mapAccumL)
+import qualified Data.List as DL
 
-class Scalary a where
+import qualified Data.ByteString.Lazy.Char8 as LC
+import qualified Data.ByteString.Char8 as BC
+
+-- instance Stringy a b => Show a where
+--   show x = asString x
+
+class Enum a => Chary a where
     asChar :: a -> Char
     asByte :: a -> Word8
+    isSpace :: a -> Bool
 
-instance Scalary Char where
+instance Chary Char where
 	asChar = id
-	asByte = fromIntegral . ord
-instance Scalary Word8 where
-	asChar = chr . fromEnum
-	asByte = id
+	asByte = fromIntegral . C.ord
+        isSpace = C.isSpace
 
-class Stringy a b | a -> b where
+instance Chary Word8 where
+	asChar = C.chr . fromEnum
+	asByte = id
+        isSpace = C.isSpace . asChar
+
+class Chary b => Stringy a b | a -> b where
     strCat :: [a] -> a
+    strConcat :: [a] -> a
+    strConcat = strCat
+    strConcatMap :: (b -> a) -> a -> a
     strAppend :: a -> a -> a
     strAppend x y = strCat [x,y]
     
@@ -40,22 +49,26 @@ class Stringy a b | a -> b where
     zilde :: a
     strNull :: a -> Bool
     strLen :: a -> Integer
-    strDrop :: Integral c => c -> a -> a
-    strTake :: Integral c => c -> a -> a
+    strDrop :: (Num c, Integral c, Eq c) => c -> a -> a
+    strDropWhile :: (b->Bool) -> a -> a
+
+    strTake :: (Num c, Integral c, Eq c) => c -> a -> a
+    strTakeWhile :: (b->Bool) -> a -> a
+
     strBrk :: (b -> Bool) -> a -> (a,a)
     strBreak :: (b -> Bool) -> a -> (a,a)
     strBreak = strBrk
     
     strBreakSubstring :: a -> a -> (a,a)
     
-    strSplitAt :: Integral c => c -> a -> (a,a)
-    strChar :: b -> a
-    strReplicate :: (Integral c) => c -> b -> a
+    strSplitAt :: (Num c, Integral c, Eq c) => c -> a -> (a,a)
+    stringleton :: b -> a
+    strReplicate :: (Num c, Integral c) => c -> b -> a
     strCons :: b -> a -> a
     strSnoc :: a -> b -> a
     strHGetContents :: Handle -> IO a
-    nthChar :: Integral c => a -> c -> Char
-    
+    nth :: Integral c => a -> c -> b
+
     asByteString :: a -> ByteString
     asString :: a -> String
     asText :: a -> Text
@@ -63,30 +76,45 @@ class Stringy a b | a -> b where
     asLazyByteString :: a -> L.ByteString
     asLazyByteString x = L.fromChunks [asByteString x]
 
+    strHead :: a -> b
+    strHead = flip nth ( 0 :: Int)
+
     strTail :: a -> a
-    strTail = strDrop (1 :: Int)
+    strTail = strDrop ( 1 :: Int)
 
-    strHead :: a -> Char
-    strHead = flip nthChar ( 0 :: Int)
-
-    strLast :: a -> Char
-    strLast x = nthChar x (strLen x - 1)
+    strLast :: a -> b
+    strLast x = nth x (strLen x - 1)
       
-    strIsPrefixOf :: a -> a -> Bool
-    strStartsWith :: a -> a -> Bool
-    strStartsWith = flip strIsPrefixOf
+    isPrefixOf :: a -> a -> Bool
+    startsWith :: a -> a -> Bool
+    startsWith = flip isPrefixOf
     
-    strIsSuffixOf :: a -> a -> Bool
-    strEndsWith :: a -> a -> Bool
-    strEndsWith = flip strIsSuffixOf
+    isSuffixOf :: a -> a -> Bool
+    endsWith :: a -> a -> Bool
+    endsWith = flip isSuffixOf
     
     strReverse :: a -> a
     
     strInit :: a -> a
     strPut :: a -> IO ()
-    
+    strPutLn :: a -> IO ()
+
     strMapAccumL :: (d -> b -> (d, b)) -> d -> a -> (d, a)
+
+    pack :: [b] -> a
+
+    stripStart :: a -> a
+    stripStart = strDropWhile isSpace
     
+    split :: b -> a -> [a]
+--    splitOn :: a -> a -> [a]
+    splitWith :: (b->Bool) -> a -> [a]
+
+    intercalate :: a -> [a] -> a
+
+    strReadFile :: FilePath -> IO a
+--    strReads :: Read a => ReadS a
+
 {-
   strReplace
   strLast
@@ -108,73 +136,106 @@ class Stringy a b | a -> b where
 
 instance Stringy T.Text Char where
   strCat = T.concat
+  strConcatMap = T.concatMap
   zilde = T.empty
   strNull = T.null
   strLen = toInteger . T.length
   strDrop = T.drop . fromIntegral
+  strDropWhile = T.dropWhile
   strTake = T.take . fromIntegral
+  strTakeWhile = T.takeWhile
+
   strBrk = T.break 
   strBreakSubstring = T.breakOn
     
   strSplitAt = T.splitAt . fromIntegral
-  strChar = T.singleton . asChar
-  strReplicate n x = T.replicate (fromIntegral n) (strChar (asChar x))
+  stringleton = T.singleton
+  strReplicate n x = T.replicate (fromIntegral n) (stringleton x)
   strCons a b = T.cons a b
   strSnoc a b = T.snoc a b
   
   strHGetContents = T.hGetContents
-  nthChar t n = T.index t (fromIntegral n)
+  nth t n = T.index t (fromIntegral n)
   asByteString = T.encodeUtf8
   asString = T.unpack
   asText = id
   
-  strIsPrefixOf = T.isPrefixOf
-  strIsSuffixOf = T.isSuffixOf
+  isPrefixOf = T.isPrefixOf
+  isSuffixOf = T.isSuffixOf
 
   strReverse = T.reverse
   strInit = T.init
   strPut = T.putStr
+  strPutLn = T.putStrLn
   
   strMapAccumL = T.mapAccumL
+  pack = T.pack
+
+  stripStart = T.stripStart
+
+  split = T.splitOn . stringleton
+--  splitOn = T.splitOn
+  splitWith = T.split
+
+  intercalate = T.intercalate
+  strReadFile = T.readFile
   
+--  strReads = TR.reads
+
 instance Stringy B.ByteString Word8 where
   strCat = B.concat
+  strConcatMap = B.concatMap
   zilde = B.empty
   strNull = B.null
   strLen = toInteger . B.length
   strDrop = B.drop . fromIntegral
+  strDropWhile = B.dropWhile
   strTake = B.take . fromIntegral
+  strTakeWhile = B.takeWhile
   strBrk f = B.break f -- (f . asChar)
   strBreakSubstring = B.breakSubstring
   
   strSplitAt = B.splitAt . fromIntegral
-  strChar = B.singleton . asByte
+  stringleton = B.singleton
   strReplicate n w = B.replicate (fromIntegral n) (asByte w)
   strCons a b = B.cons a b
   strSnoc a b = B.snoc a b
   
   strHGetContents = B.hGetContents
-  nthChar a b = asChar (B.index a (fromIntegral b))
+  nth a b = (B.index a (fromIntegral b))
   asByteString = id
   asString = T.unpack . T.decodeUtf8
   asText = T.decodeUtf8
   
-  strIsPrefixOf = B.isPrefixOf
-  strIsSuffixOf = B.isSuffixOf
+  isPrefixOf = B.isPrefixOf
+  isSuffixOf = B.isSuffixOf
 
   strReverse = B.reverse
   strInit = B.init
   strPut = B.putStr
+  strPutLn = BC.putStrLn
   
   strMapAccumL = B.mapAccumL
   
+  pack = B.pack
+  
+  split = B.split
+--  splitOn = B.splitOn
+  splitWith = B.splitWith
+
+  intercalate = B.intercalate
+  strReadFile = B.readFile
+
 instance Stringy L.ByteString Word8 where
   strCat = L.concat
+  strConcatMap = L.concatMap
   zilde = L.empty
   strNull = L.null
   strLen = toInteger . L.length
   strDrop = L.drop . fromIntegral
+  strDropWhile = L.dropWhile
   strTake = L.take . fromIntegral
+  strTakeWhile = L.takeWhile
   strBrk f = L.break f -- (f . asChar)
   strBreakSubstring pat src = search 0 src
     where search n s
@@ -183,64 +244,81 @@ instance Stringy L.ByteString Word8 where
             | otherwise          = search (n+1) (L.tail s)
   
   strSplitAt = L.splitAt . fromIntegral
-  strChar = L.singleton . asByte
+  stringleton = L.singleton
   strReplicate n w = L.replicate (fromIntegral n) (asByte w)
   strCons a b = L.cons a b
   strSnoc a b = L.snoc a b
   strHGetContents = L.hGetContents
-  nthChar a b = asChar (L.index a (fromIntegral b))
+  nth a b = L.index a (fromIntegral b)
   asByteString = L.toStrict
   asString = T.unpack . T.decodeUtf8 . asByteString
   asText = T.decodeUtf8 . asByteString
   
-  strIsPrefixOf = L.isPrefixOf
-  strIsSuffixOf = L.isSuffixOf
+  isPrefixOf = L.isPrefixOf
+  isSuffixOf = L.isSuffixOf
 
   strReverse = L.reverse
   strInit = L.init
   strPut = L.putStr
+  strPutLn = LC.putStrLn
   
   strMapAccumL = L.mapAccumL
+  pack = L.pack
+
+  split = L.split
+  splitWith = L.splitWith
+
+  intercalate = L.intercalate
+  strReadFile = L.readFile
   
 instance Stringy [Char] Char where
   strCat = concat
+  strConcatMap = concatMap
   zilde = ""
   strNull = null
   strLen = toInteger . length
   strDrop = drop . fromIntegral
+  strDropWhile = dropWhile
   strTake = take . fromIntegral
+  strTakeWhile = takeWhile
   strBrk = break 
   strBreakSubstring pat src = search 0 src
     where search n s
             | null s             = (src,[])
-            | pat `isPrefixOf` s = (take n src,s)
+            | pat `DL.isPrefixOf` s = (take n src,s)
             | otherwise          = search (n+1) (tail s)
 
   strSplitAt = splitAt . fromIntegral
-  strChar = (:[]) . asChar
+  stringleton = (:[]) 
   strReplicate n x = replicate (fromIntegral n) (asChar x)
   strCons a b = a : b
   strSnoc a b = a ++ [b]
   strHGetContents = hGetContents
-  nthChar a b = (!!) a (fromIntegral b)
+  nth a b = (!!) a (fromIntegral b)
   asByteString = T.encodeUtf8 . T.pack
   asString = id
   asText = T.pack
   
-  strIsPrefixOf = isPrefixOf
-  strIsSuffixOf = isSuffixOf
+  isPrefixOf = DL.isPrefixOf
+  isSuffixOf = DL.isSuffixOf
   
   strReverse = reverse
   strInit = init
   strPut = putStr
+  strPutLn = putStrLn
   
-  strMapAccumL = mapAccumL
+  strMapAccumL = DL.mapAccumL
 
-nthByte :: Integral a => B.ByteString -> a -> Word8
-nthByte b n = B.index b (fromIntegral n)
+  pack = id
 
-packBytes :: [Word8] -> B.ByteString
-packBytes = B.pack
+  split = split
+  splitWith = splitWith
+
+  intercalate = DL.intercalate
+  strReadFile = Prelude.readFile
+
+-- packBytes :: [Word8] -> B.ByteString
+-- packBytes = B.pack
 
 
 {-
@@ -275,8 +353,8 @@ byteEmpty :: ByteString
 byteEmpty = B.empty
 -}
 
-byteReadFile :: FilePath -> IO ByteString
-byteReadFile = B.readFile
+-- byteReadFile :: FilePath -> IO ByteString
+-- byteReadFile = B.readFile
 
 -- ------------------------------------------------------------------------------
 
@@ -299,12 +377,12 @@ urlEncode' :: String -> B.ByteString -> String
 urlEncode' exch s = concatMap  (encodeChar . fromEnum) (B.unpack s)
     where
       encodeChar ch 
-        | ch >= 65 && ch <= 90  = [chr ch]
-        | ch >= 97 && ch <= 122 = [chr ch]
-        | ch >= 48 && ch <= 57  = [chr ch]
-        | elem (chr ch) exch = [chr ch]
+        | ch >= 65 && ch <= 90  = [C.chr ch]
+        | ch >= 97 && ch <= 122 = [C.chr ch]
+        | ch >= 48 && ch <= 57  = [C.chr ch]
+        | elem (C.chr ch) exch = [C.chr ch]
         | otherwise = let (a, b) = ch `divMod` 16 in '%' : hex a : hex b : []
-      hex i = chr $ if i < 10 then 48 + i else 65 + i - 10 
+      hex i = C.chr $ if i < 10 then 48 + i else 65 + i - 10 
 
 urlEncode
     :: Bool -- ^ Whether input is in query string. True: Query string, False: Path element
