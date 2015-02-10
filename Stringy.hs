@@ -27,13 +27,13 @@ class Enum a => Chary a where
     isSpace :: a -> Bool
 
 instance Chary Char where
-	asChar = id
-	asByte = fromIntegral . C.ord
+        asChar = id
+        asByte = fromIntegral . C.ord
         isSpace = C.isSpace
 
 instance Chary Word8 where
-	asChar = C.chr . fromEnum
-	asByte = id
+        asChar = C.chr . fromEnum
+        asByte = id
         isSpace = C.isSpace . asChar
 
 class Chary b => Stringy a b | a -> b where

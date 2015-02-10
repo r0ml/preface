@@ -15,8 +15,9 @@ Source-Repository head
 Library
   Build-Depends: base >=4 && < 5,
                  text, mtl, process, time, directory, filepath,
-                 network, bytestring, mime-types, network-uri,
+                 network, bytestring, network-uri,
                  old-locale, binary, containers
+-- , mime-types
   Exposed-modules: Preface
   Other-Modules: Stringy
   Hs-Source-Dirs: .

@@ -20,6 +20,7 @@ import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, 
                              runPut)
 import Data.Bits as X ((.&.), shiftR, (.|.), complement, xor, rotateL)
 import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
+import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 
 import Data.Char as X (chr, ord, toLower, digitToInt, isDigit)
 import Data.Int as X (Int8, Int16, Int32, Int64)
@@ -37,14 +38,15 @@ import Data.Time as X (UTCTime(..), fromGregorian, secondsToDiffTime, getCurrent
 import Data.Time.Format as X (formatTime, parseTime, readsTime)
 import Data.Word as X (Word8, Word16, Word32, Word64)
 
-import Foreign.C.Types as X (CInt, CDouble, CFloat, CShort, CLong)
+import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..),
+                             CDouble(..), CFloat(..), CShort(..), CLong(..), CULong(..) )
 import Foreign.C.String as X (CString, withCString, peekCString)
 import Foreign.Marshal as X (alloca, fromBool)
 import Foreign.Marshal.Array as X (peekArray)
 import Foreign.Ptr as X (Ptr, plusPtr, castPtr, nullPtr)
-import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, castForeignPtr, ForeignPtr)
+import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignPtrBytes, castForeignPtr, newForeignPtr, ForeignPtr)
 import Foreign.Storable as X (peek, poke)
-import Foreign.Concurrent as X (newForeignPtr)
+import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist, getDirectoryContents,
                          createDirectoryIfMissing, copyFile, getModificationTime,
@@ -77,7 +79,7 @@ import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..),
      socket, addrSocketType, addrFamily, fdSocket, mkSocket ) 
 
 import Network as X (PortID(..), listenOn )
-import Network.Mime as X (defaultMimeLookup)
+-- import Network.Mime as X (defaultMimeLookup)
 import Network.URI as X (unEscapeString)
 
 {-
@@ -123,3 +125,6 @@ mapLookup = M.lookup
 
 mapFromList :: Ord k => [(k, a)] -> Map k a 
 mapFromList = M.fromList
+
+newConcurrentForeignPtr :: Ptr a -> IO () -> IO (ForeignPtr a)
+newConcurrentForeignPtr = Concurrent.newForeignPtr
