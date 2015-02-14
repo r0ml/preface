@@ -19,7 +19,7 @@ Library
                  old-locale, binary, containers
 -- , mime-types
   Exposed-modules: Preface
-  Other-Modules: Stringy
+  Other-Modules: Stringy, Byter
   Hs-Source-Dirs: .
   Ghc-options: -Wall
   Default-Language: Haskell2010
