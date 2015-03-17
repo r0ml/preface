@@ -1,5 +1,5 @@
 
-module Preface (module X) where
+module Preface (module X, module Preface) where
 
 import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$))
 import Control.Concurrent as X (forkIO, forkOS, ThreadId, threadDelay, killThread, 
@@ -24,24 +24,27 @@ import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
 import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 
 import Data.Char as X (chr, ord, toLower, digitToInt, isDigit, isAlpha,
+                       isHexDigit,
                        isUpper, isLower, toUpper, toLower, isAlphaNum)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
 import Data.List as X (sort, sortBy, inits, tails, unfoldr, foldl', 
-                       transpose, zip4, intersect)
-import Data.Map as X (Map)
-import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust, mapMaybe)
+                       find, transpose, zip4, intersect)
+import Data.Map as X (Map, assocs)
+import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
+                        mapMaybe, catMaybes)
 import Data.Monoid as X (mconcat, mappend, mempty)
 import Data.Set as X (Set, union, member)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
 
-import Data.Time as X (UTCTime(..), fromGregorian, secondsToDiffTime, getCurrentTime, iso8601DateFormat)
+import Data.Time as X (UTCTime(..), fromGregorian, secondsToDiffTime, getCurrentTime, 
+        addUTCTime, iso8601DateFormat, rfc822DateFormat)
 import Data.Time.Clock as X (NominalDiffTime)
 import Data.Time.Clock.POSIX as X (posixSecondsToUTCTime)
-import Data.Time.Format as X (formatTime, parseTime, readsTime, TimeLocale, defaultTimeLocale)
+import Data.Time.Format as X (formatTime, parseTimeM, readsTime, TimeLocale, defaultTimeLocale)
 import Data.Tuple as X (swap)
 import Data.Typeable as X (Typeable)
 import Data.Word as X (Word8, Word16, Word32, Word64)
@@ -57,16 +60,17 @@ import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignP
 import Foreign.Storable as X (Storable(..), peek, poke)
 
 import GHC.Generics as X
+import Numeric as X (readHex, readSigned, readDec, readFloat)
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist, getDirectoryContents,
                          createDirectoryIfMissing, copyFile, getModificationTime,
                          getHomeDirectory,
                          removeDirectoryRecursive, createDirectory, removeFile )
 import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory,
-                        takeBaseName, takeExtension, takeFileName, joinPath, splitPath,
+                        takeBaseName, splitExtension, takeExtension, takeFileName, joinPath, splitPath,
                         normalise, isAbsolute)
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
-import System.IO as X (Handle, hClose, hFlush, hPutStrLn, openFile, IOMode(..), stderr, stdout )
+import System.IO as X (Handle, hClose, hFlush, hPutStrLn, openFile, IOMode(..), stdin, stderr, stdout )
 import System.IO.Unsafe as X (unsafePerformIO)
 
 import System.Environment as X (getArgs, getEnvironment, lookupEnv)
@@ -104,4 +108,10 @@ import Debug.Trace as X
 
 import Misc as X
 import Math as X
+
+import Data.Vector as X ( (!), Vector )
+import qualified Data.Vector as V
+
+vectorFromList :: [a] -> V.Vector a
+vectorFromList = V.fromList
 

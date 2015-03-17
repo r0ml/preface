@@ -9,6 +9,7 @@ import qualified Data.ByteString as B
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Read as T
 import Data.Bits
 import Data.Word (Word8)
 import qualified Data.Char as C
@@ -23,6 +24,8 @@ import Control.Applicative ((<$>))
 
 -- instance Stringy a b => Show a where
 --   show x = asString x
+
+default (Integer, Int)
 
 class Enum a => Chary a where
     asChar :: a -> Char
@@ -39,7 +42,10 @@ instance Chary Word8 where
         asByte = id
         isSpace = C.isSpace . asChar
 
+type ErrorMessage = String
+
 class Chary b => Stringy a b | a -> b where
+-- can I change this definition to define a type for Chary?
     strCat :: [a] -> a
     strConcat :: [a] -> a
     strConcat = strCat
@@ -115,18 +121,28 @@ class Chary b => Stringy a b | a -> b where
     stripStart :: a -> a
     stripStart = strDropWhile isSpace
     
-    split :: b -> a -> [a]
+    splitChar :: b -> a -> [a]
+    splitStr :: a -> a -> [a]
 --    splitOn :: a -> a -> [a]
     splitWith :: (b->Bool) -> a -> [a]
 
     intercalate :: a -> [a] -> a
 
     strReadFile :: FilePath -> IO a
+    strWriteFile :: FilePath -> a -> IO ()
 
     stringy :: a -> a
     stringy = id
 --    strReads :: Read a => ReadS a
 
+    str2decimal :: (Read c, Integral c) => a -> Either ErrorMessage (c, a)
+    signed :: (Read c, Num c) => (a -> Either ErrorMessage (c, a)) -> (a -> Either ErrorMessage (c, a))
+    str2hexadecimal :: (Read c, Integral c) => a -> Either ErrorMessage (c, a)
+    str2rational :: (Read c, Fractional c) => a-> Either ErrorMessage (c, a)
+    str2double :: a -> Either ErrorMessage (Double, a)
+
+    strToLower :: a -> a
+    strToUpper :: a -> a
 {-
   strReplace
   strLast
@@ -190,13 +206,24 @@ instance Stringy T.Text Char where
 
   stripStart = T.stripStart
 
-  split = T.splitOn . stringleton
+  splitChar = T.splitOn . stringleton
+  splitStr = T.splitOn
 --  splitOn = T.splitOn
   splitWith = T.split
 
   intercalate = T.intercalate
   strReadFile = T.readFile
+  strWriteFile = T.writeFile
   
+  str2decimal = T.decimal
+  signed = T.signed
+  str2hexadecimal = T.hexadecimal
+  str2rational = T.rational
+  str2double = T.double
+
+  strToLower = T.toLower
+  strToUpper = T.toUpper
+
 --  strReads = TR.reads
 
 instance Stringy B.ByteString Word8 where
@@ -241,12 +268,24 @@ instance Stringy B.ByteString Word8 where
   pack = B.pack
   unpack = B.unpack
   
-  split = B.split
+  splitChar = B.split
+  splitStr d x = let (a,b) = B.breakSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
+
 --  splitOn = B.splitOn
   splitWith = B.splitWith
 
   intercalate = B.intercalate
   strReadFile = B.readFile
+  strWriteFile = B.writeFile
+
+   -- str2decimal = T.decimal
+   -- signed = T.signed
+   -- str2hexadecimal = T.hexadecimal
+   -- str2rational = T.rational
+   -- str2double = T.double
+ 
+   -- strToLower = 
+   -- strToUpper = 
 
 instance Stringy L.ByteString Word8 where
   strCat = L.concat
@@ -292,12 +331,23 @@ instance Stringy L.ByteString Word8 where
   pack = L.pack
   unpack = L.unpack
 
-  split = L.split
+  splitChar = L.split
+  splitStr d x = let (a,b) = strBreakSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
   splitWith = L.splitWith
 
   intercalate = L.intercalate
   strReadFile = L.readFile
+  strWriteFile = L.writeFile
   
+   -- str2decimal = T.decimal
+   -- signed = T.signed
+   -- str2hexadecimal = T.hexadecimal
+   -- str2rational = T.rational
+   -- str2double = T.double
+ 
+   -- strToLower = 
+   -- strToUpper = 
+
 instance Stringy [Char] Char where
   strCat = concat
   strConcatMap = concatMap
@@ -343,15 +393,28 @@ instance Stringy [Char] Char where
   pack = id
   unpack = id
 
-  split = split
+  splitChar d x = let (_,b) = split_ ([],[]) x in b where
+     split_ (a,b) [] = ([], reverse (reverse a : b))
+     split_ (a,b) (f:xs) = if d == f then split_ ([], reverse a : b) xs else split_ (f:a, b) xs
+  splitStr d x = let (_,b) = split_ ([],[]) x in b where
+     split_ (a,b) [] = ([], reverse (reverse a : b))
+     split_ (a,b) xs = if d `isPrefixOf` xs then split_ ([], reverse a : b) (strDrop (strLen d) xs) else split_ ((head xs):a, b) (tail xs)
+ 
   splitWith = splitWith
 
   intercalate = DL.intercalate
   strReadFile = Prelude.readFile
+  strWriteFile = Prelude.writeFile
 
 -- packBytes :: [Word8] -> B.ByteString
 -- packBytes = B.pack
+  str2decimal x = if (null a) then Left "Parsing Error" else Right (head a)
+        where a = reads x
+  str2double x = if (null a) then Left "Parsing Error" else Right (head a)
+        where a = reads x
 
+  strToLower = map C.toLower
+  strToUpper = map C.toUpper
 
 {-
 byteStringToString :: ByteString -> String
@@ -408,6 +471,15 @@ base64 a = let fe = fromIntegral . fromEnum
                t = if strLen a < (3::Int) then 64 else (s' .&. 63)
                ss = map (alphabet !!) [q,r,s,t]
            in if strNull a then "" else ss ++ (base64 rest)
+
+base16 :: Stringy a b => a -> String
+base16 a = let d = strHead a
+               e = 0x0f .&. shiftR (fromEnum d) 4
+               f = 0x0f .&. (fromEnum d)
+               xs = "0123456789abcdef"
+               b = xs !! e
+               c = xs !! f 
+            in if strNull a then [] else b : c : base16 (strTail a)
 
 -- | Percent-encoding for URLs.
 urlEncode' :: String -> B.ByteString -> String

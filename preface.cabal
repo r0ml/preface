@@ -16,10 +16,10 @@ Library
   Build-Depends: base >=4 && < 5,
                  text, mtl, process, time, directory, filepath,
                  network, bytestring, network-uri,
-                 old-locale, binary, containers
+                 old-locale, binary, containers, vector
 -- , mime-types
   Exposed-modules: Preface
-  Other-Modules: Stringy, Byter
+  Other-Modules: Stringy, Byter, Misc
   Hs-Source-Dirs: .
   Ghc-options: -Wall
   Default-Language: Haskell2010
