@@ -31,5 +31,4 @@ primes = 2 : ([3,5..] `setMinus` unionAll [[p*p,p*p+2*p..] | p <- primes'])
    pairs (_:_) = undefined
 
 fractionalPart :: RealFrac a => a -> a
-fractionalPart n = n - fromIntegral ( floor n )
-
+fractionalPart n = n - fromIntegral ((floor n) :: Integer )

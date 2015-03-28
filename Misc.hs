@@ -2,7 +2,7 @@
 module Misc
 where
 
-import Control.Monad.State as State
+-- import Control.Monad.State as State
 
 import qualified Network.Socket as S (accept, connect)
 import qualified Network.Socket.ByteString as S (send, recv)
@@ -13,11 +13,11 @@ import Foreign.ForeignPtr
 import qualified Data.Map as M
 import qualified Foreign.Concurrent as Concurrent
 
-getState :: (Monad m, State.MonadState s m) => m s 
-getState = State.get
+-- getState :: (Monad m, State.MonadState s m) => m s 
+-- getState = State.get
 
-putState :: (Monad m, State.MonadState s m) => s -> m ()
-putState = State.put
+-- putState :: (Monad m, State.MonadState s m) => s -> m ()
+-- putState = State.put
 
 sktRecv :: Socket -> Int -> IO ByteString
 sktRecv = S.recv

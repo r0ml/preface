@@ -1,55 +1,68 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances, FunctionalDependencies, UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, FunctionalDependencies, UndecidableInstances #-}
 
 module Stringy where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import Data.Text (Text)
+import Data.String (IsString)
 import qualified Data.ByteString as B
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Read as T
+import qualified Data.Text.Lazy as TL
 import Data.Bits
 import Data.Word (Word8)
 import qualified Data.Char as C
 import System.IO (Handle, hGetContents)
 import qualified Data.List as DL
 
+import Data.Array.Unboxed (UArray, listArray, (!))
+
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Internal as BI
 import Foreign.ForeignPtr
-import Control.Applicative ((<$>))
+
+import System.Random (newStdGen, randomRs)
 
 -- instance Stringy a b => Show a where
 --   show x = asString x
 
+type LazyByteString = LC.ByteString
+type LazyText = TL.Text
+
 default (Integer, Int)
 
-class Enum a => Chary a where
+class (Eq a, Enum a) => Chary a where
     asChar :: a -> Char
     asByte :: a -> Word8
     isSpace :: a -> Bool
+    fromChar :: Char -> a
 
 instance Chary Char where
         asChar = id
         asByte = fromIntegral . C.ord
         isSpace = C.isSpace
+        fromChar = id
 
 instance Chary Word8 where
         asChar = C.chr . fromEnum
         asByte = id
         isSpace = C.isSpace . asChar
+        fromChar = fromIntegral . C.ord 
 
 type ErrorMessage = String
 
-class Chary b => Stringy a b | a -> b where
+class (IsString a, Eq a, Chary (Char_y a)) => Stringy a where 
+    type Char_y a
+
 -- can I change this definition to define a type for Chary?
     strCat :: [a] -> a
     strConcat :: [a] -> a
     strConcat = strCat
-    strConcatMap :: (b -> a) -> a -> a
+    strConcatMap :: ( (Char_y a) -> a ) -> a -> a
     strAppend :: a -> a -> a
     strAppend x y = strCat [x,y]
     
@@ -57,15 +70,15 @@ class Chary b => Stringy a b | a -> b where
     strEmpty = zilde
     zilde :: a
     strNull :: a -> Bool
-    strLen :: Integral c => a -> c
+    strLen :: a -> Integer
     strDrop :: (Integral c, Eq c) => c -> a -> a
-    strDropWhile :: (b->Bool) -> a -> a
+    strDropWhile :: ( (Char_y a) -> Bool) -> a -> a
 
     strTake :: (Integral c, Eq c) => c -> a -> a
-    strTakeWhile :: (b->Bool) -> a -> a
+    strTakeWhile :: ( (Char_y a)->Bool) -> a -> a
 
-    strBrk :: (b -> Bool) -> a -> (a,a)
-    strBreak :: (b -> Bool) -> a -> (a,a)
+    strBrk :: ((Char_y a) -> Bool) -> a -> (a,a)
+    strBreak :: ((Char_y a) -> Bool) -> a -> (a,a)
     strBreak = strBrk
     
     strBreakSubstring :: a -> a -> (a,a)
@@ -73,28 +86,30 @@ class Chary b => Stringy a b | a -> b where
     strLines :: a -> [a]
 
     strSplitAt :: (Integral c, Eq c) => c -> a -> (a,a)
-    stringleton :: b -> a
-    strReplicate :: (Integral c) => c -> b -> a
-    strCons :: b -> a -> a
-    strSnoc :: a -> b -> a
+    stringleton :: (Char_y a) -> a
+    strReplicate :: (Integral c) => c -> (Char_y a) -> a
+    strCons :: (Char_y a) -> a -> a
+    strSnoc :: a -> (Char_y a) -> a
     strHGetContents :: Handle -> IO a
-    nth :: Integral c => a -> c -> b
+    nth :: Integral c => a -> c -> (Char_y a)
 
     asByteString :: a -> ByteString
     asString :: a -> String
     asText :: a -> Text
-    
+    asLazyText :: a-> TL.Text
+    asLazyText x = TL.fromChunks [asText x]
+ 
     asLazyByteString :: a -> L.ByteString
     asLazyByteString x = L.fromChunks [asByteString x]
 
-    strHead :: a -> b
+    strHead :: a -> (Char_y a)
     strHead = flip nth ( 0 :: Int)
 
     strTail :: a -> a
     strTail = strDrop ( 1 :: Int)
 
-    strLast :: a -> b
-    strLast x = nth x (strLen x - 1 :: Int)
+    strLast :: a -> (Char_y a)
+    strLast x = nth x (strLen x - 1)
       
     isPrefixOf :: a -> a -> Bool
     startsWith :: a -> a -> Bool
@@ -104,7 +119,7 @@ class Chary b => Stringy a b | a -> b where
     endsWith :: a -> a -> Bool
     endsWith = flip isSuffixOf
     
-    strElemIndex :: (Integral c) => b -> a -> Maybe c
+    strElemIndex :: (Integral c) => (Char_y a) -> a -> Maybe c
 
     strReverse :: a -> a
     
@@ -112,19 +127,18 @@ class Chary b => Stringy a b | a -> b where
     strPut :: a -> IO ()
     strPutLn :: a -> IO ()
 
-    strMap :: (b->b) -> a -> a
-    strMapAccumL :: (d -> b -> (d, b)) -> d -> a -> (d, a)
+    strMap :: ((Char_y a)->(Char_y a)) -> a -> a
+    strMapAccumL :: (d -> (Char_y a) -> (d, (Char_y a))) -> d -> a -> (d, a)
 
-    pack :: [b] -> a
-    unpack :: a -> [b]
+    pack :: [(Char_y a)] -> a
+    unpack :: a -> [(Char_y a)]
 
     stripStart :: a -> a
-    stripStart = strDropWhile isSpace
     
-    splitChar :: b -> a -> [a]
+    splitChar :: (Char_y a) -> a -> [a]
     splitStr :: a -> a -> [a]
 --    splitOn :: a -> a -> [a]
-    splitWith :: (b->Bool) -> a -> [a]
+    splitWith :: ((Char_y a)->Bool) -> a -> [a]
 
     intercalate :: a -> [a] -> a
 
@@ -143,13 +157,15 @@ class Chary b => Stringy a b | a -> b where
 
     strToLower :: a -> a
     strToUpper :: a -> a
+
+    strReplace :: a -> a -> a -> a
+    strReplace orig repl text = if strNull text then strEmpty
+                                else if strLen text >= strLen orig && orig == strTake (strLen orig) text then strConcat [repl, strReplace orig repl (strDrop (strLen orig) text)]
+                                   else strCons ( strHead text)  (strReplace orig repl (strTail text))
+   
 {-
-  strReplace
-  strLast
   strSplit
   strSplitAll
-  strToLower
-  strToUpper
   strCapitalize
   strMap
   strJoin
@@ -162,7 +178,8 @@ class Chary b => Stringy a b | a -> b where
 
 -- Text, Lazy.Text, ByteString, Lazy.ByteString, String 
 
-instance Stringy T.Text Char where
+instance Stringy T.Text where
+  type Char_y T.Text = Char
   strCat = T.concat
   strConcatMap = T.concatMap
   zilde = T.empty
@@ -224,9 +241,98 @@ instance Stringy T.Text Char where
   strToLower = T.toLower
   strToUpper = T.toUpper
 
+  strReplace = T.replace
+
 --  strReads = TR.reads
 
-instance Stringy B.ByteString Word8 where
+instance Stringy TL.Text where
+  type Char_y TL.Text = Char
+  strCat = TL.concat
+  strConcatMap = TL.concatMap
+  zilde = TL.empty
+  strNull = TL.null
+  strLen = fromIntegral . TL.length
+  strDrop = TL.drop . fromIntegral
+  strDropWhile = TL.dropWhile
+  strTake = TL.take . fromIntegral
+  strTakeWhile = TL.takeWhile
+
+  strBrk = TL.break 
+  strBreakSubstring = TL.breakOn
+   
+  strLines = TL.lines 
+  strSplitAt = TL.splitAt . fromIntegral
+  stringleton = TL.singleton
+  strReplicate n x = TL.replicate (fromIntegral n) (stringleton x)
+  strCons a b = TL.cons a b
+  strSnoc a b = TL.snoc a b
+  
+  -- strHGetContents = TL.hGetContents
+  nth t n = TL.index t (fromIntegral n)
+  asByteString = T.encodeUtf8 . TL.toStrict
+  asString = TL.unpack
+  asText = TL.toStrict 
+  
+  isPrefixOf = TL.isPrefixOf
+  isSuffixOf = TL.isSuffixOf
+
+  -- strElemIndex a b = fmap fromIntegral (T.findIndex (==a) b)
+
+  strReverse = TL.reverse
+  strInit = TL.init
+  strPut = T.putStr . TL.toStrict
+  strPutLn = T.putStrLn . TL.toStrict
+  
+  strMap = TL.map
+  strMapAccumL = TL.mapAccumL
+  pack = TL.pack
+  unpack = TL.unpack
+
+  stripStart = TL.stripStart
+
+  splitChar = TL.splitOn . stringleton
+  splitStr = TL.splitOn
+--  splitOn = TL.splitOn
+  splitWith = TL.split
+
+  intercalate = TL.intercalate
+  -- strReadFile = T.readFile 
+  -- strWriteFile = T.writeFile
+  
+  -- str2decimal x = T.decimal TL.toStrict
+  -- signed = T.signed . TL.toStrict 
+  -- str2hexadecimal = T.hexadecimal . TL.toStrict
+  -- str2rational = T.rational . TL.toStrict
+  -- str2double = T.double . TL.toStrict
+  str2decimal a = case str2decimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyText z)
+
+  str2double a = case str2double (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyText z)
+
+  str2hexadecimal a = case str2hexadecimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyText z)
+
+  str2rational a = case str2rational (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyText z)
+
+  signed f a = case signed (\x2 -> case f (asLazyText x2) of { Left x -> Left x; Right (y, z) -> Right (y, asText z) }) (asText a) of
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyText z)
+
+
+  strToLower = TL.toLower
+  strToUpper = TL.toUpper
+
+  strReplace = TL.replace
+
+
+instance Stringy B.ByteString where
+  type Char_y B.ByteString = Word8
   strCat = B.concat
   strConcatMap = B.concatMap
   zilde = B.empty
@@ -268,6 +374,8 @@ instance Stringy B.ByteString Word8 where
   pack = B.pack
   unpack = B.unpack
   
+  stripStart = strDropWhile isSpace
+
   splitChar = B.split
   splitStr d x = let (a,b) = B.breakSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
 
@@ -278,16 +386,37 @@ instance Stringy B.ByteString Word8 where
   strReadFile = B.readFile
   strWriteFile = B.writeFile
 
-   -- str2decimal = T.decimal
-   -- signed = T.signed
-   -- str2hexadecimal = T.hexadecimal
-   -- str2rational = T.rational
-   -- str2double = T.double
- 
-   -- strToLower = 
-   -- strToUpper = 
+  str2decimal a = case str2decimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asByteString z)
 
-instance Stringy L.ByteString Word8 where
+  str2double a = case str2double (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asByteString z)
+
+  str2hexadecimal a = case str2hexadecimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asByteString z)
+
+  str2rational a = case str2rational (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asByteString z)
+
+  signed f a = case signed (\x2 -> case f (asByteString x2) of { Left x -> Left x; Right (y, z) -> Right (y, asText z) }) (asText a) of
+      Left x -> Left x
+      Right (y,z) -> Right (y, asByteString z)
+
+  strToLower = B.map (\x -> ctype_lower!x)
+  strToUpper = B.map (\x -> ctype_upper!x)
+  
+ctype_lower :: UArray Word8 Word8
+ctype_lower = listArray (0,255) (map (BI.c2w . C.toLower) ['\0'..'\255'])
+
+ctype_upper :: UArray Word8 Word8
+ctype_upper = listArray (0,255) (map (BI.c2w . C.toUpper) ['\0'..'\255'])
+
+instance Stringy L.ByteString where
+  type Char_y L.ByteString = Word8
   strCat = L.concat
   strConcatMap = L.concatMap
   zilde = L.empty
@@ -331,6 +460,8 @@ instance Stringy L.ByteString Word8 where
   pack = L.pack
   unpack = L.unpack
 
+  stripStart = strDropWhile isSpace
+
   splitChar = L.split
   splitStr d x = let (a,b) = strBreakSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
   splitWith = L.splitWith
@@ -339,16 +470,31 @@ instance Stringy L.ByteString Word8 where
   strReadFile = L.readFile
   strWriteFile = L.writeFile
   
-   -- str2decimal = T.decimal
-   -- signed = T.signed
-   -- str2hexadecimal = T.hexadecimal
-   -- str2rational = T.rational
-   -- str2double = T.double
- 
-   -- strToLower = 
-   -- strToUpper = 
+  str2decimal a = case str2decimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyByteString z)
 
-instance Stringy [Char] Char where
+  str2double a = case str2double (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyByteString z)
+
+  str2hexadecimal a = case str2hexadecimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyByteString z)
+
+  str2rational a = case str2rational (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyByteString z)
+
+  signed f a = case signed (\x2 -> case f (asLazyByteString x2) of { Left x -> Left x; Right (y, z) -> Right (y, asText z) }) (asText a) of
+      Left x -> Left x
+      Right (y,z) -> Right (y, asLazyByteString z)
+
+  strToLower = L.map (\x -> ctype_lower!x)
+  strToUpper = L.map (\x -> ctype_upper!x)
+
+instance Stringy [Char] where
+  type Char_y [Char] = Char
   strCat = concat
   strConcatMap = concatMap
   zilde = ""
@@ -393,6 +539,8 @@ instance Stringy [Char] Char where
   pack = id
   unpack = id
 
+  stripStart = strDropWhile isSpace 
+
   splitChar d x = let (_,b) = split_ ([],[]) x in b where
      split_ (a,b) [] = ([], reverse (reverse a : b))
      split_ (a,b) (f:xs) = if d == f then split_ ([], reverse a : b) xs else split_ (f:a, b) xs
@@ -412,9 +560,24 @@ instance Stringy [Char] Char where
         where a = reads x
   str2double x = if (null a) then Left "Parsing Error" else Right (head a)
         where a = reads x
+  str2hexadecimal a = case str2hexadecimal (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asString z)
+
+  str2rational a = case str2rational (asText a) of 
+      Left x -> Left x
+      Right (y,z) -> Right (y, asString z)
+
+  signed f a = case signed (\x2 -> case f (asString x2) of { Left x -> Left x; Right (y, z) -> Right (y, asText z) }) (asText a) of
+      Left x -> Left x
+      Right (y,z) -> Right (y, asString z)
 
   strToLower = map C.toLower
   strToUpper = map C.toUpper
+
+  -- strReplace orig repl text = if null text then ""
+  --                            else if startsWith orig text then repl ++ strReplace orig repl (drop (length orig) text)
+  --                                 else head text : strReplace orig repl (tail text)
 
 {-
 byteStringToString :: ByteString -> String
@@ -458,7 +621,7 @@ byteStringToForeignPtr :: ByteString -> (ForeignPtr Word8, Int, Int)
 byteStringToForeignPtr = BI.toForeignPtr
 -- ------------------------------------------------------------------------------
 
-base64 :: Stringy a b => a -> String
+base64 :: Stringy a => a -> String
 base64 a = let fe = fromIntegral . fromEnum
                q' = fe (strHead a)
                a' = strTail a
@@ -467,12 +630,12 @@ base64 a = let fe = fromIntegral . fromEnum
                alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
                q = (shiftR q' 2) .&. 63
                r = (((shiftR r' 4) .&. 15) .|. (shiftL (q' .&. 3) 4))
-               s = if strLen a < (2::Int) then 64 else ((shiftL (r' .&. 15) 2) .|. ((shiftR s' 6) .&. 3))
-               t = if strLen a < (3::Int) then 64 else (s' .&. 63)
+               s = if strLen a < 2 then 64 else ((shiftL (r' .&. 15) 2) .|. ((shiftR s' 6) .&. 3))
+               t = if strLen a < 3 then 64 else (s' .&. 63)
                ss = map (alphabet !!) [q,r,s,t]
            in if strNull a then "" else ss ++ (base64 rest)
 
-base16 :: Stringy a b => a -> String
+base16 :: Stringy a => a -> String
 base16 a = let d = strHead a
                e = 0x0f .&. shiftR (fromEnum d) 4
                f = 0x0f .&. (fromEnum d)
@@ -494,8 +657,13 @@ urlEncode' exch s = strConcat $ map  (encodeChar . fromEnum) (asString s)
       hex i = C.chr $ if i < 10 then 48 + i else 65 + i - 10 
 
 urlEncode
-    :: (Stringy a b) => Bool -- ^ Whether input is in query string. True: Query string, False: Path element
+    :: (Stringy a) => Bool -- ^ Whether input is in query string. True: Query string, False: Path element
     -> a
     -> String 
 urlEncode True  = urlEncode' "-_.~" . asByteString
 urlEncode False = urlEncode' ":@&=+$," . asByteString 
+
+
+randomString :: Int -> [Char] -> IO String
+randomString n a = do { rs <- fmap (take n . randomRs (0, length a - 1)) newStdGen ; return [a !! z | z <- rs] }
+

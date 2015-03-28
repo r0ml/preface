@@ -9,8 +9,8 @@ import Control.Concurrent as X (forkIO, forkOS, ThreadId, threadDelay, killThrea
                                )
 import Control.Exception as X (catch, bracket, finally, SomeException, Exception, throwIO)
 import Control.Monad as X (mzero, mplus, filterM, msum, forM, foldM, void, join, when, unless, forever)
-import Control.Monad.State as X (State, liftM2, liftM, execState)
-import Control.Monad.Trans as X (liftIO)
+-- import Control.Monad.State as X (State, liftM2, liftM, execState)
+-- import Control.Monad.Trans as X (liftIO)
 
 import Data.Binary as X (Binary, Get, Put) 
 import Data.Binary as X (get, put) -- I need to export these in order to create Binary classes
@@ -30,7 +30,7 @@ import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
-import Data.List as X (sort, sortBy, inits, tails, unfoldr, foldl', 
+import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl', 
                        find, transpose, zip4, intersect)
 import Data.Map as X (Map, assocs)
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
@@ -89,7 +89,7 @@ import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..),
 
 import Network as X (PortID(..), listenOn )
 -- import Network.Mime as X (defaultMimeLookup)
-import Network.URI as X (unEscapeString)
+-- import Network.URI as X (unEscapeString)
 
 {-
 import qualified Data.ByteString as B

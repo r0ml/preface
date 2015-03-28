@@ -14,10 +14,13 @@ Source-Repository head
 
 Library
   Build-Depends: base >=4 && < 5,
-                 text, mtl, process, time, directory, filepath,
-                 network, bytestring, network-uri,
-                 old-locale, binary, containers, vector
--- , mime-types
+                 text,
+                 process, time, directory, filepath, array,
+                 network, bytestring,
+                 random,
+                 binary,
+                 containers,
+                 vector
   Exposed-modules: Preface
   Other-Modules: Stringy, Byter, Misc
   Hs-Source-Dirs: .
