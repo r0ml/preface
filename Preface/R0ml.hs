@@ -1,19 +1,82 @@
+{-| This is r0ml's extended preface for GHC.
+    GHC 7.10 comes with the following builtin libraries:
 
-module Preface (module X, module Preface) where
+array
+base
+bin-pacakge-db -- this is an internal package, and should not be used
+binary
+bytestring
+Cabal
+containers
+deepseq
+directory
+filepath
+ghc
+ghc-prim  -- This API is still considered experimental and prone to change
+haskeline
+hoopl
+hpc
+integer-gmp
+pretty
+process
+template-haskell
+terminfo
+time
+transformers
+unix
+Win32
+xhtml
 
-import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$))
-import Control.Concurrent as X (forkIO, forkOS, ThreadId, threadDelay, killThread, 
-                                Chan, newChan, writeChan, readChan, getChanContents,
+    The first thing this preface does is to include most of the functions in most of these packages
+to provide a single import / namespace containing all of the commonly used builtin functions.
+-}
+
+module Preface.R0ml (module X, module Preface.R0ml
+  , Stringy(..), Chary(..) ) where
+
+import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$),(<**>), optional,
+                                 liftA, liftA2, liftA3, pure)
+import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkIOWithUnmask,
+                                      killThread, throwTo, forkOn, forkOnWithUnmask,
+                                      getNumCapabilities, setNumCapabilities, threadCapability,
+                                      yield, threadDelay, threadWaitRead, threadWaitWrite,
+                                      threadWaitReadSTM, threadWaitWriteSTM,
+                                      rtsSupportsBoundThreads, forkOS, isCurrentThreadBound,
+                                      runInBoundThread, runInUnboundThread, mkWeakThreadId,
+                                Chan, newChan, writeChan, readChan, dupChan,
+                                      getChanContents, writeList2Chan,
                                 QSem, newQSem, waitQSem, signalQSem,
-                                MVar, newEmptyMVar, takeMVar, putMVar, newMVar, withMVar
-                               )
-import Control.Exception as X (catch, bracket, finally, SomeException, Exception, throwIO)
-import Control.Monad as X (mzero, mplus, filterM, msum, forM, foldM, void, join, when, unless, forever)
--- import Control.Monad.State as X (State, liftM2, liftM, execState)
--- import Control.Monad.Trans as X (liftIO)
+                                QSemN, newQSemN, waitQSemN, signalQSemN,
+                                MVar, newEmptyMVar, newMVar, takeMVar, putMVar, readMVar, swapMVar,
+                                      tryTakeMVar, tryPutMVar, isEmptyMVar, withMVar, withMVarMasked,
+                                      modifyMVar_, modifyMVar, modifyMVarMasked_, modifyMVarMasked,
+                                      tryReadMVar, mkWeakMVar)
+import Control.DeepSeq as X (NFData(..), deepseq, ($!!), force)
+import Control.Exception as X (Exception(..), SomeException,
+                               IOException, ArithException, ArrayException, AssertionFailed,
+                               SomeAsyncException, AsyncException, NonTermination, NestedAtomically,
+                               BlockedIndefinitelyOnMVar, BlockedIndefinitelyOnSTM,
+                               AllocationLimitExceeded, Deadlock, NoMethodError, PatternMatchFail,
+                               RecConError, RecSelError, RecUpdError, ErrorCall, 
+                               asyncExceptionToException, asyncExceptionFromException,
+                               throw, throwIO, ioError,  
+                               catch, catches, Handler(..), catchJust, handle, handleJust,
+                               try, tryJust, evaluate, mapException,
+                               mask, mask_, uninterruptibleMask, uninterruptibleMask_,
+                               getMaskingState, allowInterrupt, MaskingState(..),
+                               assert, bracket, bracket_, bracketOnError, finally, onException)
+import Control.Monad as X (
+        mapM, mapM_, forM, forM_, sequence, sequence_,
+        (=<<), (>=>), (<=<), forever, void, 
+        join, msum, mfilter, filterM, mapAndUnzipM, zipWithM, zipWithM_, foldM, foldM_,
+        replicateM, replicateM_, guard, when, unless,
+        liftM, liftM2, liftM3, liftM4, liftM5, ap, (<$!>) )
+import Control.Monad.IO.Class as X (liftIO)
+import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
+-- Look at the differences between the Get/Put monads and using a Builder directly
 import Data.Binary as X (Binary, Get, Put) 
-import Data.Binary as X (get, put) -- I need to export these in order to create Binary classes
+import Data.Binary as X (get, put, encode, decode, decodeOrFail) 
 import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, getWord64be,
                              runGet)
 import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, putWord64be,
@@ -101,13 +164,15 @@ import qualified Data.Text as T (pack, unpack, singleton)
 import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 -}
 
-import Stringy as X
-import Byter as X
+import Preface.Stringy as X hiding()
+import Preface.Byter as X hiding ()
 
 import Debug.Trace as X
 
-import Misc as X
-import Math as X
+import Preface.Misc as X
+import Preface.Math as X
+
+import Preface.Symbols as X
 
 import Data.Vector as X ( (!), Vector )
 import qualified Data.Vector as V

@@ -1,5 +1,5 @@
 
-module Misc
+module Preface.Misc
 where
 
 -- import Control.Monad.State as State

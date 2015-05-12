@@ -1,5 +1,5 @@
 
-module Math (
+module Preface.Math (
     primes
   , fractionalPart
 )

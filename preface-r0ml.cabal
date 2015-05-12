@@ -1,0 +1,32 @@
+Name:           preface-r0ml
+Version:        0.2
+Cabal-Version:  >= 1.22
+Description:    An extended Prelude
+License:        PublicDomain
+Author:         Sherlock Holmes
+Category:       Prelude
+Maintainer:     me@r0ml.net
+Synopsis:       Utility functions for simplifying common problems
+Build-Type:     Simple
+Source-Repository head
+  Type:           git
+  Location:       git://github.com/r0ml/preface.git
+
+Library
+  Build-Depends: base >=4 && < 5
+                 , array, binary, bytestring, containers
+                 , deepseq
+                 , directory, filepath
+                 , ghc, haskeline, hpc, integer-gmp, pretty
+                 , process
+                 , template-haskell, terminfo
+                 , time
+                 , transformers
+                 , network, process, random, text, vector
+  Exposed-modules: Preface.R0ml
+  Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
+            , Preface.Symbols
+  Hs-Source-Dirs: .
+  Ghc-options: -Wall
+  Default-Language: Haskell2010
+

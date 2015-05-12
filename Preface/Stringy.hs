@@ -1,6 +1,37 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, FunctionalDependencies, UndecidableInstances #-}
 
-module Stringy where
+{- | String support in Haskell is a mess.  The String class represents a string as a List of characters.
+ - There are also ByteString classes (Lazy and Strict) which represent a bytestring as an array of bytes.
+ - And lastly, there are Text classes (Lazy and Strict) which represent a String as a Unicode encoded array of bytes.
+ - However, the functions which operate on these different string representations are different, and each representation
+ - implements functions which are not available in the others.
+ -
+ - The Stringy class attempts to normalize the String problem by providing a class which implements a uniform set
+ - of string functions on all representations.  
+ -
+ - Currently, there is a dependent type (Chary) which is the "type of character" composing the Stringy.  This is because
+ - the Text and String representations are built from Char elements, whereas a ByteString consists (logically) of bytes 
+ - (Word8 in Haskell).  One could possibly assert that all these Stringy implementations are based on Char,  thus obviating
+ - the need for Chary -- but for now, the distinction between strings made up of bytes vs. characters remains.
+ -
+ - Implementation of the string functions for Stringy is a precursor to implementing the APL functions for arrays.
+ - In APL, many of the string functions are the array functions -- so Stringy should probably be an subclass of 
+ - APL Array.  This has not yet been done.  However, when that happens, it is not unlikely that a Data.Sequence.Seq of 
+ - characters would be another instance of Stringy.
+ -}
+module Preface.Stringy 
+  ( Stringy(..)
+  , Chary(..)
+  , LazyByteString
+  , LazyText
+  , ErrorMessage
+  , byteStringToForeignPtr
+  , byteStringFromForeignPtr
+  , base16
+  , base64
+  , urlEncode
+  , randomString
+) where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
@@ -27,38 +58,41 @@ import Foreign.ForeignPtr
 
 import System.Random (newStdGen, randomRs)
 
--- instance Stringy a b => Show a where
---   show x = asString x
-
 type LazyByteString = LC.ByteString
 type LazyText = TL.Text
 
 default (Integer, Int)
 
+-- | A class for the element of a Stringy
 class (Eq a, Enum a) => Chary a where
     asChar :: a -> Char
     asByte :: a -> Word8
     isSpace :: a -> Bool
     fromChar :: Char -> a
 
+-- | Most strings are made of characters
 instance Chary Char where
         asChar = id
         asByte = fromIntegral . C.ord
         isSpace = C.isSpace
         fromChar = id
 
+-- | ByteStrings are made of Word8
 instance Chary Word8 where
         asChar = C.chr . fromEnum
         asByte = id
         isSpace = C.isSpace . asChar
         fromChar = fromIntegral . C.ord 
 
+-- | ErrorMessages are Strings
 type ErrorMessage = String
 
+-- | A class to define generic Strings
 class (IsString a, Eq a, Chary (Char_y a)) => Stringy a where 
     type Char_y a
 
 -- can I change this definition to define a type for Chary?
+
     strCat :: [a] -> a
     strConcat :: [a] -> a
     strConcat = strCat
