@@ -173,6 +173,7 @@ import Preface.Misc as X
 import Preface.Math as X
 
 import Preface.Symbols as X
+import Preface.SecureHash as X
 
 import Data.Vector as X ( (!), Vector )
 import qualified Data.Vector as V
