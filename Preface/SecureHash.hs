@@ -60,7 +60,7 @@ maj x y z = (x .&. (y .|. z)) .|. (y .&. z)
 -- --------------------------------------------------------------------------
 
 processSHA256Block :: SHA256State -> ByteString -> SHA256State
-processSHA256Block s00@(a00, b00, c00, d00, e00, f00, g00, h00) bb = do
+processSHA256Block s00@(a00, b00, c00, d00, e00, f00, g00, h00) bb =
   let ws = getSHA256Sched bb 
       ss = map (\(s,r,w) -> step256 s r w) (zip3 (s00 : ss) sha256rotor ws)
       (a64, b64, c64, d64, e64, f64, g64, h64) = last ss
@@ -242,8 +242,8 @@ md5 bs = let initialState = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
 
 -- should this be base16 ?
 stringDigest :: Digest -> String
-stringDigest = concat . map shex . B.unpack 
-  where shex :: Integral a => a -> [Char]
+stringDigest = concatMap shex . B.unpack 
+  where shex :: Integral a => a -> String
         shex n = let (a,b) = divMod (fromIntegral n) 16 in [BC.index chars a, BC.index chars b]
         chars = BC.pack ("0123456789abcdef" :: String)
 
