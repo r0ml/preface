@@ -68,7 +68,7 @@ import Control.Exception as X (Exception(..), SomeException,
 import Control.Monad as X (
         mapM, mapM_, forM, forM_, sequence, sequence_,
         (=<<), (>=>), (<=<), forever, void, 
-        join, msum, mfilter, filterM, mapAndUnzipM, zipWithM, zipWithM_, foldM, foldM_,
+        join, msum, mplus, mfilter, filterM, mapAndUnzipM, zipWithM, zipWithM_, foldM, foldM_,
         replicateM, replicateM_, guard, when, unless,
         liftM, liftM2, liftM3, liftM4, liftM5, ap, (<$!>) )
 import Control.Monad.IO.Class as X (liftIO)
@@ -172,6 +172,7 @@ import Debug.Trace as X
 import Preface.Misc as X
 import Preface.Math as X
 
+import Preface.Str as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 
