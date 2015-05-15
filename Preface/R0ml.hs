@@ -176,6 +176,9 @@ import Preface.Str as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 
+import Preface.Bindings.Curl as X
+import Preface.Bindings.Posix as X
+
 import Data.Vector as X ( (!), Vector )
 import qualified Data.Vector as V
 

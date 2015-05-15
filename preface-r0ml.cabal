@@ -21,12 +21,17 @@ Library
                  , process
                  , template-haskell, terminfo
                  , time
+                 , unix
                  , transformers
                  , network, process, random, text, vector
   Exposed-modules: Preface.R0ml
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.SCGI
             , Preface.Str
+            , Preface.Bindings.Curl, Preface.Bindings.CurlX, Preface.Bindings.KQueue
+            , Preface.Bindings.Msg
+            , Preface.Bindings.Posix, Preface.Bindings.Syslog, Preface.Bindings.Vfs
+  Extra-Libraries: curl
   Hs-Source-Dirs: .
   Ghc-options: -Wall
   Default-Language: Haskell2010
