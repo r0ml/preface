@@ -176,12 +176,22 @@ import Preface.Str as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 
+import Preface.Xml as X
+
 import Preface.Bindings.Curl as X
 import Preface.Bindings.Posix as X
 
 import Data.Vector as X ( (!), Vector )
 import qualified Data.Vector as V
 
+
+-- ----------------------------------------
+
+import Distribution.TestSuite as X
+
+
+
 vectorFromList :: [a] -> V.Vector a
 vectorFromList = V.fromList
+
 

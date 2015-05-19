@@ -24,15 +24,28 @@ Library
                  , unix
                  , transformers
                  , network, process, random, text, vector
+                 -- for building introspection and testing modules
+                 , Cabal
+                 -- temporarily
   Exposed-modules: Preface.R0ml
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.SCGI
             , Preface.Str
-            , Preface.Bindings.Curl, Preface.Bindings.CurlX, Preface.Bindings.KQueue
+            , Preface.Xml
+            , Preface.Bindings.Curl, Preface.Bindings.CurlX
+            , Preface.Bindings.KQueue
             , Preface.Bindings.Msg
             , Preface.Bindings.Posix, Preface.Bindings.Syslog, Preface.Bindings.Vfs
   Extra-Libraries: curl
   Hs-Source-Dirs: .
   Ghc-options: -Wall
   Default-Language: Haskell2010
+
+Test-Suite testXml
+  type: detailed-0.9
+  Default-Language: Haskell2010
+  Build-Depends: base, Cabal, preface-r0ml
+  hs-source-dirs: test
+  Ghc-options: -Wall
+  Test-Module: TestXml
 

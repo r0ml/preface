@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
 module Preface.Bindings.Syslog ( startLog,
-  openlog,  openlog_,  closelog,  syslog,  setlogmask,  Priority(..),  Facility(..),  Option(..)
+  openlog,  openlog_,  closelog,  syslog,  setlogmask,  SyslogPriority(..),  SyslogFacility(..),  SyslogOption(..)
   ) where
 
 import Control.Concurrent (newChan, writeChan, getChanContents, forkIO)
@@ -13,36 +13,36 @@ import Data.Tuple (swap)
 
 #include <syslog.h>
 
-data Facility = KERN | USER | MAIL | DAEMON | AUTH | SYSLOG | LPR | NEWS | UUCP | CRON
-  | AUTHPRIV | FTP | LOCAL0 | LOCAL1 | LOCAL2 | LOCAL3 | LOCAL4 | LOCAL5 | LOCAL6 | LOCAL7
+data SyslogFacility = LOG_KERN | LOG_USER | LOG_MAIL | LOG_DAEMON | LOG_AUTH | LOG_SYSLOG | LOG_LPR | LOG_NEWS | LOG_UUCP | LOG_CRON
+  | LOG_AUTHPRIV | LOG_FTP | LOG_LOCAL0 | LOG_LOCAL1 | LOG_LOCAL2 | LOG_LOCAL3 | LOG_LOCAL4 | LOG_LOCAL5 | LOG_LOCAL6 | LOG_LOCAL7
   deriving (Eq, Show)
 
-facilityMap :: [(Facility, Int)]
-facilityMap = [(KERN, #const LOG_KERN), (USER, #const LOG_USER), (MAIL, #const LOG_MAIL), (DAEMON, #const LOG_DAEMON),
-  (AUTH, #const LOG_AUTH), (SYSLOG, #const LOG_SYSLOG), (LPR, #const LOG_LPR), (NEWS, #const LOG_NEWS),
-  (UUCP, #const LOG_UUCP),(CRON, #const LOG_CRON), (AUTHPRIV, #const LOG_AUTHPRIV), (FTP, #const LOG_FTP),
-  (LOCAL0, #const LOG_LOCAL0), (LOCAL1, #const LOG_LOCAL1), (LOCAL2, #const LOG_LOCAL2), (LOCAL3, #const LOG_LOCAL3),
-  (LOCAL4, #const LOG_LOCAL4), (LOCAL5, #const LOG_LOCAL5), (LOCAL6, #const LOG_LOCAL6), (LOCAL7, #const LOG_LOCAL7)
+facilityMap :: [(SyslogFacility, Int)]
+facilityMap = [(LOG_KERN, #const LOG_KERN), (LOG_USER, #const LOG_USER), (LOG_MAIL, #const LOG_MAIL), (LOG_DAEMON, #const LOG_DAEMON),
+  (LOG_AUTH, #const LOG_AUTH), (LOG_SYSLOG, #const LOG_SYSLOG), (LOG_LPR, #const LOG_LPR), (LOG_NEWS, #const LOG_NEWS),
+  (LOG_UUCP, #const LOG_UUCP),(LOG_CRON, #const LOG_CRON), (LOG_AUTHPRIV, #const LOG_AUTHPRIV), (LOG_FTP, #const LOG_FTP),
+  (LOG_LOCAL0, #const LOG_LOCAL0), (LOG_LOCAL1, #const LOG_LOCAL1), (LOG_LOCAL2, #const LOG_LOCAL2), (LOG_LOCAL3, #const LOG_LOCAL3),
+  (LOG_LOCAL4, #const LOG_LOCAL4), (LOG_LOCAL5, #const LOG_LOCAL5), (LOG_LOCAL6, #const LOG_LOCAL6), (LOG_LOCAL7, #const LOG_LOCAL7)
   ]
 
-instance Enum Facility where
+instance Enum SyslogFacility where
   toEnum = fromJust . flip lookup (map swap facilityMap)
   fromEnum = fromJust . flip lookup facilityMap
 
-data Option = PID | CONS | ODELAY | NDELAY | NOWAIT | PERROR deriving (Eq, Show)
+data SyslogOption = LOG_PID | LOG_CONS | LOG_ODELAY | LOG_NDELAY | LOG_NOWAIT | LOG_PERROR deriving (Eq, Show)
 
-optionMap :: [(Option, Int)]
-optionMap = [(PID, #const LOG_PID), (CONS, #const LOG_CONS), (ODELAY, #const LOG_ODELAY), (NDELAY, #const LOG_NDELAY),
-  (NOWAIT, #const LOG_NOWAIT), (PERROR, #const LOG_PERROR)
+optionMap :: [(SyslogOption, Int)]
+optionMap = [(LOG_PID, #const LOG_PID), (LOG_CONS, #const LOG_CONS), (LOG_ODELAY, #const LOG_ODELAY), (LOG_NDELAY, #const LOG_NDELAY),
+  (LOG_NOWAIT, #const LOG_NOWAIT), (LOG_PERROR, #const LOG_PERROR)
   ]
-instance Enum Option where
+instance Enum SyslogOption where
   toEnum = fromJust . flip lookup (map swap optionMap)
   fromEnum = fromJust . flip lookup optionMap
 
 openlog :: String -> IO ()
-openlog x = openlog_ x [PID, PERROR] USER
+openlog x = openlog_ x [LOG_PID, LOG_PERROR] LOG_USER
 
-openlog_ :: String -> [Option] -> Facility -> IO ()
+openlog_ :: String -> [SyslogOption] -> SyslogFacility -> IO ()
 openlog_ ident opts facil = do
   let opt = toEnum . sum . map fromEnum $ opts
       fac = toEnum . fromEnum           $ facil
@@ -51,27 +51,27 @@ openlog_ ident opts facil = do
 closelog :: IO ()
 closelog = c_closelog
 
-data Priority = Emergency | Alert | Critical | Error | Warning | Notice | Info | Debug
+data SyslogPriority = SyslogEmergency | SyslogAlert | SyslogCritical | SyslogError | SyslogWarning | SyslogNotice | SyslogInfo | SyslogDebug
   deriving ( Eq, Show )
 
-prioMap :: [(Priority, Int)]
-prioMap = [(Emergency, #const LOG_EMERG), (Alert, #const LOG_ALERT), (Critical, #const LOG_CRIT), (Error, #const LOG_ERR),
-  (Warning, #const LOG_WARNING), (Notice, #const LOG_NOTICE), (Info, #const LOG_INFO), (Debug, #const LOG_DEBUG)
+prioMap :: [(SyslogPriority, Int)]
+prioMap = [(SyslogEmergency, #const LOG_EMERG), (SyslogAlert, #const LOG_ALERT), (SyslogCritical, #const LOG_CRIT), (SyslogError, #const LOG_ERR),
+  (SyslogWarning, #const LOG_WARNING), (SyslogNotice, #const LOG_NOTICE), (SyslogInfo, #const LOG_INFO), (SyslogDebug, #const LOG_DEBUG)
   ]
-instance Enum Priority where
+instance Enum SyslogPriority where
   toEnum = fromJust . flip lookup (map swap prioMap)
   fromEnum = fromJust . flip lookup prioMap
 
-syslog :: Priority -> String -> IO ()
+syslog :: SyslogPriority -> String -> IO ()
 syslog prio msg = withCString msg (\p -> withCString "%s" (\q -> c_syslog (toEnum (fromEnum prio)) q p))
 
-setlogmask :: [Priority] -> IO [Priority]
+setlogmask :: [SyslogPriority] -> IO [SyslogPriority]
 setlogmask prios = do
   let prio = foldl setBit 0 (map fromEnum prios)
   ps <- c_setlogmask prio
-  return $ filter (testBit ps . fromEnum) [Emergency,Alert,Critical,Error,Warning,Notice,Info,Debug]
+  return $ filter (testBit ps . fromEnum) [SyslogEmergency,SyslogAlert,SyslogCritical,SyslogError,SyslogWarning,SyslogNotice,SyslogInfo,SyslogDebug]
 
-startLog :: String -> IO (Priority -> String -> IO ())
+startLog :: String -> IO (SyslogPriority -> String -> IO ())
 startLog x = do
   openlog x
   ch <- newChan
