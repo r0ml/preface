@@ -1,6 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
 
-module TestXml (tests) where
+{-# LANGUAGE TemplateHaskell #-}
 
 import Preface.R0ml
 -- import Distribution.TestSuite
@@ -23,25 +22,15 @@ data SDBDomainMetadata = SDBDomainMetadata {
   sdbDmdAttributeNameCount :: Integer,
   sdbDmdTimestamp :: UTCTime} 
   deriving (Show, Eq)
-$(deriveXmlic defaultOptions ''SDBDomainMetadata)
+-- $(deriveXmlic defaultOptions ''SDBDomainMetadata)
 
-data NullaryTest = First | Second | Third deriving (Show, Eq)
+data NullaryTest = One | Two | Three deriving (Show, Eq)
 $(deriveXmlic defaultOptions ''NullaryTest)
-
--- data Multix = None | One String | Two Int Double | Three Int Double String deriving (Show, Eq)
--- $(deriveXmlic defaultOptions ''Multix)
-
--- instance Show Varmint
--- instance Eq Varmint
-
--- data Varmint = forall a . Num a => Varmint { first :: a, second :: Int } 
--- $(deriveXmlic defaultOptions ''Varmint)
-
 
 genXml nam = do
   b <- getCurrentTime
-  let a = SDBDomainMetadata 5 101 99 b
---  let a = Two
+--  let a = SDBDomainMetadata 5 101 99 b
+  let a = Two
       c = toXML a
       d = fromXML c
   print a
@@ -58,4 +47,8 @@ tests = do
   return [ makeTest "SimpleDB wsdl" sdbWsdl
          , makeTest "to/from XML" genXml         
          ]
+
+main = do
+        genXml "clem"
+        return ()
 

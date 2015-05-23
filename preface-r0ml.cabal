@@ -46,6 +46,13 @@ Test-Suite testXml
   Default-Language: Haskell2010
   Build-Depends: base, Cabal, preface-r0ml
   hs-source-dirs: test
-  Ghc-options: -Wall
+  Ghc-options: -Wall -ddump-splices
   Test-Module: TestXml
+
+Executable badTest
+  Default-Language: Haskell2010
+  Build-Depends: base, preface-r0ml
+  hs-source-dirs: test
+  Ghc-options: -Wall -ddump-splices
+  Main-is: BadTest.hs
 
