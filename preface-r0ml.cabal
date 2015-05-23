@@ -31,7 +31,7 @@ Library
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.SCGI
             , Preface.Str
-            , Preface.Xml
+            , Preface.Xml, Preface.JSONic
             , Preface.Bindings.Curl, Preface.Bindings.CurlX
             , Preface.Bindings.KQueue
             , Preface.Bindings.Msg
@@ -48,6 +48,14 @@ Test-Suite testXml
   hs-source-dirs: test
   Ghc-options: -Wall -ddump-splices
   Test-Module: TestXml
+
+Test-Suite testJson
+  type: detailed-0.9
+  Default-Language: Haskell2010
+  Build-Depends: base, Cabal, preface-r0ml, QuickCheck, bytestring, text, time, containers
+  hs-source-dirs: test
+  Ghc-options: -Wall 
+  test-module: TestJson
 
 Executable badTest
   Default-Language: Haskell2010

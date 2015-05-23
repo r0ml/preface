@@ -177,6 +177,7 @@ import Preface.Symbols as X
 import Preface.SecureHash as X
 
 import Preface.Xml as X
+import Preface.JSONic as X
 
 import Preface.Bindings.Curl as X
 import Preface.Bindings.Posix as X
