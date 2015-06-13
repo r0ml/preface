@@ -14,7 +14,7 @@ import Data.Tuple (swap)
 import Preface.Str (enumIr)
 import Bindings.Util (enumIx8)
 
-#include <syslog.h>
+-- #include <syslog.h>
 
 [enumIx8|SyslogFacility
 LOG_KERN        0  /* kernel messages */
