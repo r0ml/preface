@@ -1,6 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module Preface.Bindings.Msg
+module Bindings.Msg
 where
 
 import Foreign.Storable (Storable(..))

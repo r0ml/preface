@@ -3,7 +3,7 @@
 #include "sys/statvfs.h"
 #include "sys/mount.h"
 
-module Preface.Bindings.Vfs (
+module Bindings.Vfs (
 {- | Returns the result of a call to statvfs as described in "sys/statvfs.h".
      This result is a data structure consisting of integers representing:
           filesystem block size,

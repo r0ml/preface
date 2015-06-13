@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 
-module Preface.Bindings.CurlX ( Curl, curl_debug, mkCurl
+module Bindings.CurlX ( Curl, curl_debug, mkCurl
                       , curlPrim, c_curl_easy_setopt, c_curl_easy_setopt_p
                       , c_easy_perform, c_curl_easy_getinfo
                       , curl_add_finalizer

@@ -17,10 +17,6 @@ import Distribution.TestSuite (Progress(..), Result(..), Test(..), TestInstance(
 import Preface.R0ml
 import Control.Monad (forM, unless)
 import Data.Char (toUpper, toLower)
--- import Test.Framework (Test, defaultMain, testGroup)
--- import Test.Framework.Providers.QuickCheck2 (testProperty)
--- import Test.Framework.Providers.HUnit (testCase)
--- import Test.HUnit                     (Assertion, assertFailure, assertEqual)
 import Test.QuickCheck.Property (Testable)
 
 import Data.Maybe (isJust)
@@ -29,11 +25,9 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.Builder as TLB
 import qualified Data.Text.Lazy.Encoding as TLE
--- import Data.Time.Clock (UTCTime(..))
 import Data.Typeable
 import Control.Applicative (empty)
 
--- import qualified Data.Map as Map
 import qualified Data.Map as M
 import Data.Data
 
@@ -46,8 +40,6 @@ import Test.QuickCheck (Arbitrary(..), Gen, choose, oneof, elements)
 import Data.Time.Clock (DiffTime, UTCTime(..), picosecondsToDiffTime)
 import Data.Time (ZonedTime(..), LocalTime(..), TimeZone(..),
                   hoursToTimeZone, Day(..), TimeOfDay(..))
--- import Data.Text (Text)
-
 
 type Assertion = IO ()
 
@@ -592,3 +584,7 @@ optsObjectWithSingleField = optsDefault
                             { allNullaryToStringTag = False
                             , sumEncoding           = ObjectWithSingleField
                             }
+
+
+clem = assertEqual "json map" (Right $ JsonObject $ [("one", JsonNumber (II 1) ), ("two", JsonNumber (DD 2.1) )]) (readJSON "{\"one\":1,\"two\":2.1}")
+

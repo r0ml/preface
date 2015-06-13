@@ -81,12 +81,13 @@ getSCGI sock = do
         recurse len ndx chan
     hdrs <- newEmptyMVar
     wchan <- newChan
+    wv <- newEmptyMVar
     _ <- forkIO $ do
         hd <- takeMVar hdrs
         -- I could send the headers immediately and then wait for the body, OR insert into the output stream
         -- sendFully sock hdx
         writeBody wchan sock (genhdrs hd)
-    return $ CGI eenv chan hdrs wchan
+    return $ CGI eenv chan hdrs wchan wv
   where blksiz = 4096
         writeBody x k buf = do
               buf2 <- sendBlocks k buf (8192 :: Int)
@@ -142,6 +143,7 @@ type PostBody = ByteString
 
 data CGI = CGI { cgiRqHeaders :: MVar CGIVars,  cgiRqBody :: Chan PostBody
                 , cgiRspHeaders :: MVar HTTPHeaders, cgiRspBody :: Chan PostBody
+                , cgiWriterVar :: MVar Bool
                }
 
 cgiGetHeaders :: CGI -> IO CGIVars
@@ -158,6 +160,8 @@ doCGI f = do
   a <- getCGI
   f a
   writeResponse a B.empty
+  _ <- takeMVar (cgiWriterVar a)
+  return ()
 
 writeBlocks :: ByteString -> IO ()
 writeBlocks = B.putStr
@@ -168,6 +172,7 @@ getCGI = do
     chan <- newChan
     vars <- getEnvironment
     putMVar eenv vars
+    wv <- newEmptyMVar
 
     hdrs <- newEmptyMVar
     wchan <- newChan
@@ -176,7 +181,8 @@ getCGI = do
         -- I could send the headers immediately and then wait for the body, OR insert into the output stream
         -- sendFully sock hdx
         writeBody wchan (genhdrs hd)
-    return $ CGI eenv chan hdrs wchan
+        putMVar wv True
+    return $ CGI eenv chan hdrs wchan wv
   where writeBody x buf = do
               writeBlocks buf
               -- bb <- readChan x

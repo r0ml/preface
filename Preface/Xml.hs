@@ -3,12 +3,20 @@
 module Preface.Xml (
     XmlElement (..)
   , XMLic (..)
+  , XmlOptions(..)
+  , XmlError
   , parseXml
+  , attrValue
   , findNodesWith
   , findNodes
+  , firstNodeWith
+  , firstNode
+  , getText
   , children
   , deriveXmlic
-  , defaultOptions
+  , defaultXmlOptions
+
+  , consFromXML
 ) where
 
 import Data.List (isPrefixOf, foldl', partition)
@@ -17,6 +25,7 @@ import Data.Maybe (catMaybes)
 import Control.Monad (liftM2)
 import Text.Printf
 import Data.Time (UTCTime)
+import Data.Either (partitionEithers)
 
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -39,12 +48,13 @@ instance Show XmlAttr where
   show (XmlAttr a b) = " "++show a ++ "=" ++ show b
 
 instance Show XmlElement where
-  show (XmlNode t a e) = "<"++t++concatMap show a++">\r"++concatMap (\x->'\n' : show x) e++"</"++t++">"
+  show (XmlNode t a e) = "<"++t++concatMap show a++">\n"++concatMap (\x->'\n' : show x) e++"</"++t++">"
   show (XmlComment x) = "<!--" ++ x ++ "-->"
   show (XmlText x) = x
   show (XmlParseError x) = let (a,b) = splitAt 100 x
                             in "*** XmlParseError: " ++ a ++ if null b then "" else " ... "
 
+trim :: String -> String
 trim = dropWhile isSpace
 
 split :: String -> String -> (String, String)
@@ -54,8 +64,8 @@ split x y = let (a,b) = split_ ("",y) in (reverse a, b)
                           else split_ (head r : q, tail r)
 
 parseXml :: ParserState -> XmlElement
-parseXml str = let (xmlh, rest) = popXh str
-                   (schm, r2) = schema rest
+parseXml str = let (_xmlh, rest) = popXh str
+                   (_schm, r2) = schema rest
                    (elm, r3) = xmlParser r2
                 in if null (trim r3) then elm
                    else case elm of
@@ -74,8 +84,8 @@ xmlParser = xmlParser_ . trim
 
 prepn :: XmlElement -> XmlElement -> XmlElement
 prepn e (XmlNode t a c) = XmlNode t a (e:c)
-prepn e f@(XmlParseError _) = f
-prepn e _ = XmlParseError "unable to prepend element"
+prepn _e f@(XmlParseError _) = f
+prepn _e _ = XmlParseError "unable to prepend element"
 
 comment :: ParserState -> (Maybe XmlElement, ParserState) 
 comment str = if "<!--" `isPrefixOf` str 
@@ -109,9 +119,12 @@ openTag str = let r = trim str
 -- closeTag :: ParserState -> (XmlTag, ParserState)
 -- closeTag str = string "</" >> spaces >> string str >> spaces >> char '>' >> spaces >> return ()
 
-closeTag e@(XmlNode t a es) s =
-        if (t ++ ">") `isPrefixOf` s then (e, drop (1+length t) s)
+closeTag :: XmlElement -> ParserState -> (XmlElement, ParserState)
+closeTag (XmlNode t _a _es) s =
+        if (t ++ ">") `isPrefixOf` s then ( XmlNode t _a (reverse _es), drop (1+length t) s)
         else (XmlParseError ("closing tag does not match open tag: "++t), s)
+closeTag _ _ = trace "closing tag cannot be called with non-XmlNode element" undefined
+
 
 -- | The currently parsing outer node is passed in, as well as the 
 -- string being parsed.  A node is popped off the string and added
@@ -135,6 +148,7 @@ parseBody e@(XmlNode t a es) s =
                           _ -> parseBody (XmlNode t a (q:es)) r
           else let (j,k) = span (/= '<') s1
                 in parseBody (XmlNode t a (XmlText j:es)) k 
+parseBody _ _ = trace "parseBody cannot be called with non-XmlNode element" undefined
 
 -- | Parse key/value attributes in an open tag
 -- If successful, this leaves us at the end of the open tag
@@ -171,8 +185,13 @@ quotedString str = if '"' == head str || '\'' == head str
            | True = qs c (head s : i) (tail s)
 
 nodeMatches :: (XmlTag -> Bool) -> XmlElement -> Bool
-nodeMatches f (XmlNode ztag _ _) = f ztag
-nodeMatches _ _ = False
+nodeMatches f (XmlNode ztag _ _) = let res = f ztag in traceShow ("nodeMatches", ztag, res) res
+nodeMatches _ _a = traceShow ("nodeMatchesNone", _a) False
+
+attrValue :: String -> XmlElement -> Maybe String
+attrValue x (XmlNode _ a _) = let z = filter (\(XmlAttr k _v) -> x == k) a in 
+                               if null z then Nothing else Just ((\(XmlAttr _ v)->v) (head z))
+attrValue _n _ = trace "non-XmlNode XmlElements dont have attributes" undefined
 
 findNodesWith :: (XmlTag -> Bool) -> XmlElement -> [XmlElement]
 findNodesWith f z = if nodeMatches f z then [z] else case z of
@@ -183,7 +202,7 @@ firstNodeWith :: (XmlTag -> Bool) -> XmlElement -> Maybe XmlElement
 firstNodeWith f z = let a = findNodesWith f z in if null a then Nothing else Just $ head a
 
 firstNode :: String -> XmlElement -> Maybe XmlElement
-firstNode x = firstNodeWith (==x)
+firstNode x z = traceShow ("firstNode", x, z) $ firstNodeWith (==x) z
 
 findNodes :: String -> XmlElement -> [XmlElement]
 findNodes x = findNodesWith (==x)
@@ -192,10 +211,18 @@ children :: XmlElement -> [XmlElement]
 children (XmlNode _ _ nodes) = nodes
 children _ = []
 
+getText :: XmlElement -> String
+getText (XmlNode _ _ [XmlText x]) = x
+getText _ = error "not a text node"
 -- ----------------------------------------------
 -- auto derivation of xml-ability
 
-type XmlError = String
+data XmlError = XmlError String
+instance Show XmlError where
+        show (XmlError a) = a
+
+xmlError :: String -> Either XmlError a
+xmlError a = Left $ XmlError $ trace a a
 
 class XMLic a where
         toXML :: a -> XmlElement
@@ -205,27 +232,45 @@ instance XMLic Int where
       toXML = XmlText . show 
       fromXML x = case x of
                     XmlText y -> Right (read y)
-                    otherwise -> Left ( "not an XmlText: " ++ show x) 
+                    _ -> xmlError ( "not an XmlText (int): " ++ show x) 
                     
 instance XMLic Integer where
       toXML = XmlText . show 
       fromXML x = case x of
                     XmlText y -> Right (read y)
-                    otherwise -> Left ("not an XmlText: "++ show x)
+                    _ -> xmlError ("not an XmlText (integer): "++ show x)
+
+instance XMLic Bool where
+      toXML x = XmlText (if x then "1" else "0")
+      fromXML x = case x of 
+                    XmlText y -> let xx = dropWhile isSpace y
+                                     fc = if null xx then ' ' else head xx
+                                  in Right (fc `elem` "1YyTt")
+                    XmlNode _t _a [XmlText c] -> Right (if null c then False else ((head c) `elem` "1YyTt"))
+                    _ -> xmlError ("not an XmlText (bool): " ++ show x)
+
+
+instance XMLic String where
+        toXML = XmlText 
+        fromXML x = case x of 
+                      XmlText y -> Right y
+                      XmlNode _t _a [XmlText c] -> Right c
+                      _ -> xmlError ("not an XmlText (string): " ++ show x)
 
 instance XMLic Double where
       toXML = XmlText . show 
       fromXML x = case x of
                     XmlText y -> Right (read y)
-                    otherwise -> Left ("not an XmlText"++ show x)
+                    _ -> xmlError ("not an XmlText (double): "++ show x)
 
 instance XMLic UTCTime where
       toXML = XmlText . show 
       fromXML x = case x of
                     XmlText y -> Right (read y)
-                    otherwise -> Left ("not an XmlText: "++ show x)
+                    _ -> xmlError ("not an XmlText (utcTime): "++ show x)
 
-deriveXmlic :: Options -> Name -> Q [Dec]
+
+deriveXmlic :: XmlOptions -> Name -> Q [Dec]
 deriveXmlic opts name = 
       withType name $ \tvbs cons -> fmap (:[]) $ fromCons tvbs cons
   where
@@ -248,7 +293,7 @@ deriveXmlic opts name =
             instanceType = foldl' appT (conT name) $ map varT typeNames
 
 
-consToXML :: Options -> [Con] -> Q Exp
+consToXML :: XmlOptions -> [Con] -> Q Exp
 consToXML _ [] = error $ "consToXML: Not a single constructor"
 consToXML opts [con] = do
         value <- trace "consToXML" $ newName "value"
@@ -257,25 +302,26 @@ consToXML opts cons = do
         value <- newName "value"
         lam1E (varP value) $ caseE (varE value) matches
   where matches
-          | allNullaryToStringTag opts && all isNullary cons = trace "consToXML allNullaryToStringTag"
+          | xmlAllNullaryToStringTag opts && all isNullary cons = trace "consToXML allNullaryToStringTag"
                   [ match (conP conName []) (normalB $ constrNode opts conName) []
                   | con <- cons
                   , let conName = getConName con
                   ]
           | otherwise = trace "consToXML otherwise" [encodeArgs opts True con | con <- cons]
 
-data Options = Options {
-          allNullaryToStringTag :: Bool
-        , omitNothingFields :: Bool
-        , fieldLabelModifier :: String -> String
-        , constructorTagModifier :: String -> String
+data XmlOptions = XmlOptions {
+          xmlAllNullaryToStringTag :: Bool
+        , xmlOmitNothingFields :: Bool
+        , xmlFieldLabelModifier :: String -> String
+        , xmlConstructorTagModifier :: String -> String
         }
 
-defaultOptions = Options { allNullaryToStringTag = True
-                         , omitNothingFields = True
-                         , fieldLabelModifier = id
-                         , constructorTagModifier = id
-                         }
+defaultXmlOptions :: XmlOptions
+defaultXmlOptions = XmlOptions { xmlAllNullaryToStringTag = True
+                               , xmlOmitNothingFields = True
+                               , xmlFieldLabelModifier = id
+                               , xmlConstructorTagModifier = id
+                               }
 -- -------------------------------------------------------------
 -- -------------------------------------------------------------
 
@@ -297,12 +343,12 @@ isNullary :: Con -> Bool
 isNullary (NormalC _ []) = True
 isNullary _ = False
 
-fieldLabelExp :: Options -> Name -> Q Exp
-fieldLabelExp opts = litE . stringL . fieldLabelModifier opts . nameBase
+fieldLabelExp :: XmlOptions -> Name -> Q Exp
+fieldLabelExp opts = litE . stringL . xmlFieldLabelModifier opts . nameBase
 
 -- ------------------------------------------------------
 
-parseArgs :: Name -> Options -> Con -> Either (String, Name) Name -> Q Exp
+parseArgs :: Name -> XmlOptions -> Con -> Either (String, Name) Name -> Q Exp
 parseArgs tName _ (NormalC conName []) (Left (valFieldName, obj)) =
         getValField obj valFieldName $ parseNullaryMatches tName conName
 
@@ -319,9 +365,9 @@ parseArgs _ _ (NormalC conName [_]) (Right valName) =
 parseArgs tName opts (RecC conName ts) (Left (_, obj)) =
     parseRecord opts tName conName ts obj
 parseArgs tName opts (RecC conName ts) (Right valName) = do
-  obj <- newName "recObj"
+  -- obj <- newName "recObj"
   caseE (varE valName)
-    [ match (conP 'XmlNode [ {-varP obj-} wildP, listP [], wildP ]) (normalB $ parseRecord opts tName conName ts {- obj -} valName ) []
+    [ match (conP 'XmlNode [ {-varP obj-} wildP, wildP, wildP ]) (normalB $ parseRecord opts tName conName ts {- obj -} valName ) []
     , matchFailed tName conName "XmlNode"
     ]
 
@@ -340,29 +386,51 @@ parseArgs tName opts (ForallC _ _ con) contents =
     parseArgs tName opts con contents
 
 -- the names are mostly needed for error reporting
-parseRecord :: Options -> Name -> Name -> [VarStrictType] -> Name -> ExpQ
+parseRecord :: XmlOptions -> Name -> Name -> [VarStrictType] -> Name -> ExpQ
 parseRecord opts tName conName ts obj =
     foldl' (\a b -> infixApp a [|(<*>)|] b)
            (infixApp (conE conName) [|(<$>)|] x)
            xs
     where
-      x:xs = [ [| lookupField |]
-               `appE` (litE $ stringL $ show tName)
-               `appE` (litE $ stringL $ constructorTagModifier opts $ nameBase conName)
-               `appE` (varE obj)
-               `appE` ( fieldLabelExp opts field )
-             | (field, _, _) <- ts
+      x:xs = traceShow ("parseRecord",tName,conName,ts,obj) $ [ kind tx
+            `appE` fieldLabelExp opts field | (field, _, tx) <- ts
              ]
+      kind t = case t of 
+                  AppT (ConT ax) (ConT bt) -> traceShow ("appt cont", t) $ if ax == ''Maybe then traceShow "maybe" $ cxs [|lookupMaybeField|] bt else traceShow "not maybe" $ cxs [|lookupField|] t
+                  AppT ListT bt -> cxs [|lookupArrayField |] bt
+                  bt -> cxs [|lookupField|] bt
+      cxs x2 _y = x2
+          `appE` (litE $ stringL $ show tName)
+          `appE` (litE $ stringL $ xmlConstructorTagModifier opts $ nameBase conName)
+          `appE` (varE obj)
 
+lookupArrayField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError [a]
+lookupArrayField _tName _rec obj key =
+        let fl = findNodes key obj
+            flm = map fromXML fl :: XMLic a => [Either XmlError a]
+            (ls, rs) = partitionEithers flm
+         in if null ls then Right rs else xmlError $ concatMap (\(XmlError x) -> x++"\n") ls
+
+lookupField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError a
 lookupField tName rec obj key = 
         case firstNode key obj of
           Nothing -> unknownFieldFail tName rec key
-          Just (XmlNode t _ [v])  -> fromXML v 
-          _ -> Left $ printf "did not match XmlNode with single child when parsing key %s of %s" key rec
+          -- so the point here is either:
+          -- an array of children -- if I'm looking for an array
+          -- a child if I'm looking for a child
+          Just v  -> fromXML v 
+          -- _z -> traceShow ("lookupField", obj) $ xmlError $ printf "lookupField: did not match XmlNode with single child when parsing key %s of %s (%s)" key rec (show _z)
 
-unknownFieldFail :: String -> String -> String -> Either String fail
+lookupMaybeField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError (Maybe a)
+lookupMaybeField _tName rec obj key =
+        case firstNode key obj of
+          Nothing -> Right Nothing
+          Just (XmlNode _t _ [v]) -> either Left (Right . Just) (fromXML v)
+          _ -> xmlError $ printf "lookupMaybeField: did not match XmlNode with single child when parsing key %s of %s" key rec
+
+unknownFieldFail :: String -> String -> String -> Either XmlError fail
 unknownFieldFail tName rec key =
-    Left $ printf "When parsing the record %s of type %s the key %s was not present."
+    xmlError $ printf "unknownFieldFail: When parsing the record %s of type %s the key %s was not present."
                   rec tName key
 
 -- -----------------------------------------------------
@@ -371,7 +439,7 @@ parseNullaryMatches :: Name -> Name -> [Q Match]
 parseNullaryMatches = undefined
 
 parseUnaryMatches :: Name -> [Q Match]
-parseUnaryMatches conName  = undefined
+parseUnaryMatches _conName  = undefined
 
 -- ------------------------------------------------------
 
@@ -401,7 +469,7 @@ data XmlArray a = XmlArray [a] -- undefined
 -- -------------------------------------------------------------
 
 -- | Generates code to generate the XML encoding of a single constructor.
-encodeArgs :: Options -> Bool -> Con -> Q Match
+encodeArgs :: XmlOptions -> Bool -> Con -> Q Match
 encodeArgs opts multiCons (NormalC conName []) = 
         trace "ea 1" $ match (conP conName []) 
               (normalB (encodeSum opts multiCons conName [e|toXML ([] :: [()]) |] ))
@@ -415,7 +483,7 @@ encodeArgs opts multiCons (NormalC conName ts) = do
         xml <- case [ [|toXML|] `appE` varE arg | arg <- args] of
                  [e] -> return e
                  es -> do
-                         do
+                         _ <- do
                             p<- mapM runQ es
                             trace (pprint p) [|()|]
                          return $ [|XmlArray|] `appE` listE es
@@ -429,9 +497,9 @@ encodeArgs opts multiCons (NormalC conName ts) = do
 -- XmlNode conName [] . (map (\x -> XmlNode fldnam [] [toXML x]))
 encodeArgs opts multiCons (RecC conName ts) = do
     args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
-    let exp = [| \z -> XmlNode z [] |] `appE` constrStr opts conName `appE` pairs 
+    let exp2 = [| \z -> XmlNode z [] |] `appE` constrStr opts conName `appE` pairs 
 
-        pairs | omitNothingFields opts = infixApp maybeFields [|(++)|] restFields
+        pairs | xmlOmitNothingFields opts = infixApp maybeFields [|(++)|] restFields
               | otherwise = listE $ map toPair argCons
 
         argCons = zip args ts
@@ -456,8 +524,8 @@ encodeArgs opts multiCons (RecC conName ts) = do
     match (conP conName $ map varP args)
           ( normalB
           $ if multiCons 
-            then [| (\x -> XmlNode x []) |] `appE` constrStr opts conName `appE` listE [exp]
-            else exp
+            then [| (\x -> XmlNode x []) |] `appE` constrStr opts conName `appE` listE [exp2]
+            else exp2
           ) []
 
 -- Infix constructor
@@ -476,27 +544,27 @@ encodeArgs opts multiCons (InfixC _ conName _ ) = do
 encodeArgs opts multiCons (ForallC _ _ con) = encodeArgs opts multiCons con
 
 -- ----------------------------------------------------------
-constrNode :: Options -> Name -> Q Exp
-constrNode opts = appE [|(\x -> XmlNode x [] []) |] . stringE . constructorTagModifier opts . nameBase
+constrNode :: XmlOptions -> Name -> Q Exp
+constrNode opts = appE [|(\x -> XmlNode x [] []) |] . stringE . xmlConstructorTagModifier opts . nameBase
 
-constrStr :: Options -> Name -> Q Exp
-constrStr opts = stringE . constructorTagModifier opts . nameBase
+constrStr :: XmlOptions -> Name -> Q Exp
+constrStr opts = stringE . xmlConstructorTagModifier opts . nameBase
 -- ----------------------------------------------------------
 
-encodeSum :: Options -> Bool -> Name -> Q Exp -> Q Exp
-encodeSum opts multiCons conName exp
-   | multiCons = [|XmlText|] `appE` exp
-               -- [|XmlNode|] `appE` (listE [constrStr opts conName, exp])
+encodeSum :: XmlOptions -> Bool -> Name -> Q Exp -> Q Exp
+encodeSum _opts multiCons _conName exp2
+   | multiCons = [|XmlText|] `appE` exp2
+               -- [|XmlNode|] `appE` (listE [constrStr opts conName, exp2])
                
 
 
 -- -------------------------------------------------------------
-noStringFail :: String -> String -> Either String fail
-noStringFail t o = Left $ printf "When parsing %s expected XmlNode but got %s." t o
+noStringFail :: String -> String -> Either XmlError fail
+noStringFail t o = xmlError $ printf "When parsing %s expected XmlNode but got %s." t o
 
 noMatchFail :: String -> String -> Either XmlError fail
 noMatchFail t o =
-    Left $ printf "When parsing %s expected an XmlNode but got %s." t o
+    xmlError $ printf "When parsing %s expected an XmlNode but got %s." t o
 
 -- | The name of the outermost 'JSON' constructor.
 valueConName :: XmlElement -> String
@@ -506,7 +574,7 @@ valueConName (XmlParseError _) = "XmlParseError"
 valueConName _ = "UnknownXmlConstructor"
 -- =============================================================
 
-consFromXML :: Name -> Options -> [Con] -> Q Exp
+consFromXML :: Name -> XmlOptions -> [Con] -> Q Exp
 consFromXML _ _ [] = error $ "consFromXML: not a single constructor"
 consFromXML tName opts [con] = do
         value <- trace "consFromXML" $  newName "value"
@@ -515,19 +583,19 @@ consFromXML tName opts [con] = do
 consFromXML tName opts cons = do
   value <- newName "value"
   lam1E (varP value) $ caseE (varE value) $
-    if allNullaryToStringTag opts && all isNullary cons
-    then allNullaryMatches
+    if xmlAllNullaryToStringTag opts && all isNullary cons
+    then xmlAllNullaryMatches
     else mixedMatches
 
   where
-    allNullaryMatches =
+    xmlAllNullaryMatches =
       [ do txt <- newName "txt"
            match (conP 'XmlNode [varP txt, listP [], listP []] )
                  (guardedB $
                   [ liftM2 (,) (normalG $
                                   infixApp (varE txt)
                                            [|(==)|]
-                                           (( stringE . constructorTagModifier opts . nameBase) conName)
+                                           (( stringE . xmlConstructorTagModifier opts . nameBase) conName)
                                )
                                ([|Right|] `appE` conE conName)
                   | con <- cons
@@ -673,7 +741,7 @@ consFromXML tName opts cons = do
                                    `appE` (litE $ stringL $ show tName)
                                    `appE` listE (map ( litE
                                                      . stringL
-                                                     . constructorTagModifier opts
+                                                     . xmlConstructorTagModifier opts
                                                      . nameBase
                                                      . getConName
                                                      ) cons
@@ -811,7 +879,7 @@ matchFailed tName conName expected = do
         []
 parseTypeMismatch :: Name -> Name -> String -> ExpQ -> ExpQ
 parseTypeMismatch tName conName expected actual =
-    [| Left |] `appE` (foldl appE
+    [| xmlError |] `appE` (foldl appE
           [| printf "When parsing the constructor %s of type %s expected %s but got %s"|]
           [ litE $ stringL $ show tName
           , litE $ stringL $ nameBase conName

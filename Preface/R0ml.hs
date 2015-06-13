@@ -89,6 +89,7 @@ import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 import Data.Char as X (chr, ord, toLower, digitToInt, isDigit, isAlpha,
                        isHexDigit,
                        isUpper, isLower, toUpper, toLower, isAlphaNum)
+import Data.Either as X (isLeft, isRight, lefts, rights, partitionEithers)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
@@ -179,18 +180,35 @@ import Preface.SecureHash as X
 import Preface.Xml as X
 import Preface.JSONic as X
 
-import Preface.Bindings.Curl as X
-import Preface.Bindings.Posix as X
+import Bindings.Curl as X
+import Bindings.Posix as X
 
 import Data.Vector as X ( (!), Vector )
 import qualified Data.Vector as V
 
+import Preface.SCGI as X
 
 -- ----------------------------------------
+import Distribution.TestSuite as X ( Progress(..), Test, testGroup)
+import qualified Distribution.TestSuite as TS
 
-import Distribution.TestSuite as X
+-- data TestInstance  = TS.TestInstance 
+--  { testRun :: IO Progress, testName :: String,
+--                   testTags :: [String], testOptions :: [OptionDescr],
+--                   testSetOptions :: String -> String -> Either String TestInstance }
 
+-- data TestInstance = TestInstance { TS.TestInstance | run -> testRun }
 
+makeTest :: String -> (String -> IO TestResult) -> Test
+makeTest nam dotest = 
+  let t = TS.TestInstance { TS.run = do { a <- dotest nam; return (Finished (cvt a)) }
+      , TS.name = nam, TS.tags = [], TS.options = []
+      , TS.setOption = \_  _ -> Right t }
+   in TS.Test t
+  where cvt TestPass = TS.Pass
+        cvt (TestFail a) = TS.Fail a
+
+data TestResult = TestPass | TestFail String
 
 vectorFromList :: [a] -> V.Vector a
 vectorFromList = V.fromList

@@ -3,19 +3,12 @@
 module TestXml (tests) where
 
 import Preface.R0ml
--- import Distribution.TestSuite
-
-makeTest nam dotest = 
-  let t = TestInstance { run = do { a <- dotest nam; return (Finished a) }
-      , name = nam, tags = [], options = [], setOption = \_  _ -> Right t }
-   in Test t
 
 sdbWsdl nam = do
   a <- strReadFile "test/AmazonSimpleDB.wsdl" :: IO String
   return $ case parseXml a of 
-    z@(XmlParseError x) -> Fail (show z)
-    _ -> Pass
-
+    z@(XmlParseError x) -> TestFail (show z)
+    _ -> TestPass
 
 data SDBDomainMetadata = SDBDomainMetadata {
   sdbDmdItemCount :: Integer,
@@ -50,11 +43,11 @@ genXml nam = do
   putStrLn "-----------"
   print d
   return $ case d of 
-    Left x -> Fail x
-    Right x -> if a == x then Pass else Fail $ (show (a,c,d)) 
+    Left x -> TestFail x
+    Right x -> if a == x then TestPass else TestFail $ (show (a,c,d)) 
         
 tests :: IO [Test]
-tests = do
+tests = 
   return [ makeTest "SimpleDB wsdl" sdbWsdl
          , makeTest "to/from XML" genXml         
          ]

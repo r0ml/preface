@@ -25,9 +25,13 @@ module Preface.Str (
   , NSShow(..)
   , enum
   , enumI
+  , enumIr
   , mkEnum
   , mkEnumI
   , stripComments
+  , genEnum
+  , genRec
+  , KValic(..)
 
 -- these are no longer defined
 --  , hash
@@ -37,6 +41,7 @@ module Preface.Str (
  
 -- import Preface.R0ml
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (SomeException, try)
 import System.Environment (lookupEnv)
 import Data.Char (isLower, isUpper, isAlpha, isAlphaNum, isAlpha, isSpace)
 import Data.Tuple (swap)
@@ -49,6 +54,8 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Quote (QuasiQuoter(..)) 
 -- import qualified Text.Parsec as P
 import GHC.IO.Exception
+import qualified Data.Text as T (Text, unpack)
+import Debug.Trace
 
 type ShellError = (Int,String)
 
@@ -56,7 +63,7 @@ quasiQuoter :: (String -> ExpQ) -> QuasiQuoter
 quasiQuoter x = QuasiQuoter { quoteExp = x, quotePat = undefined, quoteDec = undefined, quoteType = undefined }
 
 pt :: String->ExpQ
-pt x = [| do { a <- $(interpolate x); readFile a } |]
+pt x = [| do { let a = $(interpolate x) in try (readFile a) :: IO (Either SomeException String) } |]
 
 -- The QuasiQuoters
 str :: QuasiQuoter
@@ -141,7 +148,7 @@ opts = quasiQuoter $ \x -> [| let iix = $(interpolate x) in do {s <- readFile ii
      error (the error code and contents of stderr), or the contents of stdout.
 -}
 sh :: QuasiQuoter
-sh = quasiQuoter $ \x -> [| do { a <- $( interpolate x); shell a } |]
+sh = quasiQuoter $ \x -> [| do { let a = $( interpolate x) in shell a } |]
 
 {- | shin is a quasiquoter which interpolates everything up to the first @|@ as the shell command, and then
      interpolates everything after the @|@ to be the standard input to be passed to the shell command.
@@ -179,14 +186,14 @@ intShebang a b = [| do { z <- $(interpolate b); y <- $(interpolate a); shell2 (w
 
 
 shell :: String -> IO (Either ShellError String)
-shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; shell2 [shellEx , "-c"] cmd }
+shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; traceShow ("shell", cmd) $ shell2 [shellEx , "-c"] cmd }
 
 shell2 :: [String] -> String -> IO (Either ShellError String)
 shell2 x y = shell3 (head x) ( tail x ++ [y]) ""
 
 shell3 :: String -> [String] -> String -> IO (Either ShellError String)
 shell3 int cmd inp = do
-  (ex,out,err) <- readProcessWithExitCode int cmd inp
+  (ex,out,err) <- traceShow (int, cmd, inp) $ readProcessWithExitCode int cmd inp
   return $ case ex of 
     ExitSuccess -> Right (if null out || last out /= '\n' then out else init out )
     ExitFailure x -> Left (x,err)
@@ -202,10 +209,10 @@ key = P.spaces >> P.many ( P.noneOf ":=,\n \t\r" )
 -}
 
 strToMap :: String -> [(String,String)]
-strToMap x = map parsePair (lines x) 
+strToMap x = filter (\(x,_) -> not (null x) ) (map parsePair (lines x))
   where parsePair y = let y1 = dropWhile isSpace y
                           (y2,y3) = break (`elem` ":=,\n \t\r") y1
-                          y4 = dropWhile isSpace y3
+                          y4 = if null y3 then y3 else dropWhile isSpace (tail y3)
                        in (y2, y4)
 
 -- | For many interpolations, we want to use Strings as-is, but convert non-Strings via Show.  We do not, however,
@@ -218,6 +225,7 @@ class Show a => NSShow a where
 instance {-# OVERLAPPABLE #-} Show a => NSShow a where nsShow = show
 instance {-# OVERLAPPING #-} NSShow String where nsShow x = x
 instance NSShow ByteString where nsShow = B.unpack
+instance NSShow T.Text where nsShow = T.unpack
 
 -- this can be used as $(interpolate x) 
 -- I need the environment if the interpolation includes environment variables, but not otherwise
@@ -233,13 +241,13 @@ interpolate x = [| let v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in con
                                   '$':s5 -> stringE "$" : interp s5
                                   s6@(c1:s7) | isAlpha c1 && isLower c1 -> 
                                           let (s8, s9) = span (\x -> isAlphaNum x || '_' == x ) s6
-                                           in varE (mkName s8): interp s9
+                                           in (appE [|nsShow|] (varE (mkName s8))): interp s9
                                              | isAlpha c1 && isUpper c1 ->
                                           let (s10, s11) = span (\x -> isAlphaNum x || '_' == x) s6
                                            in appE (varE (mkName "v_v")) (stringE s10) : interp s11
                                      --      in [| $(_v s10) |] : interp s11
-                                  otherwise -> fail "can't get here"
-                      otherwise -> fail "can't get here either"
+                                  _ -> fail "can't get here"
+                      _ -> fail "can't get here either"
             in stringE s1 : s3
 {-
   as <- P.many1 interpiece
@@ -302,10 +310,13 @@ enum =  QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd,
   qd s = let (hm : tm) = words (deComma (stripComments s))
           in genEnum hm tm
 
-enumI :: QuasiQuoter
-enumI =  QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined } where
-  qd s = let m = words s
-         in genEnumI (head m) (zip (stride 2 (tail m)) (map read (stride 2 (drop 2 m))))
+enumIr :: QuasiQuoter
+enumIr = enumI read
+
+enumI :: (String -> Int) -> QuasiQuoter
+enumI f =  QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined } where
+  qd s = let m = words (deComma (stripComments s))
+         in genEnumI (head m) (zip (stride 2 (tail m)) (map f (stride 2 (drop 2 m))))
   stride _ [] = []
   stride n (x:xs) = x : stride n (drop (n-1) xs)
 
@@ -327,7 +338,7 @@ genEnum name vals = do
   where dv = map (\n -> normalC (mkName n) []) vals
         nam = mkName name
         
-genEnumI :: String -> [(String,Int)] -> Q [Dec]
+genEnumI :: String -> [(String, Int)] -> Q [Dec]
 genEnumI name vals = do
     dd <- dataD (cxt[]) nam [] dv [''Eq, ''Bounded, ''Show]
     fe <- instanceD (cxt [])
@@ -339,7 +350,38 @@ genEnumI name vals = do
         nam = mkName name
         genClause (k,v) = clause [conP (mkName k) []] (normalB [|v|]) []
         genClause2 (k,v) = clause [litP (integerL (fromIntegral k))] (normalB  (conE (mkName v))) []
-        
+       
+class KValic a where
+        toKVL :: a -> [(String, String)]
+--         fromKVL :: [(String, String)] -> Either String a  -- might be an error
+
+genRec :: String -> String -> [(String, TypeQ)] -> Q [Dec]
+genRec name pfx flds = do
+    dd <- dataD (cxt[]) mn [] [recC mn rc] [''Show]
+-- the above defines the data definition (rec)
+-- then we define an instance for KValic and a functions toKVL / fromKVL
+--   to convert the record to a key/value pair
+    fe <- instanceD (cxt [])
+            (appT (conT ''KValic) (conT mn))
+            [funD (mkName "toKVL") $ [clause [conP mn (map (varP . mkName . ("a"++) . show) [1..length flds])] (normalB (foldl tpm (listE []) (zip [1..] flds))) [] ]
+            ]
+    return [dd, fe]
+  where rc = map (\(n,t)->varStrictType (mkName (pfx ++ n) ) (strictType notStrict t)) flds
+        mn = mkName name
+        tpm x (a,(b,c)) = -- tupE [litE (stringL b), appE [|nsShow|] (varE (mkName ("a"++show a)))]
+           do 
+             cc <- c
+             case cc of
+               AppT (ConT aa) bb | aa == ''Maybe ->
+                 [|consUnlessNothing|] `appE` (litE (stringL b))
+                 `appE` (varE (mkName ("a"++show a)))
+                 `appE` x
+               _ -> infixApp ( tupE [litE (stringL b),
+                 appE [|nsShow|] (varE (mkName ("a"++show a))) ]) [|(:)|] x
+
+consUnlessNothing a Nothing c = c
+consUnlessNothing a (Just b) c = (a,nsShow b) : c
+
 stripComments :: String -> String
 stripComments = stripComments' True where
   stripComments' _ [] = []

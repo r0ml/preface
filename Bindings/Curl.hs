@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 
-module Preface.Bindings.Curl
+module Bindings.Curl
        ( CurlResponse(..), HttpAuth(..), CurlOption(..)
        , withCurlDo
        , curlGet       -- :: URLString -> [CurlOption] -> IO CurlResponse
@@ -16,7 +16,7 @@ module Preface.Bindings.Curl
        , CurlCode(..)
        ) where
 
-import Preface.Bindings.CurlX as X
+import Bindings.CurlX as X
 import Data.ByteString (ByteString, packCStringLen)
 import qualified Data.ByteString as B (take, drop, concat, null, head, tail, empty, init, last)
 import qualified Data.ByteString.Char8 as B (lines, elemIndex)

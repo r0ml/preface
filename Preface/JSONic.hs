@@ -1,10 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
-
-{- # LANGUAGE CPP, FlexibleInstances, IncoherentInstances, NamedFieldPuns,
-    NoImplicitPrelude, OverlappingInstances, TemplateHaskell,
-    UndecidableInstances #-}
+-- {-# LANGUAGE UndecidableInstances #-}
 
 module Preface.JSONic
     ( JSON(..)
@@ -22,10 +19,9 @@ module Preface.JSONic
     , mfl
     , mlookup
 
-    , JsonicOptions(..), SumEncoding(..), defaultJsonicOptions, defaultTaggedObject, camelTo
+    , JsonicOptions(..), JsonicSumEncoding(..), defaultJsonicOptions, defaultTaggedObject, camelTo
     , deriveJSONic
     , deriveJSONicT
-    , mkToJSON
     ) where
 
 import Data.Bits ((.|.), shiftL)
@@ -35,19 +31,15 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import qualified Data.Map as M
 
-import Data.Time (UTCTime, ZonedTime(..), TimeZone(..))
-import Data.Time.Format (FormatTime, formatTime, parseTime, defaultTimeLocale, dateTimeFmt)
-import Data.Either (partitionEithers, isLeft, lefts)
-import Data.Char (toLower, isUpper)
+import Data.Either (partitionEithers)
 
 import Numeric (showHex)
 
 import Debug.Trace
 
-import Control.Applicative ( pure, (<$>), (<*>) )
-import Control.Monad       ( return, mapM, liftM2, fail )
-import Data.List           ( isPrefixOf, foldl', intercalate, genericLength, all, partition )
-import Data.Maybe          ( Maybe(Nothing, Just), catMaybes )
+import Control.Monad       ( liftM2 )
+import Data.List           ( isPrefixOf, foldl', intercalate, genericLength, partition )
+import Data.Maybe          ( catMaybes )
 import Text.Printf         ( printf )
 
 -- from template-haskell:
@@ -212,6 +204,19 @@ import Language.Haskell.TH.Syntax ( VarStrictType )
 --
 --
 
+tpack :: a->a
+trpack :: String -> Text
+tunpack :: Text -> String
+trunpack :: a->a
+
+mktu ::  a->a
+mktp ::  M.Map String a -> M.Map Text a
+
+mfl ::  a->a
+mtl ::  a->a
+
+mlookup :: Jstr -> [(Jstr, b)] -> Maybe b
+
 #if defined(STRTEX)
 type Jstr = Text
 tpack = T.pack
@@ -277,6 +282,20 @@ instance JSONic Integer where
     fromJSON (JsonNumber (II x)) = Right $ fromIntegral x
     fromJSON (JsonNumber (DD x)) = Right $ floor x
     fromJSON _ = Left "expecting JSONic Integer"
+
+instance JSONic Int where
+    toJSON = JsonNumber . II . fromIntegral
+    fromJSON (JsonNumber (II x)) = Right $ fromIntegral x
+    fromJSON (JsonNumber (DD x)) = Right $ floor x
+    fromJSON _ = Left "expecting JSONic Int"
+
+{-
+instance Integral a => JSONic a where
+    toJSON = JsonNumber . II . fromIntegral
+    fromJSON (JsonNumber (II x)) = Right $ fromIntegral x
+    fromJSON (JsonNumber (DD x)) = Right $ floor x
+    fromJSON _ = Left "expecting JSONic Integral"
+-}
 
 instance JSONic Text where
     toJSON = JsonString . tunpack
@@ -500,17 +519,18 @@ object_ x = either Left jf (aas [] x)
                      [] -> Left ("unterminated object: " ++ take 10 x)
                      ('}':rs) -> Right (ac, rs)
                      bs -> case readJSON' bs of
-                             Left x -> Left x
+                             Left x2 -> Left x2
                              Right (JsonString m,r1) -> case dropWhile isSpace r1 of
                                [] -> Left ("unterminated key/value pair: " ++ take 10 bs)
                                (':':r4) -> case readJSON' r4 of
-                                             Left x -> Left x
+                                             Left x3 -> Left x3
                                              Right (vv, r5) -> case dropWhile isSpace r5 of
                                                                   [] -> Left ("unterminated object: " ++ take 10 bs)
                                                                   ('}':r8) -> Right ((m, vv) : ac, r8)
                                                                   (',':r8) -> aas ((m, vv) : ac) r8
-                                                                  otherwise -> Left ("object expecting ',' or '}': " ++ take 10 r5)
-                               otherwise -> Left ("key/value pair expecting ':': "++take 10 r1)
+                                                                  _ -> Left ("object expecting ',' or '}': " ++ take 10 r5)
+                               _ -> Left ("key/value pair expecting ':': "++take 10 r1)
+                             Right _m -> Left ("expecting a JsonString, received a "++ show _m)
 
 -- GOOD ONE!
 -- this used to be all nested if/then/else
@@ -522,7 +542,7 @@ array_ x = either Left jf (aas [] x)
                      [] -> Left ("unterminated array: " ++ take 10 x)  
                      (']':rs) -> Right (reverse ac, rs)
                      bs ->case readJSON' bs of
-                            Left x -> Left x
+                            Left x4 -> Left x4
                             Right (p,q) -> case dropWhile isSpace q of
                                              [] -> Left ("array terminates prematurely: " ++ take 10 x)
                                              (',':rs) -> aas (p:ac) rs
@@ -680,7 +700,7 @@ characters of every field name. We also modify constructor names by
 lower-casing them:
 
 @
-$('deriveJSON' 'defaultJsonicOptions'{'fieldLabelModifier' = 'drop' 4, 'constructorTagModifier' = map toLower} ''D)
+$('deriveJSON' 'defaultJsonicOptions'{'jsonicFieldLabelModifier' = 'drop' 4, 'jsonicConstructorTagModifier' = map toLower} ''D)
 @
 
 Now we can use the newly created instances.
@@ -720,7 +740,7 @@ headNArgs :: Type -> (Name, [Type])
 headNArgs t = let (a,x) = grabit t in (a, reverse x)
   where grabit (AppT b c) = let (d, e) = grabit b in (d, c : e)
         grabit (ConT p) = (p, [])
-
+        grabit _n = trace ("dont know how to handle " ++ show _n) undefined
 
 -- | Generates a 'JSONic' instance declaration for the given data type.
 deriveJSONic :: JsonicOptions -- ^ Encoding options.
@@ -753,10 +773,9 @@ deriveJSONic opts name =
 deriveJSONicT :: JsonicOptions -- ^ Encoding options.
               -> Q Type -- ^ Type for which to generate a 'JSONic' instance declaration.
               -> Q [Dec]
-deriveJSONicT opts typ = do
-        (tn, tc) <- fmap headNArgs typ
-        inf <- reify tn
-        trace (pprint inf) [|()|]
+deriveJSONicT _opts typ = do
+        (tn, _tc) <- fmap headNArgs typ
+        _inf <- reify tn
         fmap (:[]) $ instanceD (cxt [])
                   ( (conT ''JSONic) `appT` typ)
                   []
@@ -773,12 +792,6 @@ deriveJSONicT opts typ = do
                          ]
                   ]
 -}
-				
--- | Generates a lambda expression which encodes the given data type as JSON.
-mkToJSON :: JsonicOptions -- ^ Encoding options.
-         -> Name -- ^ Name of the type to encode.
-         -> Q Exp
-mkToJSON opts name = withType name (\_ cons -> consToJSON opts cons)
 
 -- | Helper function used by both 'deriveToJSON' and 'mkToJSON'. Generates code
 -- to generate the JSON encoding of a number of constructors. All constructors
@@ -803,7 +816,7 @@ consToJSON opts cons = do
     lam1E (varP value) $ caseE (varE value) matches
   where
     matches
-        | allNullaryToStringTag opts && all isNullary cons =
+        | jsonicAllNullaryToStringTag opts && all isNullary cons =
               [ match (conP conName []) (normalB $ conStr opts conName) []
               | con <- cons
               , let conName = getConName con
@@ -814,10 +827,10 @@ conStr :: JsonicOptions -> Name -> Q Exp
 conStr opts = appE [|JsonString|] . conTxt opts
 
 conTxt :: JsonicOptions -> Name -> Q Exp
-conTxt opts = appE [|T.pack|] . conStringE opts
+conTxt opts = appE [|tpack|] . conStringE opts
 
 conStringE :: JsonicOptions -> Name -> Q Exp
-conStringE opts = stringE . constructorTagModifier opts . nameBase
+conStringE opts = stringE . jsonicConstructorTagModifier opts . nameBase
 
 -- | If constructor is nullary.
 isNullary :: Con -> Bool
@@ -825,21 +838,21 @@ isNullary (NormalC _ []) = True
 isNullary _ = False
 
 encodeSum :: JsonicOptions -> Bool -> Name -> Q Exp -> Q Exp
-encodeSum opts multiCons conName exp
+encodeSum opts multiCons conName exp2 
     | multiCons =
-        case sumEncoding opts of
+        case jsonicSumEncoding opts of
           TwoElemArray ->
-              [|JsonArray|] `appE` (listE [conStr opts conName, exp])
-          TaggedObject{tagFieldName=tf, contentsFieldName=cf} ->
-              [|JsonObject . M.fromList|] `appE` listE
-                [ infixApp [|T.pack tf|]     [|(.=)|] (conStr opts conName)
-                , infixApp [|T.pack cf|] [|(.=)|] exp
+              [|JsonArray|] `appE` (listE [conStr opts conName, exp2])
+          TaggedObject{jsonicTagFieldName=tf, jsonicContentsFieldName=cf} ->
+              [|JsonObject . mfl|] `appE` listE
+                [ infixApp [|tpack tf|]     [|(.=)|] (conStr opts conName)
+                , infixApp [|tpack cf|] [|(.=)|] exp2
                 ]
           ObjectWithSingleField ->
-              [|JsonObject . M.fromList|] `appE` listE
-                [ infixApp (conTxt opts conName) [|(.=)|] exp ]
+              [|JsonObject . mfl|] `appE` listE
+                [ infixApp (conTxt opts conName) [|(.=)|] exp2 ]
 
-    | otherwise = exp
+    | otherwise = exp2
 
 -- | Generates code to generate the JSON encoding of a single constructor.
 encodeArgs :: JsonicOptions -> Bool -> Con -> Q Match
@@ -859,9 +872,9 @@ encodeArgs opts multiCons (NormalC conName ts) = do
             -- Single argument is directly converted.
             [e] -> return e
             es -> do 
-                     do 
-                        p <- mapM runQ es
-                        trace (pprint p) [|()|]
+                     _ <- do 
+                        _p <- mapM runQ es
+                        return $ trace (pprint _p) [|()|]
             -- Multiple arguments are converted to a JSON array.
                      return $ [|JsonArray|] `appE` listE es
 {-
@@ -889,9 +902,9 @@ encodeArgs opts multiCons (NormalC conName ts) = do
 -- Records.
 encodeArgs opts multiCons (RecC conName ts) = do
     args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
-    let exp = [|JsonObject . M.fromList|] `appE` pairs
+    let exp2 = [|JsonObject . mfl|] `appE` pairs
 
-        pairs | omitNothingFields opts = infixApp maybeFields
+        pairs | jsonicOmitNothingFields opts = infixApp maybeFields
                                                   [|(++)|]
                                                   restFields
               | otherwise = listE $ map toPair argCons
@@ -919,26 +932,26 @@ encodeArgs opts multiCons (RecC conName ts) = do
                      [|(.=)|]
                      (varE arg)
 
-        toFieldName field = [|T.pack|] `appE` fieldLabelExp opts field
+        toFieldName field = [|tpack|] `appE` fieldLabelExp opts field
 
     match (conP conName $ map varP args)
           ( normalB
           $ if multiCons
-            then case sumEncoding opts of
-                   TwoElemArray -> [|toJSON|] `appE` tupE [conStr opts conName, exp]
-                   TaggedObject{tagFieldName=tf} ->
-                       [|JsonObject . M.fromList|] `appE`
+            then case jsonicSumEncoding opts of
+                   TwoElemArray -> [|toJSON|] `appE` tupE [conStr opts conName, exp2]
+                   TaggedObject{jsonicTagFieldName=tf} ->
+                       [|JsonObject . mfl|] `appE`
                          -- TODO: Maybe throw an error in case
                          -- tagFieldName overwrites a field in pairs.
-                         infixApp (infixApp [|T.pack tf|]
+                         infixApp (infixApp [|tpack tf|]
                                             [|(.=)|]
                                             (conStr opts conName))
                                   [|(:)|]
                                   pairs
                    ObjectWithSingleField ->
-                       [|JsonObject . M.fromList|] `appE` listE
-                         [ infixApp (conTxt opts conName) [|(.=)|] exp ]
-            else exp
+                       [|JsonObject . mfl|] `appE` listE
+                         [ infixApp (conTxt opts conName) [|(.=)|] exp2 ]
+            else exp2
           ) []
 
 -- Infix constructors.
@@ -961,14 +974,6 @@ encodeArgs opts multiCons (ForallC _ _ con) = encodeArgs opts multiCons con
 -- FromJSON
 --------------------------------------------------------------------------------
 
--- | Generates a lambda expression which parses the JSON encoding of the given
--- data type.
-mkParseJSON :: JsonicOptions -- ^ Encoding options.
-            -> Name -- ^ Name of the encoded type.
-            -> Q Exp
-mkParseJSON opts name =
-    withType name (\_ cons -> consFromJSON name opts cons)
-
 -- | Helper function used by both 'deriveFromJSON' and 'mkParseJSON'. Generates
 -- code to parse the JSON encoding of a number of constructors. All constructors
 -- must be from the same type.
@@ -990,7 +995,7 @@ consFromJSON tName opts [con] = do
 consFromJSON tName opts cons = do
   value <- newName "value"
   lam1E (varP value) $ caseE (varE value) $
-    if allNullaryToStringTag opts && all isNullary cons
+    if jsonicAllNullaryToStringTag opts && all isNullary cons
     then allNullaryMatches
     else mixedMatches
 
@@ -1002,7 +1007,7 @@ consFromJSON tName opts cons = do
                   [ liftM2 (,) (normalG $
                                   infixApp (varE txt)
                                            [|(==)|]
-                                           ([|T.pack|] `appE`
+                                           ([|tpack|] `appE`
                                               conStringE opts conName)
                                )
                                ([|pure|] `appE` conE conName)
@@ -1029,8 +1034,8 @@ consFromJSON tName opts cons = do
       ]
 
     mixedMatches =
-        case sumEncoding opts of
-          TaggedObject {tagFieldName=tf, contentsFieldName=cf} ->
+        case jsonicSumEncoding opts of
+          TaggedObject {jsonicTagFieldName=tf, jsonicContentsFieldName=cf} ->
             parseObject $ parseTaggedObject tf cf
           ObjectWithSingleField ->
             parseObject $ parseObjectWithSingleField
@@ -1077,7 +1082,7 @@ consFromJSON tName opts cons = do
       doE [ bindS (varP conKey) 
 -- actual should be  case M.lookup key obj of  { Nothing -> pure Nothing; Just v -> parseJSON v } 
 -- better known as   fmap parseJSON (M.lookup key obj) 
-                  ( [|M.lookup|] `appE` ([|T.pack|] `appE` stringE typFieldName) `appE` (varE obj) )
+                  ( [|mlookup|] `appE` ([|tpack|] `appE` stringE typFieldName) `appE` (varE obj) )
           , noBindS $ parseContents conKey (Left (valFieldName, obj)) 'conNotFoundFailTaggedObject
           ]
 
@@ -1134,7 +1139,7 @@ consFromJSON tName opts cons = do
                       ( guardedB $
                         [ do g <- normalG $ infixApp (varE conKey)
                                                      [|(==)|]
-                                                     ([|T.pack|] `appE`
+                                                     ([|tpack|] `appE`
                                                         conNameExp opts con)
                              e <- parseArgs tName opts con contents
                              return (g, e)
@@ -1147,7 +1152,7 @@ consFromJSON tName opts cons = do
                                    `appE` (litE $ stringL $ show tName)
                                    `appE` listE (map ( litE
                                                      . stringL
-                                                     . constructorTagModifier opts
+                                                     . jsonicConstructorTagModifier opts
                                                      . nameBase
                                                      . getConName
                                                      ) cons
@@ -1199,9 +1204,9 @@ parseRecord opts tName conName ts obj =
     where
       x:xs = [ [|lookupField|]
                `appE` (litE $ stringL $ show tName)
-               `appE` (litE $ stringL $ constructorTagModifier opts $ nameBase conName)
+               `appE` (litE $ stringL $ jsonicConstructorTagModifier opts $ nameBase conName)
                `appE` (varE obj)
-               `appE` ( [|T.pack|] `appE` fieldLabelExp opts field
+               `appE` ( [|tpack|] `appE` fieldLabelExp opts field
                       )
              | (field, _, _) <- ts
              ]
@@ -1209,8 +1214,8 @@ parseRecord opts tName conName ts obj =
 getValField :: Name -> String -> [MatchQ] -> Q Exp
 getValField obj valFieldName matches = do
   val <- newName "val"
-  doE [ bindS (varP val) $ [|M.lookup|] `appE` (varE obj) `appE`
-                                    ([|T.pack|] `appE`
+  doE [ bindS (varP val) $ [|mlookup|] `appE` (varE obj) `appE`
+                                    ([|tpack|] `appE`
                                        (litE $ stringL valFieldName))
       , noBindS $ caseE (varE val) matches
       ]
@@ -1324,20 +1329,30 @@ parseTypeMismatch tName conName expected actual =
           , actual
           ]
 
-
+{-
 newtype Hunh a = Hunh a
 instance JSONic a => JSONic (Hunh a)
-
+-}
+{-
 class JSONic a => LookupField a where
     lookupField :: String -> String -> M.Map Text JSON -> T.Text -> Either String a
+-}
 
+lookupField :: JSONic a => String -> String -> Jmap -> Jstr -> Either String a
+lookupField tName rec obj key =
+        traceShow ("lookupField", obj, key) $ case mlookup key obj of
+          Nothing -> unknownFieldFail tName rec (trunpack key)
+          Just v -> fromJSON v 
+
+{-
 instance JSONic a => LookupField (Hunh a) where
     lookupField tName rec obj key = 
-        case M.lookup key obj of
+        case mlookup key obj of
           Nothing -> unknownFieldFail tName rec (T.unpack key)
           Just v  -> case fromJSON v of
                        Left er -> Left er
                        Right (Hunh z) -> Right z
+-}
 
 {-
 instance (JSONic a) => LookupField (Maybe a) where
@@ -1437,7 +1452,7 @@ tvbName (KindedTV name _) = name
 conNameExp :: JsonicOptions -> Con -> Q Exp
 conNameExp opts = litE
                 . stringL
-                . constructorTagModifier opts
+                . jsonicConstructorTagModifier opts
                 . nameBase
                 . getConName
 
@@ -1445,7 +1460,7 @@ conNameExp opts = litE
 fieldLabelExp :: JsonicOptions -- ^ Encoding options
               -> Name
               -> Q Exp
-fieldLabelExp opts = litE . stringL . fieldLabelModifier opts . nameBase
+fieldLabelExp opts = litE . stringL . jsonicFieldLabelModifier opts . nameBase
 
 -- | The name of the outermost 'JSON' constructor.
 valueConName :: JSON -> String
@@ -1474,29 +1489,29 @@ applyCon con typeNames = return (map apply typeNames)
 
 -- | Options that specify how to encode\/decode your datatype to\/from JSON.
 data JsonicOptions = JsonicOptions
-    { fieldLabelModifier :: String -> String
+    { jsonicFieldLabelModifier :: String -> String
       -- ^ Function applied to field labels.
       -- Handy for removing common record prefixes for example.
-    , constructorTagModifier :: String -> String
+    , jsonicConstructorTagModifier :: String -> String
       -- ^ Function applied to constructor tags which could be handy
       -- for lower-casing them for example.
-    , allNullaryToStringTag :: Bool
+    , jsonicAllNullaryToStringTag :: Bool
       -- ^ If 'True' the constructors of a datatype, with /all/
       -- nullary constructors, will be encoded to just a string with
       -- the constructor tag. If 'False' the encoding will always
       -- follow the `sumEncoding`.
-    , omitNothingFields :: Bool
+    , jsonicOmitNothingFields :: Bool
       -- ^ If 'True' record fields with a 'Nothing' JSON will be
       -- omitted from the resulting object. If 'False' the resulting
       -- object will include those fields mapping to @null@.
-    , sumEncoding :: SumEncoding
+    , jsonicSumEncoding :: JsonicSumEncoding
       -- ^ Specifies how to encode constructors of a sum datatype.
     }
 
 -- | Specifies how to encode constructors of a sum datatype.
-data SumEncoding =
-    TaggedObject { tagFieldName      :: String
-                 , contentsFieldName :: String
+data JsonicSumEncoding =
+    TaggedObject { jsonicTagFieldName      :: String
+                 , jsonicContentsFieldName :: String
                  }
     -- ^ A constructor will be encoded to an object with a field
     -- 'tagFieldName' which specifies the constructor tag (modified by
@@ -1531,11 +1546,11 @@ data SumEncoding =
 -- @
 defaultJsonicOptions :: JsonicOptions
 defaultJsonicOptions = JsonicOptions
-                 { fieldLabelModifier      = id
-                 , constructorTagModifier  = id
-                 , allNullaryToStringTag   = True
-                 , omitNothingFields       = False
-                 , sumEncoding             = defaultTaggedObject
+                 { jsonicFieldLabelModifier      = id
+                 , jsonicConstructorTagModifier  = id
+                 , jsonicAllNullaryToStringTag   = True
+                 , jsonicOmitNothingFields       = False
+                 , jsonicSumEncoding             = defaultTaggedObject
                  }
 
 -- | Default 'TaggedObject' 'SumEncoding' options:
@@ -1546,10 +1561,10 @@ defaultJsonicOptions = JsonicOptions
 --                       , 'contentsFieldName' = \"contents\"
 --                       }
 -- @
-defaultTaggedObject :: SumEncoding
+defaultTaggedObject :: JsonicSumEncoding
 defaultTaggedObject = TaggedObject
-                      { tagFieldName      = "tag"
-                      , contentsFieldName = "contents"
+                      { jsonicTagFieldName      = "tag"
+                      , jsonicContentsFieldName = "contents"
                       }
 
 -- | Converts from CamelCase to another lower case, interspersing

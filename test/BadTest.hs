@@ -4,16 +4,12 @@
 import Preface.R0ml
 -- import Distribution.TestSuite
 
-makeTest nam dotest = 
-  let t = TestInstance { run = do { a <- dotest nam; return (Finished a) }
-      , name = nam, tags = [], options = [], setOption = \_  _ -> Right t }
-   in Test t
-
-sdbWsdl nam = do
+sdbWsdl :: String -> IO TestResult
+sdbWsdl _nam = do
   a <- strReadFile "test/AmazonSimpleDB.wsdl" :: IO String
   return $ case parseXml a of 
-    z@(XmlParseError x) -> Fail (show z)
-    _ -> Pass
+    z@(XmlParseError _) -> TestFail (show z)
+    _ -> TestPass
 
 
 data SDBDomainMetadata = SDBDomainMetadata {
@@ -25,10 +21,11 @@ data SDBDomainMetadata = SDBDomainMetadata {
 -- $(deriveXmlic defaultOptions ''SDBDomainMetadata)
 
 data NullaryTest = One | Two | Three deriving (Show, Eq)
-$(deriveXmlic defaultOptions ''NullaryTest)
+$(deriveXmlic defaultXmlOptions ''NullaryTest)
 
-genXml nam = do
-  b <- getCurrentTime
+genXml :: String -> IO TestResult
+genXml _nam = do
+  _b <- getCurrentTime
 --  let a = SDBDomainMetadata 5 101 99 b
   let a = Two
       c = toXML a
@@ -39,16 +36,18 @@ genXml nam = do
   putStrLn "-----------"
   print d
   return $ case d of 
-    Left x -> Fail x
-    Right x -> if a == x then Pass else Fail $ (show (a,c,d)) 
+    Left x -> TestFail (show x)
+    Right x -> if a == x then TestPass else TestFail $ (show (a,c,d)) 
         
 tests :: IO [Test]
-tests = do
-  return [ makeTest "SimpleDB wsdl" sdbWsdl
+tests = return [ makeTest "SimpleDB wsdl" sdbWsdl
          , makeTest "to/from XML" genXml         
          ]
 
+main :: IO ()
 main = do
-        genXml "clem"
+--        _ <- genXml "clem"
+--        _ <- sdbWsdl "flem"
+        _ <- tests
         return ()
 

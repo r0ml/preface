@@ -6,7 +6,7 @@
 -- See the kqueue man page or the examples in @examples/@ for usage
 -- information.
 -- For a higher-level binding, see "System.KQueue.HighLevel".
-module Preface.Bindings.KQueue
+module Bindings.KQueue
 -- low level
   ( KQueue
   , kqueue
