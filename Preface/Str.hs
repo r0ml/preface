@@ -26,6 +26,7 @@ module Preface.Str (
   , enum
   , enumI
   , enumIr
+  , storable
   , mkEnum
   , mkEnumI
   , stripComments
@@ -43,11 +44,12 @@ module Preface.Str (
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Exception (SomeException, try)
 import System.Environment (lookupEnv)
-import Data.Char (isLower, isUpper, isAlpha, isAlphaNum, isAlpha, isSpace)
+import Data.Char (isLower, isUpper, isAlpha, isAlphaNum, isAlpha, isSpace, toLower)
 import Data.Tuple (swap)
 import Data.Maybe (fromMaybe)
 import System.Process (readProcessWithExitCode)
 import Data.ByteString (ByteString)
+import Data.Int (Int64, Int32)
 import qualified Data.ByteString.Char8 as B (unpack)
 
 import Language.Haskell.TH
@@ -56,6 +58,8 @@ import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import GHC.IO.Exception
 import qualified Data.Text as T (Text, unpack)
 import Debug.Trace
+import Foreign.Storable (Storable(..), peekByteOff)
+import Foreign.C.Types (CULong, CUInt, CLong, CInt, CChar)
 
 type ShellError = (Int,String)
 
@@ -317,8 +321,10 @@ enumI :: (String -> Int) -> QuasiQuoter
 enumI f =  QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined } where
   qd s = let m = words (deComma (stripComments s))
          in genEnumI (head m) (zip (stride 2 (tail m)) (map f (stride 2 (drop 2 m))))
-  stride _ [] = []
-  stride n (x:xs) = x : stride n (drop (n-1) xs)
+
+stride :: Int -> [a] -> [a]
+stride _ [] = []
+stride n (x:xs) = x : stride n (drop (n-1) xs)
 
 mkEnum :: String -> Q [Dec]
 mkEnum s = let m = words s
@@ -327,9 +333,6 @@ mkEnum s = let m = words s
 mkEnumI :: String -> Q [Dec]
 mkEnumI s = let m = words s
             in genEnumI (head m) (zip (stride 2 (tail m)) (map read (stride 2 (drop 2 m))))
-  where
-    stride _ [] = []
-    stride n (x:xs) = x : stride n (drop (n-1) xs)
 
 genEnum :: String -> [String] -> Q [Dec]
 genEnum name vals = do
@@ -350,7 +353,45 @@ genEnumI name vals = do
         nam = mkName name
         genClause (k,v) = clause [conP (mkName k) []] (normalB [|v|]) []
         genClause2 (k,v) = clause [litP (integerL (fromIntegral k))] (normalB  (conE (mkName v))) []
-       
+
+storable :: QuasiQuoter
+storable = QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined }
+  where qd s = let (hm : tm) = words (deComma (stripComments s))
+                in traceShow (hm, tm) $ genStorable hm (zip (stride 2 tm) (map f (stride 2 (tail tm))))
+        f x = case x of
+                "ulong" -> ''Int64
+                "uint" -> ''Int32
+                z -> trace ("unknown type: "++z) ''TypeQ
+
+genStorable :: String -> [(String, Name)] -> Q [Dec]
+genStorable name vals = do
+        dd <- dataD (cxt[]) nam [] [dv] [''Show]
+        let sx a c = if c == ''Int64 then 8 else 4
+            so = foldl sx 0 dq :: Int
+            dq = map snd vals
+        fe <- instanceD (cxt [])
+                (appT (conT ''Storable) (conT nam))
+                [
+                 funD (mkName "peek") [clause [varP (mkName "a") ] (normalB 
+                      (snd (foldl tpm (0, (appE [|pure|] (conE nam))) vals )))  []],
+                 -- funD (mkName "poke") $ undefined,
+                 funD (mkName "sizeOf") [clause [wildP] (normalB [|so|]) []],
+                 funD (mkName "alignment") [clause [wildP] (normalB (litE (integerL 4))) []]
+                 ]
+        return [dd, fe]
+  where dv = recC nam ( map (\(n,t) -> varStrictType (mkName (lnam++"_"++n)) (strictType notStrict (conT t))) vals)
+        nam = mkName name
+        lnam = toLower (head name) : tail name
+        tpm (n,x) (a,b) = (n+bLen b, (infixApp x [|(<*>)|] (appE [|fmap fromIntegral|] (sigE ( appE ( appE [|peekByteOff|] (varE (mkName "a")) ) (litE (integerL (fromIntegral n)))) (appT [t|IO|] (conT (cType b) ))))))
+        cType x 
+          | x == ''Int64 = ''CULong
+          | x == ''Int32 = ''CUInt
+          | otherwise = ''CChar
+        bLen x
+          | x == ''Int64 = sizeOf (0 :: Int64)  
+          | x == ''Int32 = sizeOf (0 :: Int32) 
+          | otherwise = sizeOf (0 :: CChar) 
+
 class KValic a where
         toKVL :: a -> [(String, String)]
 --         fromKVL :: [(String, String)] -> Either String a  -- might be an error

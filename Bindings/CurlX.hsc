@@ -1,5 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface, TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
+{-# OPTIONS_HADDOCK hide,prune #-}
 
 module Bindings.CurlX ( Curl, curl_debug, mkCurl
                       , curlPrim, c_curl_easy_setopt, c_curl_easy_setopt_p
@@ -113,6 +114,7 @@ foreign import ccall "curl/easy.h curl_easy_getinfo" c_curl_easy_getinfo :: Curl
 -- foreign import ccall "curl/easy.h curl_global_cleanup" c_curl_global_cleanup :: IO ()
 
 foreign import ccall "curl/easy.h curl_easy_init" c_curl_easy_init :: IO CurlStruct
+
 foreign import ccall "curl/easy.h curl_easy_cleanup" c_curl_easy_cleanup :: CurlStruct -> IO ()
 
 foreign import ccall "curl/easy.h curl_easy_perform" c_easy_perform :: CurlStruct -> IO CInt

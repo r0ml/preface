@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving, ForeignFunctionInterface #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# OPTIONS_GHC -ddump-splices #-}
 
 #include "sys/statvfs.h"
 #include "sys/mount.h"
@@ -33,12 +35,29 @@ import Foreign.Ptr (Ptr, nullPtr, plusPtr)
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Array (allocaArray, peekArray)
 import Data.Maybe (mapMaybe)
+import Preface.Str (storable)
 
 type HTYPE_FSBLKCNT_T = CUInt
 type HTYPE_FSFILCNT_T = CUInt
 
 foreign import ccall unsafe "sys/statvfs.h statvfs" c_statvfs :: CString -> Ptr StatVFS -> IO CInt
 
+
+[storable|StatVFS
+  bsize ulong
+  frsize ulong
+  blocks uint
+  bfree uint
+  bavail uint
+  files uint
+  ffree uint
+  favail uint
+  fsid ulong
+  flag ulong
+  namemax ulong
+  |]
+
+{-
 data StatVFS = StatVFS { 
   statVFS_bsize :: Int,
   statVFS_frsize :: Int,
@@ -80,6 +99,7 @@ instance Storable StatVFS where
        (#poke struct statvfs,f_fsid) e (fromIntegral (statVFS_fsid ev) :: CULong)
        (#poke struct statvfs,f_flag) e (fromIntegral (statVFS_flag ev) :: CULong)
        (#poke struct statvfs,f_namemax) e (fromIntegral (statVFS_namemax ev) :: CULong)
+-}
 
 statVFS :: FilePath -> IO StatVFS
 statVFS path = 
