@@ -183,8 +183,8 @@ import Preface.JSONic as X
 import Bindings.Curl as X
 import Bindings.Posix as X
 
-import Data.Vector as X ( (!), Vector )
-import qualified Data.Vector as V
+-- import Data.Vector as X ( (!), Vector )
+-- import qualified Data.Vector as V
 
 import Preface.SCGI as X
 
@@ -209,8 +209,4 @@ makeTest nam dotest =
         cvt (TestFail a) = TS.Fail a
 
 data TestResult = TestPass | TestFail String
-
-vectorFromList :: [a] -> V.Vector a
-vectorFromList = V.fromList
-
 

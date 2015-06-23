@@ -4,7 +4,7 @@ module Preface.Xml (
     XmlElement (..)
   , XMLic (..)
   , XmlOptions(..)
-  , XmlError
+  , XmlError(..)
   , parseXml
   , attrValue
   , findNodesWith

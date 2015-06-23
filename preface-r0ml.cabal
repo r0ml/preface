@@ -23,7 +23,8 @@ Library
                  , time
                  , unix
                  , transformers
-                 , network, process, random, text, vector
+                 , network, process, random, text
+                 -- , vector
                  -- for building introspection and testing modules
                  , Cabal
                  -- temporarily
@@ -45,7 +46,7 @@ Test-Suite testXml
   Default-Language: Haskell2010
   Build-Depends: base, Cabal, preface-r0ml
   hs-source-dirs: test
-  Ghc-options: -Wall -ddump-splices
+  Ghc-options: -Wall -ddump-splices -static
   Test-Module: TestXml
 
 Test-Suite testJson
@@ -53,7 +54,7 @@ Test-Suite testJson
   Default-Language: Haskell2010
   Build-Depends: base, Cabal, preface-r0ml, QuickCheck, bytestring, text, time, containers
   hs-source-dirs: test
-  Ghc-options: -Wall 
+  Ghc-options: -Wall -static
   test-module: TestJson
 
 Test-Suite testStr
@@ -61,7 +62,7 @@ Test-Suite testStr
   type: exitcode-stdio-1.0
   Default-Language: Haskell2010
   build-depends: base, preface-r0ml
-  Ghc-options: -Wall -ddump-splices
+  Ghc-options: -Wall -ddump-splices -static
   hs-source-dirs: test
   -- Test-Module: TestQQ
   main-is: TestQQ.hs

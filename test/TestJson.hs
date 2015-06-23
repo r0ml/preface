@@ -565,24 +565,24 @@ approxEqWith maxAbsoluteError maxRelativeError a b =
 
 optsDefault :: JsonicOptions
 optsDefault = defaultJsonicOptions
-              { fieldLabelModifier     = map toLower
-              , constructorTagModifier = map toLower
+              { jsonicFieldLabelModifier     = map toLower
+              , jsonicConstructorTagModifier = map toLower
               }
 
 opts2ElemArray :: JsonicOptions
 opts2ElemArray = optsDefault
-                 { allNullaryToStringTag = False
-                 , sumEncoding     = TwoElemArray
+                 { jsonicAllNullaryToStringTag = False
+                 , jsonicSumEncoding     = TwoElemArray
                  }
 
 optsTaggedObject :: JsonicOptions
 optsTaggedObject = optsDefault
-                   { allNullaryToStringTag = False }
+                   { jsonicAllNullaryToStringTag = False }
 
 optsObjectWithSingleField :: JsonicOptions
 optsObjectWithSingleField = optsDefault
-                            { allNullaryToStringTag = False
-                            , sumEncoding           = ObjectWithSingleField
+                            { jsonicAllNullaryToStringTag = False
+                            , jsonicSumEncoding           = ObjectWithSingleField
                             }
 
 

@@ -16,10 +16,10 @@ data SDBDomainMetadata = SDBDomainMetadata {
   sdbDmdAttributeNameCount :: Integer,
   sdbDmdTimestamp :: UTCTime} 
   deriving (Show, Eq)
-$(deriveXmlic defaultOptions ''SDBDomainMetadata)
+$(deriveXmlic defaultXmlOptions ''SDBDomainMetadata)
 
 data NullaryTest = First | Second | Third deriving (Show, Eq)
-$(deriveXmlic defaultOptions ''NullaryTest)
+$(deriveXmlic defaultXmlOptions ''NullaryTest)
 
 -- data Multix = None | One String | Two Int Double | Three Int Double String deriving (Show, Eq)
 -- $(deriveXmlic defaultOptions ''Multix)
@@ -43,7 +43,7 @@ genXml nam = do
   putStrLn "-----------"
   print d
   return $ case d of 
-    Left x -> TestFail x
+    Left (XmlError x) -> TestFail x
     Right x -> if a == x then TestPass else TestFail $ (show (a,c,d)) 
         
 tests :: IO [Test]
