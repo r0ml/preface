@@ -14,24 +14,22 @@ Source-Repository head
 
 Library
   Build-Depends: base >=4 && < 5
-                 , array, binary, bytestring, containers
-                 , deepseq
+                 , array, bytestring, containers
                  , directory, filepath
-                 , ghc, haskeline, hpc, integer-gmp, pretty
-                 , process
-                 , template-haskell, terminfo
-                 , time
-                 , unix
-                 , transformers
-                 , network, process, random, text
-                 -- , vector
+                 , template-haskell
+                 , time, unix
+                 , network, process
+                 , random
+                 , text
                  -- for building introspection and testing modules
                  , Cabal
-                 -- temporarily
+
+                 -- , deepseq, ghc, haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
+
   Exposed-modules: Preface.R0ml
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.SCGI
-            , Preface.Str
+            , Preface.Str, Preface.StrUtils, Preface.Binary, Preface.Arrayed
             , Preface.Xml, Preface.JSONic
             , Bindings.Curl, Bindings.CurlX
             , Bindings.Posix, Bindings.Util
@@ -46,7 +44,7 @@ Test-Suite testXml
   Default-Language: Haskell2010
   Build-Depends: base, Cabal, preface-r0ml
   hs-source-dirs: test
-  Ghc-options: -Wall -ddump-splices -static
+  Ghc-options: -Wall -static
   Test-Module: TestXml
 
 Test-Suite testJson
@@ -62,7 +60,7 @@ Test-Suite testStr
   type: exitcode-stdio-1.0
   Default-Language: Haskell2010
   build-depends: base, preface-r0ml
-  Ghc-options: -Wall -ddump-splices -static
+  Ghc-options: -Wall -static
   hs-source-dirs: test
   -- Test-Module: TestQQ
   main-is: TestQQ.hs
@@ -72,7 +70,7 @@ Test-Suite testPosix
   type: exitcode-stdio-1.0
   Default-Language: Haskell2010
   build-depends: base, preface-r0ml, unix
-  Ghc-options: -Wall -ddump-splices
+  Ghc-options: -Wall
   hs-source-dirs: test
   -- Test-Module: TestQQ
   main-is: TestPosix2.hs
@@ -81,6 +79,6 @@ Executable badTest
   Default-Language: Haskell2010
   Build-Depends: base, preface-r0ml
   hs-source-dirs: test
-  Ghc-options: -Wall -ddump-splices
+  Ghc-options: -Wall 
   Main-is: BadTest.hs
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, FlexibleInstances, FlexibleContexts, FunctionalDependencies, UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, FlexibleInstances #-}
 
 {- | String support in Haskell is a mess.  The String class represents a string as a List of characters.
  - There are also ByteString classes (Lazy and Strict) which represent a bytestring as an array of bytes.
@@ -34,7 +34,7 @@ module Preface.Stringy
 ) where
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy as L (ByteString, fromChunks)
 import Data.Text (Text)
 import Data.String (IsString)
 import qualified Data.ByteString as B
@@ -43,6 +43,7 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Read as T
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.IO as TL
 import Data.Bits
 import Data.Word (Word8)
 import qualified Data.Char as C
@@ -55,6 +56,8 @@ import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Internal as BI
 import Foreign.ForeignPtr
+
+import Preface.Arrayed
 
 import System.Random (newStdGen, randomRs)
 
@@ -88,44 +91,78 @@ instance Chary Word8 where
 type ErrorMessage = String
 
 -- | A class to define generic Strings
-class (IsString a, Eq a, Chary (Char_y a)) => Stringy a where 
+class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where 
     type Char_y a
 
--- can I change this definition to define a type for Chary?
-
+    -- | Concatenation of multiple Stringy's into a single Stringy
     strCat :: [a] -> a
+
+    -- | A synonym for @strCat
     strConcat :: [a] -> a
     strConcat = strCat
-    strConcatMap :: ( (Char_y a) -> a ) -> a -> a
+
+    -- | append a Stringy to the end of another
     strAppend :: a -> a -> a
     strAppend x y = strCat [x,y]
     
+    -- | make an empty Stringy
     strEmpty :: a
     strEmpty = zilde
+
+    -- | make an empty Stringy (synonym for @strEmpty )
     zilde :: a
+
+    -- | is the Stringy empty?
     strNull :: a -> Bool
-    strLen :: a -> Integer
-    strDrop :: (Integral c, Eq c) => c -> a -> a
+
+    -- | the length of the Stringy.  The length of Stringy is limited to an Int
+    strLen :: a -> Int
+
+    -- | Drop the first n elements of a Stringy
+    strDrop :: Int -> a -> a
+    strDrop = aDrop
+
+    -- | Drop the first n characters which test True on the given function
     strDropWhile :: ( (Char_y a) -> Bool) -> a -> a
+    strDropWhile = (snd .) . strBrk
 
-    strTake :: (Integral c, Eq c) => c -> a -> a
+    -- | Take the first n elements of a Stringy.  If n is greater than the length of the Stringy,
+    -- only take the n elements.
+    strTake :: Int -> a -> a
+    strTake = aTake
+
+    -- | Take the first n characters which test True on the given function
     strTakeWhile :: ( (Char_y a)->Bool) -> a -> a
+    strTakeWhile = (fst .) . strBrk
 
+    -- | Return a tuple which is the first n characters which test True, and then the remainder
+    -- This would be equivalent to (strTakeWhile f s, strDropWhile f s)
     strBrk :: ((Char_y a) -> Bool) -> a -> (a,a)
+
+    -- | strBreak is a synonym for strBrk
     strBreak :: ((Char_y a) -> Bool) -> a -> (a,a)
     strBreak = strBrk
-    
+
+    -- | strBrkSubstring breaks a string by a the first occurence of the given substring    
+    strBrkSubstring :: a -> a -> (a,a)
+
+    -- | strBreakSubstring is a synonym for strBrkSubstring
     strBreakSubstring :: a -> a -> (a,a)
+    strBreakSubstring = strBrkSubstring
     
+    -- | split the given Stringy into a list of lines (split on newline)
     strLines :: a -> [a]
 
-    strSplitAt :: (Integral c, Eq c) => c -> a -> (a,a)
+    -- | split the Arrayed at the given index
+    strSplitAt :: Int -> a -> (a,a)
+    strSplitAt = aSplitAt
+
     stringleton :: (Char_y a) -> a
-    strReplicate :: (Integral c) => c -> (Char_y a) -> a
+    strReplicate :: Int -> (Char_y a) -> a
     strCons :: (Char_y a) -> a -> a
     strSnoc :: a -> (Char_y a) -> a
     strHGetContents :: Handle -> IO a
-    nth :: Integral c => a -> c -> (Char_y a)
+    nth :: a -> Int -> (Char_y a)
 
     asByteString :: a -> ByteString
     asString :: a -> String
@@ -137,10 +174,10 @@ class (IsString a, Eq a, Chary (Char_y a)) => Stringy a where
     asLazyByteString x = L.fromChunks [asByteString x]
 
     strHead :: a -> (Char_y a)
-    strHead = flip nth ( 0 :: Int)
+    strHead = flip nth 0 
 
     strTail :: a -> a
-    strTail = strDrop ( 1 :: Int)
+    strTail = aDrop 1
 
     strLast :: a -> (Char_y a)
     strLast x = nth x (strLen x - 1)
@@ -153,7 +190,7 @@ class (IsString a, Eq a, Chary (Char_y a)) => Stringy a where
     endsWith :: a -> a -> Bool
     endsWith = flip isSuffixOf
     
-    strElemIndex :: (Integral c) => (Char_y a) -> a -> Maybe c
+    strElemIndex :: (Char_y a) -> a -> Maybe Int 
 
     strReverse :: a -> a
     
@@ -215,20 +252,16 @@ class (IsString a, Eq a, Chary (Char_y a)) => Stringy a where
 instance Stringy T.Text where
   type Char_y T.Text = Char
   strCat = T.concat
-  strConcatMap = T.concatMap
   zilde = T.empty
   strNull = T.null
   strLen = fromIntegral . T.length
-  strDrop = T.drop . fromIntegral
   strDropWhile = T.dropWhile
-  strTake = T.take . fromIntegral
   strTakeWhile = T.takeWhile
 
   strBrk = T.break 
-  strBreakSubstring = T.breakOn
+  strBrkSubstring = T.breakOn
    
   strLines = T.lines 
-  strSplitAt = T.splitAt . fromIntegral
   stringleton = T.singleton
   strReplicate n x = T.replicate (fromIntegral n) (stringleton x)
   strCons a b = T.cons a b
@@ -282,26 +315,22 @@ instance Stringy T.Text where
 instance Stringy TL.Text where
   type Char_y TL.Text = Char
   strCat = TL.concat
-  strConcatMap = TL.concatMap
   zilde = TL.empty
   strNull = TL.null
   strLen = fromIntegral . TL.length
-  strDrop = TL.drop . fromIntegral
   strDropWhile = TL.dropWhile
-  strTake = TL.take . fromIntegral
   strTakeWhile = TL.takeWhile
 
   strBrk = TL.break 
-  strBreakSubstring = TL.breakOn
+  strBrkSubstring = TL.breakOn
    
   strLines = TL.lines 
-  strSplitAt = TL.splitAt . fromIntegral
   stringleton = TL.singleton
   strReplicate n x = TL.replicate (fromIntegral n) (stringleton x)
   strCons a b = TL.cons a b
   strSnoc a b = TL.snoc a b
   
-  -- strHGetContents = TL.hGetContents
+  strHGetContents = TL.hGetContents
   nth t n = TL.index t (fromIntegral n)
   asByteString = T.encodeUtf8 . TL.toStrict
   asString = TL.unpack
@@ -310,7 +339,7 @@ instance Stringy TL.Text where
   isPrefixOf = TL.isPrefixOf
   isSuffixOf = TL.isSuffixOf
 
-  -- strElemIndex a b = fmap fromIntegral (T.findIndex (==a) b)
+  strElemIndex a b = let c = TL.length ( fst (TL.span (/=a) b)) in if c == TL.length b then Nothing else Just (fromIntegral c)
 
   strReverse = TL.reverse
   strInit = TL.init
@@ -330,8 +359,8 @@ instance Stringy TL.Text where
   splitWith = TL.split
 
   intercalate = TL.intercalate
-  -- strReadFile = T.readFile 
-  -- strWriteFile = T.writeFile
+  strReadFile = TL.readFile 
+  strWriteFile = TL.writeFile
   
   -- str2decimal x = T.decimal TL.toStrict
   -- signed = T.signed . TL.toStrict 
@@ -368,19 +397,15 @@ instance Stringy TL.Text where
 instance Stringy B.ByteString where
   type Char_y B.ByteString = Word8
   strCat = B.concat
-  strConcatMap = B.concatMap
   zilde = B.empty
   strNull = B.null
   strLen = fromIntegral . B.length
-  strDrop = B.drop . fromIntegral
   strDropWhile = B.dropWhile
-  strTake = B.take . fromIntegral
   strTakeWhile = B.takeWhile
   strBrk f = B.break f -- (f . asChar)
-  strBreakSubstring = B.breakSubstring
+  strBrkSubstring = B.breakSubstring
   
   strLines = BC.lines
-  strSplitAt = B.splitAt . fromIntegral
   stringleton = B.singleton
   strReplicate n w = B.replicate (fromIntegral n) (asByte w)
   strCons a b = B.cons a b
@@ -395,7 +420,7 @@ instance Stringy B.ByteString where
   isPrefixOf = B.isPrefixOf
   isSuffixOf = B.isSuffixOf
 
-  strElemIndex a b = fromIntegral <$> B.elemIndex a b
+  strElemIndex a b = B.elemIndex a b
 
   strReverse = B.reverse
   strInit = B.init
@@ -449,26 +474,24 @@ ctype_lower = listArray (0,255) (map (BI.c2w . C.toLower) ['\0'..'\255'])
 ctype_upper :: UArray Word8 Word8
 ctype_upper = listArray (0,255) (map (BI.c2w . C.toUpper) ['\0'..'\255'])
 
+{-
 instance Stringy L.ByteString where
   type Char_y L.ByteString = Word8
   strCat = L.concat
-  strConcatMap = L.concatMap
   zilde = L.empty
   strNull = L.null
   strLen = fromIntegral . L.length
-  strDrop = L.drop . fromIntegral
   strDropWhile = L.dropWhile
-  strTake = L.take . fromIntegral
   strTakeWhile = L.takeWhile
   strBrk f = L.break f -- (f . asChar)
-  strBreakSubstring pat src = search 0 src
+  strBrkSubstring pat src = search 0 src
     where search n s
             | strNull s             = (src, zilde :: L.ByteString )
             | pat `L.isPrefixOf` s = (L.take n src,s)
+  strTake = take . fromIntegral
             | otherwise          = search (n+1) (L.tail s)
   
   strLines = LC.lines
-  strSplitAt = L.splitAt . fromIntegral
   stringleton = L.singleton
   strReplicate n w = L.replicate (fromIntegral n) (asByte w)
   strCons a b = L.cons a b
@@ -482,7 +505,7 @@ instance Stringy L.ByteString where
   isPrefixOf = L.isPrefixOf
   isSuffixOf = L.isSuffixOf
 
-  strElemIndex a b = fromIntegral <$> L.elemIndex a b
+  strElemIndex a b = L.elemIndex a b
 
   strReverse = L.reverse
   strInit = L.init
@@ -497,7 +520,7 @@ instance Stringy L.ByteString where
   stripStart = strDropWhile isSpace
 
   splitChar = L.split
-  splitStr d x = let (a,b) = strBreakSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
+  splitStr d x = let (a,b) = strBrkSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
   splitWith = L.splitWith
 
   intercalate = L.intercalate
@@ -526,27 +549,24 @@ instance Stringy L.ByteString where
 
   strToLower = L.map (\x -> ctype_lower!x)
   strToUpper = L.map (\x -> ctype_upper!x)
+-}
 
 instance Stringy [Char] where
   type Char_y [Char] = Char
   strCat = concat
-  strConcatMap = concatMap
   zilde = ""
   strNull = null
   strLen = fromIntegral . length
-  strDrop = drop . fromIntegral
   strDropWhile = dropWhile
-  strTake = take . fromIntegral
   strTakeWhile = takeWhile
   strBrk = break 
-  strBreakSubstring pat src = search 0 src
+  strBrkSubstring pat src = search 0 src
     where search n s
             | null s             = (src,[])
             | pat `DL.isPrefixOf` s = (take n src,s)
             | otherwise          = search (n+1) (tail s)
 
   strLines = lines
-  strSplitAt = splitAt . fromIntegral
   stringleton = (:[]) 
   strReplicate n x = replicate (fromIntegral n) (asChar x)
   strCons a b = a : b
@@ -560,7 +580,7 @@ instance Stringy [Char] where
   isPrefixOf = DL.isPrefixOf
   isSuffixOf = DL.isSuffixOf
   
-  strElemIndex a b = fromIntegral <$> DL.elemIndex a b
+  strElemIndex a b = DL.elemIndex a b
 
   strReverse = reverse
   strInit = init
@@ -588,8 +608,6 @@ instance Stringy [Char] where
   strReadFile = Prelude.readFile
   strWriteFile = Prelude.writeFile
 
--- packBytes :: [Word8] -> B.ByteString
--- packBytes = B.pack
   str2decimal x = if (null a) then Left "Parsing Error" else Right (head a)
         where a = reads x
   str2double x = if (null a) then Left "Parsing Error" else Right (head a)
@@ -612,41 +630,6 @@ instance Stringy [Char] where
   -- strReplace orig repl text = if null text then ""
   --                            else if startsWith orig text then repl ++ strReplace orig repl (drop (length orig) text)
   --                                 else head text : strReplace orig repl (tail text)
-
-{-
-byteStringToString :: ByteString -> String
-byteStringToString = T.unpack . T.decodeUtf8
-
-stringFromByteString :: ByteString -> String
-stringFromByteString = byteStringToString
-
-
-stringToByteString :: String -> ByteString
-stringToByteString = T.encodeUtf8 . T.pack
-
-byteStringFromString :: String -> ByteString
-byteStringFromString = stringToByteString
-
-stringToText :: String -> Text
-stringToText = T.pack
-
-textFromString :: String -> Text
-textFromString = T.pack
--}
-
-{-
-byteConcat :: [ByteString] -> ByteString
-byteConcat = B.concat
-
-byteNull :: ByteString -> Bool
-byteNull = B.null
-
-byteEmpty :: ByteString 
-byteEmpty = B.empty
--}
-
--- byteReadFile :: FilePath -> IO ByteString
--- byteReadFile = B.readFile
 
 byteStringFromForeignPtr :: ForeignPtr Word8 -> Int -> Int -> ByteString
 byteStringFromForeignPtr = BI.fromForeignPtr

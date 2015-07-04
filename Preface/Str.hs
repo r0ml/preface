@@ -59,7 +59,7 @@ import GHC.IO.Exception
 import qualified Data.Text as T (Text, unpack)
 import Debug.Trace
 import Foreign.Storable (Storable(..), peekByteOff)
-import Foreign.C.Types (CULong, CUInt, CLong, CInt, CChar)
+import Foreign.C.Types (CULong, CUInt, CChar)
 
 type ShellError = (Int,String)
 
@@ -213,7 +213,7 @@ key = P.spaces >> P.many ( P.noneOf ":=,\n \t\r" )
 -}
 
 strToMap :: String -> [(String,String)]
-strToMap x = filter (\(x,_) -> not (null x) ) (map parsePair (lines x))
+strToMap q = filter (\(x,_) -> not (null x) ) (map parsePair (lines q))
   where parsePair y = let y1 = dropWhile isSpace y
                           (y2,y3) = break (`elem` ":=,\n \t\r") y1
                           y4 = if null y3 then y3 else dropWhile isSpace (tail y3)
@@ -234,21 +234,22 @@ instance NSShow T.Text where nsShow = T.unpack
 -- this can be used as $(interpolate x) 
 -- I need the environment if the interpolation includes environment variables, but not otherwise
 interpolate :: String -> ExpQ
-interpolate x = [| let v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in concat $(listE (interp x)) |]
+interpolate q = [| let _v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in concat $(listE (interp q)) |]
+   -- [| concat $(listE (interp q)) |]
    where interp x =
-           let v_v x = maybe x id (unsafePerformIO (lookupEnv x))
+           let -- v_v x = maybe x id (unsafePerformIO (lookupEnv x))
                (s1, s2) = break (=='$') x
                s3 = case s2 of
                       [] -> []
                       '$':s4 -> case s4 of 
                                   [] -> []
                                   '$':s5 -> stringE "$" : interp s5
-                                  s6@(c1:s7) | isAlpha c1 && isLower c1 -> 
-                                          let (s8, s9) = span (\x -> isAlphaNum x || '_' == x ) s6
+                                  s6@(c1:_s7) | isAlpha c1 && isLower c1 -> 
+                                          let (s8, s9) = span (\x2 -> isAlphaNum x2 || '_' == x2 ) s6
                                            in (appE [|nsShow|] (varE (mkName s8))): interp s9
                                              | isAlpha c1 && isUpper c1 ->
-                                          let (s10, s11) = span (\x -> isAlphaNum x || '_' == x) s6
-                                           in appE (varE (mkName "v_v")) (stringE s10) : interp s11
+                                          let (s10, s11) = span (\x2 -> isAlphaNum x2 || '_' == x2) s6
+                                           in appE (varE (mkName "_v_v")) (stringE s10) : interp s11
                                      --      in [| $(_v s10) |] : interp s11
                                   _ -> fail "can't get here"
                       _ -> fail "can't get here either"
@@ -366,7 +367,7 @@ storable = QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = 
 genStorable :: String -> [(String, Name)] -> Q [Dec]
 genStorable name vals = do
         dd <- dataD (cxt[]) nam [] [dv] [''Show]
-        let sx a c = if c == ''Int64 then 8 else 4
+        let sx _a c = if c == ''Int64 then 8 else 4
             so = foldl sx 0 dq :: Int
             dq = map snd vals
         fe <- instanceD (cxt [])
@@ -374,7 +375,7 @@ genStorable name vals = do
                 [
                  funD (mkName "peek") [clause [varP (mkName "a") ] (normalB 
                       (snd (foldl tpm (0, (appE [|pure|] (conE nam))) vals )))  []],
-                 -- funD (mkName "poke") $ undefined,
+                 funD (mkName "poke") [clause [wildP, wildP] (normalB [| undefined |]) []],
                  funD (mkName "sizeOf") [clause [wildP] (normalB [|so|]) []],
                  funD (mkName "alignment") [clause [wildP] (normalB (litE (integerL 4))) []]
                  ]
@@ -382,7 +383,7 @@ genStorable name vals = do
   where dv = recC nam ( map (\(n,t) -> varStrictType (mkName (lnam++"_"++n)) (strictType notStrict (conT t))) vals)
         nam = mkName name
         lnam = toLower (head name) : tail name
-        tpm (n,x) (a,b) = (n+bLen b, (infixApp x [|(<*>)|] (appE [|fmap fromIntegral|] (sigE ( appE ( appE [|peekByteOff|] (varE (mkName "a")) ) (litE (integerL (fromIntegral n)))) (appT [t|IO|] (conT (cType b) ))))))
+        tpm (n,x) (_a,b) = (n+bLen b, (infixApp x [|(<*>)|] (appE [|fmap fromIntegral|] (sigE ( appE ( appE [|peekByteOff|] (varE (mkName "a")) ) (litE (integerL (fromIntegral n)))) (appT [t|IO|] (conT (cType b) ))))))
         cType x 
           | x == ''Int64 = ''CULong
           | x == ''Int32 = ''CUInt
@@ -404,7 +405,7 @@ genRec name pfx flds = do
 --   to convert the record to a key/value pair
     fe <- instanceD (cxt [])
             (appT (conT ''KValic) (conT mn))
-            [funD (mkName "toKVL") $ [clause [conP mn (map (varP . mkName . ("a"++) . show) [1..length flds])] (normalB (foldl tpm (listE []) (zip [1..] flds))) [] ]
+            [funD (mkName "toKVL") $ [clause [conP mn (map (varP . mkName . ("a"++) . show) [1..length flds])] (normalB (foldl tpm (listE []) (zip [(1::Int)..] flds))) [] ]
             ]
     return [dd, fe]
   where rc = map (\(n,t)->varStrictType (mkName (pfx ++ n) ) (strictType notStrict t)) flds
@@ -413,14 +414,15 @@ genRec name pfx flds = do
            do 
              cc <- c
              case cc of
-               AppT (ConT aa) bb | aa == ''Maybe ->
+               AppT (ConT aa) _bb | aa == ''Maybe ->
                  [|consUnlessNothing|] `appE` (litE (stringL b))
                  `appE` (varE (mkName ("a"++show a)))
                  `appE` x
                _ -> infixApp ( tupE [litE (stringL b),
                  appE [|nsShow|] (varE (mkName ("a"++show a))) ]) [|(:)|] x
 
-consUnlessNothing a Nothing c = c
+consUnlessNothing :: NSShow a => t -> Maybe a -> [(t, String)] -> [(t, String)]
+consUnlessNothing _a Nothing c = c
 consUnlessNothing a (Just b) c = (a,nsShow b) : c
 
 stripComments :: String -> String

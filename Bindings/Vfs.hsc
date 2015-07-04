@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving, ForeignFunctionInterface #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# OPTIONS_GHC -ddump-splices #-}
+-- {-# OPTIONS_GHC -ddump-splices #-}
 
 #include "sys/statvfs.h"
 #include "sys/mount.h"
@@ -26,8 +26,8 @@ module Bindings.Vfs (
   , StatFS(..)
 ) where
 
-import Foreign.Storable (Storable, peek, pokeByteOff, peekByteOff, sizeOf, alignment, poke)
-import Foreign.C.Types (CULong, CUInt, CInt(..), CLong, CShort)
+import Foreign.Storable (Storable, peek, peekByteOff, sizeOf, alignment, poke)
+import Foreign.C.Types (CUInt, CInt(..), CLong, CShort)
 import Foreign.C.Error (throwErrnoIfMinus1_, throwErrnoIfMinus1)
 import Foreign.C.String (CString, withCString, peekCString)
 import Data.Bits (testBit, finiteBitSize, bit)
@@ -37,8 +37,8 @@ import Foreign.Marshal.Array (allocaArray, peekArray)
 import Data.Maybe (mapMaybe)
 import Preface.Str (storable)
 
-type HTYPE_FSBLKCNT_T = CUInt
-type HTYPE_FSFILCNT_T = CUInt
+-- type HTYPE_FSBLKCNT_T = CUInt
+-- type HTYPE_FSFILCNT_T = CUInt
 
 foreign import ccall unsafe "sys/statvfs.h statvfs" c_statvfs :: CString -> Ptr StatVFS -> IO CInt
 

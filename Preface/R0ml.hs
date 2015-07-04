@@ -51,7 +51,8 @@ import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkI
                                       tryTakeMVar, tryPutMVar, isEmptyMVar, withMVar, withMVarMasked,
                                       modifyMVar_, modifyMVar, modifyMVarMasked_, modifyMVarMasked,
                                       tryReadMVar, mkWeakMVar)
-import Control.DeepSeq as X (NFData(..), deepseq, ($!!), force)
+-- import Control.DeepSeq as X (NFData(..), deepseq, ($!!), force)
+
 import Control.Exception as X (Exception(..), SomeException,
                                IOException, ArithException, ArrayException, AssertionFailed,
                                SomeAsyncException, AsyncException, NonTermination, NestedAtomically,
@@ -71,16 +72,11 @@ import Control.Monad as X (
         join, msum, mplus, mfilter, filterM, mapAndUnzipM, zipWithM, zipWithM_, foldM, foldM_,
         replicateM, replicateM_, guard, when, unless,
         liftM, liftM2, liftM3, liftM4, liftM5, ap, (<$!>) )
-import Control.Monad.IO.Class as X (liftIO)
+
+-- import Control.Monad.IO.Class as X (liftIO)
+
 import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
--- Look at the differences between the Get/Put monads and using a Builder directly
-import Data.Binary as X (Binary, Get, Put) 
-import Data.Binary as X (get, put, encode, decode, decodeOrFail) 
-import Data.Binary.Get as X (getWord8, getByteString, getWord16be, getWord32be, getWord64be,
-                             runGet)
-import Data.Binary.Put as X (putWord8, putByteString, putWord16be, putWord32be, putWord64be,
-                             runPut)
 import Data.Bits as X (Bits(..), (.&.), shiftR, shiftL, (.|.), complement, xor, rotateR, rotateL,
                        testBit, setBit, finiteBitSize)
 import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
@@ -168,12 +164,15 @@ import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 import Preface.Stringy as X hiding()
 import Preface.Byter as X hiding ()
 
+import Preface.Binary as X
+import Preface.Arrayed as X
 import Debug.Trace as X
 
 import Preface.Misc as X
 import Preface.Math as X
 
 import Preface.Str as X
+import Preface.StrUtils as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 

@@ -1,16 +1,16 @@
 {-# LANGUAGE ForeignFunctionInterface, QuasiQuotes #-}
-{-# OPTIONS_GHC -ddump-splices #-}
+-- {-# OPTIONS_GHC -ddump-splices #-}
 
 module Bindings.Syslog ( startLog,
   openlog,  openlog_,  closelog,  syslog,  setlogmask,  SyslogPriority(..),  SyslogFacility(..),  SyslogOption(..)
   ) where
 
 import Control.Concurrent (newChan, writeChan, getChanContents, forkIO)
-import Data.Maybe (fromJust)
+-- import Data.Maybe (fromJust)
 import Data.Bits (testBit, setBit)
 import Foreign.C.Types (CInt(..))
 import Foreign.C.String (CString, withCString)
-import Data.Tuple (swap)
+-- import Data.Tuple (swap)
 import Preface.Str (enumIr)
 import Bindings.Util (enumIx8)
 

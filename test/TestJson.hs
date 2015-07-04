@@ -8,7 +8,7 @@
 {-# Language OverloadedStrings, StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 
-{-# OPTIONS_GHC -ddump-splices -ddump-to-file #-}
+-- {-# OPTIONS_GHC -ddump-splices -ddump-to-file #-}
 
 module TestJson (tests) where
 
