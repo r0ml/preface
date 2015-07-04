@@ -1,0 +1,5 @@
+
+:load Preface/StrUtils.hs
+
+let rc x = return . (x ++ ) . shell_escape 
+
