@@ -21,15 +21,18 @@ Library
                  , network, process
                  , random
                  , text
+                 , stm
                  -- for building introspection and testing modules
-                 , Cabal
-
+                 , Cabal, QuickCheck
+                 
+                 , ghc
                  -- , deepseq, ghc, haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
 
   Exposed-modules: Preface.R0ml
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.SCGI
             , Preface.Str, Preface.StrUtils, Preface.Binary, Preface.Arrayed
+            , Preface.Timings
             , Preface.Xml, Preface.JSONic
             , Bindings.Curl, Bindings.CurlX
             , Bindings.Posix, Bindings.Util

@@ -96,3 +96,14 @@ import Data.Bits
 (√) :: Floating a => a -> a
 (√) = sqrt
 
+infixr 8 ¨
+(¨) :: (a->b) -> [a] -> [b]
+(¨) = Prelude.map
+
+(⍨) :: (a -> b -> c) -> b -> a -> c
+(⍨) = flip
+
+-- (join (*))¨ [1..10]
+-- ($[1..10])¨ take¨ [3,4,5]
+-- 
+

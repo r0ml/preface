@@ -19,7 +19,7 @@ module Bindings.Curl
 import Bindings.CurlX as X
 import Data.ByteString (ByteString, packCStringLen)
 import qualified Data.ByteString as B (take, drop, concat, null, head, tail, empty, init, last)
-import qualified Data.ByteString.Char8 as B (lines, elemIndex)
+import qualified Data.ByteString.Char8 as B (lines, elemIndex, pack)
 import Data.Bits (shiftL, (.|.) )
 import Foreign.C.Types (CChar, CInt(..))
 import Foreign.C.String (CString, peekCString, withCString)
@@ -95,7 +95,8 @@ perform_with_response h = do
        }
   where
     finalHeader = parseStatusNHeaders . B.concat . reverse 
-    parseStatusNHeaders ys = let lns = B.lines ys in (head lns, map parseHeader (tail lns))
+    parseStatusNHeaders ys = let lns = B.lines ys in
+         if null lns then (B.pack "*** Parse Failure ***" , []) else (head lns, map parseHeader (tail lns))
     parseHeader xs =  let -- xs = asString xsi
                           xsr = if B.last xs == (toEnum . fromEnum) '\r' then B.init xs else xs
                           ndx = B.elemIndex ':' xsr
@@ -137,33 +138,7 @@ curlPost s ps h = do
      IList{}   -> fail ("Curl.getResponseCode: unexpected response code " ++ show iv)
 -}
 
-
-
 -- ---------------------------------------------------
-{-
-data CurlCode
- = CurlOK
- | CurlUnspportedProtocol | CurlFailedInit | CurlUrlMalformat | CurlUrlMalformatUser | CurlCouldntResolveProxy
- | CurlCouldntResolveHost | CurlCouldntConnect | CurlFtpWeirdServerReply | CurlFtpAccessDenied
- | CurlFtpUserPasswordIncorrect | CurlFtpWeirdPassReply | CurlFtpWeirdUserReply | CurlFtpWeirdPASVReply
- | CurlFtpWeird227Format | CurlFtpCantGetHost | CurlFtpCantReconnect | CurlFtpCouldnSetBinary
- | CurlPartialFile | CurlFtpCouldntRetrFile | CurlFtpWriteError | CurlFtpQuoteError | CurlHttpReturnedError
- | CurlWriteError | CurlMalformatError | CurlFtpCouldnStorFile | CurlReadError | CurlOutOfMemory
- | CurlOperationTimeout | CurlFtpCouldntSetAscii | CurlFtpPortFailed | CurlFtpCouldntUseRest
- | CurlFtpCouldntGetSize | CurlHttpRangeError | CurlHttpPostError | CurlSSLConnectError
- | CurlBadDownloadResume | CurlFileCouldntReadFile | CurlLDAPCannotBind | CurlLDPAPSearchFailed
- | CurlLibraryNotFound | CurlFunctionNotFound | CurlAbortedByCallback | CurlBadFunctionArgument
- | CurlBadCallingOrder | CurlInterfaceFailed | CurlBadPasswordEntered | CurlTooManyRedirects
- | CurlUnknownTelnetOption | CurlTelnetOptionSyntax | CurlObsolete | CurlSSLPeerCertificate
- | CurlGotNothing | CurlSSLEngineNotFound | CurlSSLEngineSetFailed | CurlSendError
- | CurlRecvError | CurlShareInUse | CurlSSLCertProblem | CurlSSLCipher | CurlSSLCACert
- | CurlBadContentEncoding | CurlLDAPInvalidUrl | CurlFilesizeExceeded | CurlFtpSSLFailed
- | CurlSendFailRewind | CurlSSLEngineInitFailed | CurlLoginDenied | CurlTFtpNotFound | CurlTFtpPerm
- | CurlTFtpDiskFull | CurlTFtpIllegal | CurlTFtpUnknownId | CurlTFtpExists | CurlTFtpNoSuchUser
- | CurlConvFailed | CurlConvReqd | CurlSSLCACertBadFile | CurlRemoveFileNotFound | CurlSSH
- | CurlSSLShutdownFailed | CurlAgain | CurlSSLCRLBadFile | CurlSSLIssuerError
- deriving ( Eq, Show, Enum )
--}
 
 toCode :: CInt -> CurlCode
 toCode = toEnum . fromIntegral
@@ -267,65 +242,9 @@ foreign import ccall "curl_slist_free_all" curl_slist_free :: Ptr () -> IO ()
 
 -- ---------------------------------------------------------------
 
--- ---------------------------------------------------------------
-
-{-
-data CurlInfoType
- = EffectiveUrl | ResponseCode | TotalTime | NameLookupTime | ConnectTime | PreTransferTime
- | SizeUpload | SizeDownload | SpeedDownload | SpeedUpload | HeaderSize | RequestSize
- | SslVerifyResult | Filetime | ContentLengthDownload | ContentLengthUpload | StartTransferTime
- | ContentType | RedirectTime | RedirectCount | Private | HttpConnectCode | HttpAuthAvail
- | ProxyAuthAvail | OSErrno | NumConnects | SslEngines | CookieList | LastSocket | FtpEntryPath
-   deriving (Show,Enum,Bounded)
--}
-
--- class InfoValue a where
---   doGetInfo :: Info -> a
-
--- class InfoValue a where
---   iv :: a -> a
-
--- instance InfoValue String where
---   iv = id
-
 data CurlInfoValue = CurlInfoString String | CurlInfoInt Int | CurlInfoDouble Double | CurlInfoList [String]
     | CurlInfoError CurlCode
   deriving (Show)
-
-{-
-getInfo :: Curl -> CurlInfoType -> IO CurlInfoValue
-getInfo h i = case i of
-    EffectiveUrl -> doGetInfo C_S h 1
-    ResponseCode -> doGetInfo C_I h 2
-    TotalTime    -> doGetInfo C_D h 3
-    NameLookupTime -> doGetInfo C_D h 4
-    ConnectTime -> doGetInfo C_D h 5
-    PreTransferTime -> doGetInfo C_D h 6
-    SizeUpload -> doGetInfo C_D h 7
-    SizeDownload -> doGetInfo C_D h 8
-    SpeedDownload -> doGetInfo C_D h 9
-    SpeedUpload -> doGetInfo C_D h 10
-    HeaderSize -> doGetInfo C_I h 11
-    RequestSize -> doGetInfo C_I h 12
-    SslVerifyResult -> doGetInfo C_I h 13
-    Filetime -> doGetInfo C_I h 14
-    ContentLengthDownload -> doGetInfo C_D h 15
-    ContentLengthUpload   -> doGetInfo C_D h 16
-    StartTransferTime -> doGetInfo C_D h 17
-    ContentType -> doGetInfo C_S h 18
-    RedirectTime -> doGetInfo C_D h 19
-    RedirectCount -> doGetInfo C_I h 20
-    Private -> doGetInfo C_S h 21
-    HttpConnectCode -> doGetInfo C_I h 22
-    HttpAuthAvail -> doGetInfo C_I h 23
-    ProxyAuthAvail -> doGetInfo C_I h 24
-    OSErrno -> doGetInfo C_I h 25
-    NumConnects -> doGetInfo C_I h 26
-    SslEngines -> doGetInfo C_L h 27
-    CookieList -> doGetInfo C_L h 28
-    LastSocket -> doGetInfo C_I h 29
-    FtpEntryPath -> doGetInfo C_S h 30
--}
 
 doGetInfo :: CurlInfoValueType -> Int -> Curl -> IO CurlInfoValue
 doGetInfo t tg h =
@@ -710,36 +629,3 @@ setopt cc z = (toEnum . fromIntegral) <$> seto z where
   seto (CurloptProxyPassword x   ) = u_str 176 x
 
 -- -----------------------------------------------------------------------------
-
-{-
-    , u_string  -- :: Int -> String   -> IO CurlCode
-       = \ i x -> do curl_debug $ "ALLOC: " ++ x
-                     c_x <- newCString x
-                     updateCleanup r i $ curl_debug ("FREE: "++ x) >> free c_x
-                     liftM toCode $ easy_setopt_string h i c_x
-
-    , u_strings -- :: Int -> [String] -> IO CurlCode
-       = \ i x ->
-           do curl_debug ("ALLOC: " ++ show x)
-              -- curl_slist_append will copy its string argument
-              let addOne ip s = withCString s $ curl_slist_append ip 
-              ip <- foldM addOne nullPtr x 
-              updateCleanup r i $
-                curl_debug ("FREE: " ++ show x) >> curl_slist_free ip
-              liftM toCode $ easy_setopt_string h i (castPtr ip)
-     , u_posts    -- :: Int -> [HttpPost] -> IO a
-       = \ i x -> do
-           curl_debug "ALLOC: POSTS"
-           p <- marshallPosts x
-           updateCleanup r i $ curl_debug "FREE: POSTS" >> curl_formfree p
-           liftM toCode $ easy_setopt_ptr h i p 
--}
-
-
--- mkEnum "One Two Three Four"
-
--- mkEnumI "Um Dois 2 Tres 30 Quatro 400"
-
-
-
-

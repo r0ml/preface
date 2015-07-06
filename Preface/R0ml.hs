@@ -52,6 +52,8 @@ import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkI
                                       modifyMVar_, modifyMVar, modifyMVarMasked_, modifyMVarMasked,
                                       tryReadMVar, mkWeakMVar)
 -- import Control.DeepSeq as X (NFData(..), deepseq, ($!!), force)
+import Control.Concurrent.STM as X (TChan(..), atomically,
+     writeTChan, readTChan, newTChanIO, newTChan)
 
 import Control.Exception as X (Exception(..), SomeException,
                                IOException, ArithException, ArrayException, AssertionFailed,
@@ -130,7 +132,8 @@ import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirector
                         takeBaseName, splitExtension, takeExtension, takeFileName, joinPath, splitPath,
                         normalise, isAbsolute)
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
-import System.IO as X (Handle, hClose, hFlush, hPutStrLn, openFile, IOMode(..), stdin, stderr, stdout )
+import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr
+        , openFile, withFile, IOMode(..), stdin, stderr, stdout )
 import System.IO.Unsafe as X (unsafePerformIO)
 
 import System.Environment as X (getArgs, getEnvironment, lookupEnv)
@@ -138,6 +141,10 @@ import System.Exit as X (ExitCode, exitSuccess, exitFailure, exitWith )
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   readProcessWithExitCode,
   CreateProcess(..))
+
+import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
+
+import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
 
 -- import Text.Regex.TDFA as X ((=~), (=~~))
 import Text.Printf as X (printf)
@@ -176,6 +183,8 @@ import Preface.StrUtils as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 
+import Preface.Timings as X
+
 import Preface.Xml as X
 import Preface.JSONic as X
 
@@ -186,6 +195,8 @@ import Bindings.Posix as X
 -- import qualified Data.Vector as V
 
 import Preface.SCGI as X
+
+import Test.QuickCheck as X ( quickCheck, Arbitrary(..) )
 
 -- ----------------------------------------
 import Distribution.TestSuite as X ( Progress(..), Test, testGroup)

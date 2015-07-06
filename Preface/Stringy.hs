@@ -64,7 +64,7 @@ import System.Random (newStdGen, randomRs)
 type LazyByteString = LC.ByteString
 type LazyText = TL.Text
 
-default (Integer, Int)
+-- default (Integer, Int)
 
 -- | A class for the element of a Stringy
 class (Eq a, Enum a) => Chary a where
