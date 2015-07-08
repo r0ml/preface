@@ -36,7 +36,9 @@ Library
             , Preface.Xml, Preface.JSONic
             , Bindings.Curl, Bindings.CurlX
             , Bindings.Posix, Bindings.Util
-            , Bindings.Vfs, Bindings.KQueue, Bindings.Msg, Bindings.Syslog
+            , Bindings.Vfs
+            -- , Bindings.KQueue
+            , Bindings.Msg, Bindings.Syslog
   Extra-Libraries: curl
   Hs-Source-Dirs: .
   Ghc-options: -Wall

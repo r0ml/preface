@@ -21,9 +21,9 @@ module Bindings.Vfs (
           maximum filename length
   -}
   statVFS
-  , getStatFS
+--   , getStatFS
   , StatVFS(..)
-  , StatFS(..)
+--   , StatFS(..)
 ) where
 
 import Foreign.Storable (Storable, peek, peekByteOff, sizeOf, alignment, poke)
@@ -107,7 +107,8 @@ statVFS path =
   alloca $ \p -> (throwErrnoIfMinus1_ "statVFS" $ c_statvfs c_path p) >> peek p
  
 -- --------------------------------------------------------------------------------------------------
-     
+{-
+
 foreign import ccall unsafe "sys/mount.h getfsstat" c_getfsstat :: Ptr StatFS -> CInt -> CInt -> IO CInt
 
 data StatFS = StatFS {
@@ -235,4 +236,6 @@ getStatFS = do
     let bufsiz = (a+1) * (#size struct statfs)
     b <- fmap fromIntegral (throwErrnoIfMinus1 "getfsstat" $ c_getfsstat p (fromIntegral bufsiz :: CInt) (#const MNT_NOWAIT)) :: IO Int
     (peekArray b p :: IO [StatFS])
-  
+
+-}
+
