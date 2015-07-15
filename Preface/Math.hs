@@ -20,7 +20,8 @@ setUnion (x:xs) (y:ys) = case (compare x y) of
 setUnion  xs     ys    = xs ++ ys
 
 primes :: [Integer]
-primes = 2 : ([3,5..] `setMinus` unionAll [[p*p,p*p+2*p..] | p <- primes']) 
+-- primes = 2 : ([3,5..] `setMinus` unionAll [[p*p,p*p+2*p..] | p <- primes']) 
+primes = 2 : primes' 
  where
    primes' = 3 : ([5,7..] `setMinus` unionAll [[p*p,p*p+2*p..] | p <- primes'])   
    unionAll ((x:xs):t) = x : setUnion xs (unionAll (pairs t))

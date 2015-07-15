@@ -34,6 +34,10 @@ type SHA1State = (Word32, Word32,  Word32,  Word32,  Word32)
 type SHA256State = (Word32, Word32, Word32, Word32, Word32, Word32, Word32, Word32) 
 type SHA512State = (Word64, Word64, Word64, Word64, Word64, Word64, Word64, Word64)
 
+-- | convert a bytestring into a list of bytestrings
+-- the first argument is the number of bytes to chunk into
+-- the second argument is true if the endianness needs to be swapped
+-- the third argument is the bytestring to chunkify
 blk :: Int -> Bool -> ByteString -> [ByteString]
 blk k se bs = chunkify bs 0 
   where 

@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, TypeFamilies #-}
 
 module Preface.SCGI ( runSCGI, CGI(..), cgiGetHeaders, cgiGetBody,
-    writeResponse, sendResponse, sendRedirect, sendLocalRedirect, doCGI
+    writeResponse, sendResponse, sendRedirect, sendLocalRedirect, doCGI, 
+    dumpCGI
   ) where
 
 import Control.Concurrent
@@ -18,23 +19,38 @@ import Preface.Stringy
 import System.IO
 import Data.Char
 
-handler :: (CGI -> IO ()) -> QSem -> Socket -> IO ()
-handler f qsem sockt = do
+type CGIFunction = (CGIVars -> CGI -> IO HTTPHeaders)
+
+handlern :: CGIFunction -> QSem -> Socket -> IO ()
+handlern f qsem sockt = do
   waitQSem qsem
   (sock, _) <- accept sockt
   _ <- forkIO $ do
       catch (doSCGI f sock) (\e -> hPutStrLn stderr $ "scgi: "++show (e::SomeException))
       signalQSem qsem
-  handler f qsem sockt
+  handlern f qsem sockt
 
--- | runSCGI threads port cgi-function (in the IO monad)
-runSCGI :: Int -> Int -> (CGI -> IO () ) -> IO ()
-runSCGI maxThreads port f = join (doListen port <$> handler f <$> newQSem maxThreads )
+handler :: CGIFunction -> Socket -> IO ()
+handler f sockt = do
+  (sock, _) <- accept sockt
+  _ <- forkIO $ catch (doSCGI f sock) (\e -> hPutStrLn stderr $ "scgi: "++show (e::SomeException))
+  return ()
 
-doSCGI :: ( CGI -> IO() ) -> Socket -> IO ()
+-- | runSCGIn threads port cgi-function (in the IO monad)
+-- runSCGIn :: Int -> Int -> (CGI -> IO () ) -> IO ()
+-- runSCGIn maxThreads port f = join (doListen port <$> handlern f <$> newQSem maxThreads )
+--
+-- | runSCGI port cgi-function (in the IO monad)
+runSCGI :: Int -> CGIFunction -> IO ()
+-- runSCGI port f = doListen port ( \x -> forever ( handler f x) )
+runSCGI = (. ((forever .) . handler)) . doListen
+
+doSCGI :: CGIFunction -> Socket -> IO ()
 doSCGI f sock = do
   a <- getSCGI sock
-  f a
+  b <- cgiGetHeaders a
+  c <- f b a
+  sendResponse a c
   writeResponse a B.empty
 
 -- | WARNING: this ignores non-digits
@@ -155,10 +171,17 @@ cgiGetBody cgir = cgiGetBody' cgir ""
           x <- readChan (cgiRqBody cgx)
           if B.null x then return sf else cgiGetBody' cgx (B.concat [sf, x])
 
-doCGI :: ( CGI -> IO() ) -> IO ()
+dumpCGI :: CGIFunction
+dumpCGI h a = do
+  writeResponse a (show h)
+  return [("Status","200 OK"), ("Content-Type","text/plain")]
+
+doCGI :: CGIFunction -> IO ()
 doCGI f = do
   a <- getCGI
-  f a
+  b <- cgiGetHeaders a 
+  c <- f b a
+  sendResponse a c
   writeResponse a B.empty
   _ <- takeMVar (cgiWriterVar a)
   return ()

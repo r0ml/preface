@@ -196,7 +196,8 @@ import Bindings.Posix as X
 
 import Preface.SCGI as X
 
-import Test.QuickCheck as X ( quickCheck, Arbitrary(..) )
+import Test.QuickCheck as X ( quickCheck, Arbitrary(..), quickCheckWith, quickCheckResult,
+                              quickCheckWithResult )
 
 -- ----------------------------------------
 import Distribution.TestSuite as X ( Progress(..), Test, testGroup)
