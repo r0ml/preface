@@ -1,6 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface, TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
-{-# OPTIONS_HADDOCK hide,prune #-}
+{-# OPTIONS_HADDOCK hide, prune #-}
 
 module Bindings.CurlX ( Curl, curl_debug, mkCurl
                       , curlPrim, c_curl_easy_setopt, c_curl_easy_setopt_p

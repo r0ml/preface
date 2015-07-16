@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving, ForeignFunctionInterface #-}
 {-# LANGUAGE QuasiQuotes #-}
--- {-# OPTIONS_GHC -ddump-splices #-}
+{-# OPTIONS_GHC -ddump-splices #-}
 
 #include "sys/statvfs.h"
 #include "sys/mount.h"

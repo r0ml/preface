@@ -41,24 +41,25 @@ Library
             , Bindings.Msg, Bindings.Syslog
   Extra-Libraries: curl
   Hs-Source-Dirs: .
-  Ghc-options: -Wall
+-- IF THE -lcurl IS MUSSING, HADDOCK FAILS
+  Ghc-options: -Wall -lcurl
   Default-Language: Haskell2010
 
-Test-Suite testXml
-  type: detailed-0.9
-  Default-Language: Haskell2010
-  Build-Depends: base, Cabal, preface-r0ml
-  hs-source-dirs: test
-  Ghc-options: -Wall -static
-  Test-Module: TestXml
+-- Test-Suite testXml
+-- type: detailed-0.9
+--  Default-Language: Haskell2010
+--  Build-Depends: base, Cabal, preface-r0ml
+--  hs-source-dirs: test
+--  Ghc-options: -Wall -static
+--  Test-Module: TestXml
 
-Test-Suite testJson
-  type: detailed-0.9
-  Default-Language: Haskell2010
-  Build-Depends: base, Cabal, preface-r0ml, QuickCheck, bytestring, text, time, containers
-  hs-source-dirs: test
-  Ghc-options: -Wall -static
-  test-module: TestJson
+--Test-Suite testJson
+--  type: detailed-0.9
+--  Default-Language: Haskell2010
+--  Build-Depends: base, Cabal, preface-r0ml, QuickCheck, bytestring, text, time, containers
+--  hs-source-dirs: test
+--  Ghc-options: -Wall -static
+--  test-module: TestJson
 
 Test-Suite testStr
   -- type: detailed-0.9

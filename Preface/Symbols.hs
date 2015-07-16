@@ -11,14 +11,29 @@ import Data.Bits
 -- | Division
 -- DIVISION SIGN
 -- Unicode: U+00F7, UTF-8: C3 B7
+-- vi digraph  -:
 (÷) :: Fractional a => a -> a -> a
 (÷) = (/)
 
+-- | Take (up arrow)
+-- UPWARDS ARROW 
+-- Unicode: U+2191, UTF-8 E2 86 91
+-- vi digraph -!
+(↑) :: Int -> [a] -> [a]
+(↑) = take
+
+-- | Drop (down arrow)
+-- DOWNWARDS ARROW
+-- Unicode: U+2193, UTF-8 E2 86 93
+-- vi digraph -v
+(↓) :: Int -> [a] -> [a]
+(↓) = drop
+ 
 -- | Rho (size / resize) 
 -- APL FUNCTIONAL SYMBOL RHO
 -- Unicode: U+2374, UTF-8: E2 8D B4
 (⍴) :: Int -> [a] -> [a]
-(⍴) = take
+(⍴) a b = take a (cycle b)
 
 -- | Multiplication
 -- MULTIPLICATION SIGN

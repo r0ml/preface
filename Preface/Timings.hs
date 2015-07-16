@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
+-- | Functions related to timing other functions.
+-- I expect to use these functions to compare different implementations.
 module Preface.Timings (
   timings, timings', randomList
 ) where
@@ -13,6 +15,14 @@ strictShow h !x = (hPutStr h $! (show x)) >> hFlush h
 
 gt x y = fromIntegral (x - y) / 1000000000
 
+-- | This times two IO functions.  The third argument is the test data to pass to both functions.
+-- Currently, the functions are run alternately, twice each.
+-- The result is a list of tuples containing the CPU time for each run.
+-- (i.e. each tuple is a value for the first and second function timings, and the list contains
+-- as many entries as number of trials (which is currently hard-wired at 2)
+--
+-- The functions must return an instance of @Show@ because, in order to ensure that the 
+-- evaluation has occurred, the results of the functions are "shown" and written to /dev/null. 
 timings :: (Show a, Show c) => ( b -> IO a) -> ( b -> IO c) -> b -> IO [(Double, Double)]
 timings f g !b = do
   t <- withFile "/dev/null" WriteMode $ \h -> do
@@ -33,6 +43,7 @@ timings f g !b = do
     return [(d1, d2),(d3, d4)]
   return t
 
+-- | The same as for @timings@, but the two functions are pure.
 timings' :: (Show a, Show c) => ( b -> a) -> ( b -> c) -> b -> IO [(Double, Double)]
 timings' f g !b = do
   t <- withFile "/dev/null" WriteMode $ \h -> do

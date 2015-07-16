@@ -1,4 +1,4 @@
-{-| This is r0ml's extended preface for GHC.
+{- | This is r0ml's extended preface for GHC.
     GHC 7.10 comes with the following builtin libraries:
 
 array
@@ -32,7 +32,13 @@ to provide a single import / namespace containing all of the commonly used built
 -}
 
 module Preface.R0ml (module X, module Preface.R0ml
-  , Stringy(..), Chary(..) ) where
+  -- | A class which implements String functions for various representations (UTF8, ByteString, and String)
+  ,Stringy(..)
+  -- | A class which implements Char functions for Word8, Char8 and Char
+  , Chary(..)
+  , module Preface.Timings
+
+ ) where
 
 import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$),(<**>), optional,
                                  liftA, liftA2, liftA3, pure)
@@ -61,6 +67,7 @@ import Control.Exception as X (Exception(..), SomeException,
                                BlockedIndefinitelyOnMVar, BlockedIndefinitelyOnSTM,
                                AllocationLimitExceeded, Deadlock, NoMethodError, PatternMatchFail,
                                RecConError, RecSelError, RecUpdError, ErrorCall, 
+                               assert, AssertionFailed,
                                asyncExceptionToException, asyncExceptionFromException,
                                throw, throwIO, ioError,  
                                catch, catches, Handler(..), catchJust, handle, handleJust,
@@ -183,7 +190,7 @@ import Preface.StrUtils as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 
-import Preface.Timings as X
+import Preface.Timings -- as X
 
 import Preface.Xml as X
 import Preface.JSONic as X
@@ -210,6 +217,8 @@ import qualified Distribution.TestSuite as TS
 
 -- data TestInstance = TestInstance { TS.TestInstance | run -> testRun }
 
+-- | makeTest is used to create a test function for generating test cases
+-- the default Cabal functions / datatypes are too awkward for using directly
 makeTest :: String -> (String -> IO TestResult) -> Test
 makeTest nam dotest = 
   let t = TS.TestInstance { TS.run = do { a <- dotest nam; return (Finished (cvt a)) }
