@@ -165,9 +165,9 @@ Right "       0       5      28"
 -}
 shin :: QuasiQuoter
 shin = quasiQuoter $ \x -> let { (a,_:b) = break (=='|') x } in [e| do
-             shc <- $(interpolate a)
-             cm <- $(interpolate b)
-             shell2 (words shc) cm |]
+             let shc = $(interpolate a)
+                 cm = $(interpolate b)
+              in shell2 (words shc) cm |]
 
 
 shebang :: QuasiQuoter
@@ -186,18 +186,18 @@ psql :: QuasiQuoter
 psql = quasiQuoter (intShebang "psql -c")
 
 intShebang :: String -> String -> ExpQ
-intShebang a b = [| do { z <- $(interpolate b); y <- $(interpolate a); shell2 (words y) z } |]
+intShebang a b = [| let z = $(interpolate b) in  return $ {- traceShow ("intShebang",a,z) $ -} shell2 (words a) z |]
 
 
 shell :: String -> IO (Either ShellError String)
-shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; traceShow ("shell", cmd) $ shell2 [shellEx , "-c"] cmd }
+shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; {- traceShow ("shell", cmd) $ -} shell2 [shellEx , "-c"] cmd }
 
 shell2 :: [String] -> String -> IO (Either ShellError String)
 shell2 x y = shell3 (head x) ( tail x ++ [y]) ""
 
 shell3 :: String -> [String] -> String -> IO (Either ShellError String)
 shell3 int cmd inp = do
-  (ex,out,err) <- traceShow (int, cmd, inp) $ readProcessWithExitCode int cmd inp
+  (ex,out,err) <- {- traceShow (int, cmd, inp) $ -} readProcessWithExitCode int cmd inp
   return $ case ex of 
     ExitSuccess -> Right (if null out || last out /= '\n' then out else init out )
     ExitFailure x -> Left (x,err)
@@ -358,7 +358,7 @@ genEnumI name vals = do
 storable :: QuasiQuoter
 storable = QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined }
   where qd s = let (hm : tm) = words (deComma (stripComments s))
-                in traceShow (hm, tm) $ genStorable hm (zip (stride 2 tm) (map f (stride 2 (tail tm))))
+                in {- traceShow (hm, tm) $ -} genStorable hm (zip (stride 2 tm) (map f (stride 2 (tail tm))))
         f x = case x of
                 "ulong" -> ''Int64
                 "uint" -> ''Int32
