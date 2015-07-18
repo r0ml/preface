@@ -164,8 +164,7 @@ Right "       0       5      28"
 @
 -}
 shin :: QuasiQuoter
-shin = quasiQuoter $ \x -> let { (a,_:b) = break (=='|') x }
-                            in [| shell3 "/bin/sh" ("-c" : words $(interpolate a)) $(interpolate b) |]
+shin = quasiQuoter $ \x -> [| shell3 "/bin/sh" ("-c" : words $(interpolate x)) |]
 
 
 shebang :: QuasiQuoter
