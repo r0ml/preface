@@ -42,7 +42,7 @@ module Preface.Str (
  
 -- import Preface.R0ml
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, try, catch)
 import System.Environment (lookupEnv)
 import Data.Char (isLower, isUpper, isAlpha, isAlphaNum, isAlpha, isSpace, toLower)
 import Data.Tuple (swap)
@@ -146,13 +146,13 @@ file = quasiQuoter pt
      one per line.  The result will be a list of String pairs showing the key/value mappings.
 -}
 opts :: QuasiQuoter
-opts = quasiQuoter $ \x -> [| let iix = $(interpolate x) in do {s <- readFile iix; return $ strToMap s } |]
+opts = quasiQuoter $ \x -> [| do {s <- readFile $(interpolate x); return $ strToMap s } |]
 
 {- | sh is a quasiquoter which interpolates the string and evaluates it with the system shell.  The result is either an
      error (the error code and contents of stderr), or the contents of stdout.
 -}
 sh :: QuasiQuoter
-sh = quasiQuoter $ \x -> [| do { let a = $( interpolate x) in shell a } |]
+sh = quasiQuoter $ \x -> [| shell $( interpolate x) |]
 
 {- | shin is a quasiquoter which interpolates everything up to the first @|@ as the shell command, and then
      interpolates everything after the @|@ to be the standard input to be passed to the shell command.
@@ -164,10 +164,8 @@ Right "       0       5      28"
 @
 -}
 shin :: QuasiQuoter
-shin = quasiQuoter $ \x -> let { (a,_:b) = break (=='|') x } in [e| do
-             let shc = $(interpolate a)
-                 cm = $(interpolate b)
-              in shell2 (words shc) cm |]
+shin = quasiQuoter $ \x -> let { (a,_:b) = break (=='|') x }
+                            in [| shell3 "/bin/sh" ("-c" : words $(interpolate a)) $(interpolate b) |]
 
 
 shebang :: QuasiQuoter
@@ -186,18 +184,19 @@ psql :: QuasiQuoter
 psql = quasiQuoter (intShebang "psql -c")
 
 intShebang :: String -> String -> ExpQ
-intShebang a b = [| let z = $(interpolate b) in  return $ {- traceShow ("intShebang",a,z) $ -} shell2 (words a) z |]
+intShebang a b = [| shell2 (words a) $(interpolate b) |]
 
 
 shell :: String -> IO (Either ShellError String)
-shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; {- traceShow ("shell", cmd) $ -} shell2 [shellEx , "-c"] cmd }
+shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; shell2 [shellEx , "-c"] cmd }
 
 shell2 :: [String] -> String -> IO (Either ShellError String)
 shell2 x y = shell3 (head x) ( tail x ++ [y]) ""
 
 shell3 :: String -> [String] -> String -> IO (Either ShellError String)
 shell3 int cmd inp = do
-  (ex,out,err) <- {- traceShow (int, cmd, inp) $ -} readProcessWithExitCode int cmd inp
+  (ex,out,err) <- 
+     catch (readProcessWithExitCode int cmd inp) (\x -> return (ExitFailure 101, "", (show (x::SomeException))))
   return $ case ex of 
     ExitSuccess -> Right (if null out || last out /= '\n' then out else init out )
     ExitFailure x -> Left (x,err)
