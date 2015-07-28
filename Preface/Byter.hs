@@ -8,15 +8,18 @@ module Preface.Byter
   , swapEndian64
 ) where
 
+import Preface.Imports
+
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
-import Foreign.Ptr (castPtr, plusPtr)
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Marshal.Array
-import System.IO.Unsafe
-import Foreign.Storable
-import Data.Word
-import Data.Bits
+
+-- import Foreign.Ptr (castPtr, plusPtr)
+-- import Foreign.ForeignPtr (withForeignPtr)
+-- import Foreign.Marshal.Array
+-- import System.IO.Unsafe
+-- import Foreign.Storable
+-- import Data.Word
+-- import Data.Bits
 
 -- | An array of Word32 is copied byte by byte into a ByteString
 wordsToBytes :: [Word32] -> B.ByteString

@@ -24,27 +24,11 @@ module Preface.JSONic
     , deriveJSONicT
     ) where
 
-import Data.Bits ((.|.), shiftL)
-import Data.Char (chr, ord, isSpace, isUpper, toLower)
+import Preface.Imports
+import Preface.XImports
 
 import qualified Data.Text as T
-import Data.Text (Text)
 import qualified Data.Map as M
-
-import Data.Either (partitionEithers)
-
-import Numeric (showHex)
-
-import Debug.Trace
-
-import Control.Monad       ( liftM2 )
-import Data.List           ( isPrefixOf, foldl', intercalate, genericLength, partition )
-import Data.Maybe          ( catMaybes )
-import Text.Printf         ( printf )
-
--- from template-haskell:
-import Language.Haskell.TH
-import Language.Haskell.TH.Syntax ( VarStrictType )
 
 
 -- The most common way to use the library is to define a data type,
@@ -817,9 +801,9 @@ consToJSON opts cons = do
   where
     matches
         | jsonicAllNullaryToStringTag opts && all isNullary cons =
-              [ match (conP conName []) (normalB $ conStr opts conName) []
+              [ match (conP cName []) (normalB $ conStr opts cName) []
               | con <- cons
-              , let conName = getConName con
+              , let cName = getConName con
               ]
         | otherwise = [encodeArgs opts True con | con <- cons]
 
@@ -838,19 +822,19 @@ isNullary (NormalC _ []) = True
 isNullary _ = False
 
 encodeSum :: JsonicOptions -> Bool -> Name -> Q Exp -> Q Exp
-encodeSum opts multiCons conName exp2 
+encodeSum opts multiCons cName exp2 
     | multiCons =
         case jsonicSumEncoding opts of
           TwoElemArray ->
-              [|JsonArray|] `appE` (listE [conStr opts conName, exp2])
+              [|JsonArray|] `appE` (listE [conStr opts cName, exp2])
           TaggedObject{jsonicTagFieldName=tf, jsonicContentsFieldName=cf} ->
               [|JsonObject . mfl|] `appE` listE
-                [ infixApp [|tpack tf|]     [|(.=)|] (conStr opts conName)
+                [ infixApp [|tpack tf|]     [|(.=)|] (conStr opts cName)
                 , infixApp [|tpack cf|] [|(.=)|] exp2
                 ]
           ObjectWithSingleField ->
               [|JsonObject . mfl|] `appE` listE
-                [ infixApp (conTxt opts conName) [|(.=)|] exp2 ]
+                [ infixApp (conTxt opts cName) [|(.=)|] exp2 ]
 
     | otherwise = exp2
 
@@ -859,13 +843,13 @@ encodeArgs :: JsonicOptions -> Bool -> Con -> Q Match
 -- Nullary constructors. Generates code that explicitly matches against the
 -- constructor even though it doesn't contain data. This is useful to prevent
 -- type errors.
-encodeArgs  opts multiCons (NormalC conName []) =
-    match (conP conName [])
-          (normalB (encodeSum opts multiCons conName [e|toJSON ([] :: [()])|]))
+encodeArgs  opts multiCons (NormalC cName []) =
+    match (conP cName [])
+          (normalB (encodeSum opts multiCons cName [e|toJSON ([] :: [()])|]))
           []
 
 -- Polyadic constructors with special case for unary constructors.
-encodeArgs opts multiCons (NormalC conName ts) = do
+encodeArgs opts multiCons (NormalC cName ts) = do
     let len = length ts
     args <- mapM newName ["arg" ++ show n | n <- [1..len]]
     js <- case [[|toJSON|] `appE` varE arg | arg <- args] of
@@ -895,12 +879,12 @@ encodeArgs opts multiCons (NormalC conName ts) = do
                          (varE 'V.create `appE`
                            doE (newMV:stmts++[ret]))
 -}
-    match (conP conName $ map varP args)
-          (normalB $ encodeSum opts multiCons conName js)
+    match (conP cName $ map varP args)
+          (normalB $ encodeSum opts multiCons cName js)
           []
 
 -- Records.
-encodeArgs opts multiCons (RecC conName ts) = do
+encodeArgs opts multiCons (RecC cName ts) = do
     args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
     let exp2 = [|JsonObject . mfl|] `appE` pairs
 
@@ -934,33 +918,33 @@ encodeArgs opts multiCons (RecC conName ts) = do
 
         toFieldName field = [|tpack|] `appE` fieldLabelExp opts field
 
-    match (conP conName $ map varP args)
+    match (conP cName $ map varP args)
           ( normalB
           $ if multiCons
             then case jsonicSumEncoding opts of
-                   TwoElemArray -> [|toJSON|] `appE` tupE [conStr opts conName, exp2]
+                   TwoElemArray -> [|toJSON|] `appE` tupE [conStr opts cName, exp2]
                    TaggedObject{jsonicTagFieldName=tf} ->
                        [|JsonObject . mfl|] `appE`
                          -- TODO: Maybe throw an error in case
                          -- tagFieldName overwrites a field in pairs.
                          infixApp (infixApp [|tpack tf|]
                                             [|(.=)|]
-                                            (conStr opts conName))
+                                            (conStr opts cName))
                                   [|(:)|]
                                   pairs
                    ObjectWithSingleField ->
                        [|JsonObject . mfl|] `appE` listE
-                         [ infixApp (conTxt opts conName) [|(.=)|] exp2 ]
+                         [ infixApp (conTxt opts cName) [|(.=)|] exp2 ]
             else exp2
           ) []
 
 -- Infix constructors.
-encodeArgs opts multiCons (InfixC _ conName _) = do
+encodeArgs opts multiCons (InfixC _ cName _) = do
     al <- newName "argL"
     ar <- newName "argR"
-    match (infixP (varP al) conName (varP ar))
+    match (infixP (varP al) cName (varP ar))
           ( normalB
-          $ encodeSum opts multiCons conName
+          $ encodeSum opts multiCons cName
           $ [|toJSON|] `appE` listE [ [|toJSON|] `appE` varE a
                                     | a <- [al,ar]
                                     ]
@@ -1008,11 +992,11 @@ consFromJSON tName opts cons = do
                                   infixApp (varE txt)
                                            [|(==)|]
                                            ([|tpack|] `appE`
-                                              conStringE opts conName)
+                                              conStringE opts cName)
                                )
-                               ([|pure|] `appE` conE conName)
+                               ([|pure|] `appE` conE cName)
                   | con <- cons
-                  , let conName = getConName con
+                  , let cName = getConName con
                   ]
                   ++
                   [ liftM2 (,)
@@ -1165,14 +1149,14 @@ consFromJSON tName opts cons = do
               ]
 
 parseNullaryMatches :: Name -> Name -> [Q Match]
-parseNullaryMatches tName conName =
+parseNullaryMatches tName cName =
     [ do arr <- newName "arr"
          match (conP 'JsonArray [varP arr])
                (guardedB $
                 [ liftM2 (,) (normalG $ [|null|] `appE` varE arr)
-                             ([|pure|] `appE` conE conName)
+                             ([|pure|] `appE` conE cName)
                 , liftM2 (,) (normalG [|otherwise|])
-                             (parseTypeMismatch tName conName
+                             (parseTypeMismatch tName cName
                                 (litE $ stringL "an empty JsonArray")
                                 (infixApp (litE $ stringL $ "JsonArray of length ")
                                           [|(++)|]
@@ -1182,14 +1166,14 @@ parseNullaryMatches tName conName =
                 ]
                )
                []
-    , matchFailed tName conName "JsonArray"
+    , matchFailed tName cName "JsonArray"
     ]
 
 parseUnaryMatches :: Name -> [Q Match]
-parseUnaryMatches conName =
+parseUnaryMatches cName =
     [ do arg <- newName "arg"
          match (varP arg)
-               ( normalB $ infixApp (conE conName)
+               ( normalB $ infixApp (conE cName)
                                     [|(<$>)|]
                                     ([|fromJSON|] `appE` varE arg)
                )
@@ -1197,14 +1181,14 @@ parseUnaryMatches conName =
     ]
 
 parseRecord :: JsonicOptions -> Name -> Name -> [VarStrictType] -> Name -> ExpQ
-parseRecord opts tName conName ts obj =
+parseRecord opts tName cName ts obj =
     foldl' (\a b -> infixApp a [|(<*>)|] b)
-           (infixApp (conE conName) [|(<$>)|] x)
+           (infixApp (conE cName) [|(<$>)|] x)
            xs
     where
       x:xs = [ [|lookupField|]
                `appE` (litE $ stringL $ show tName)
-               `appE` (litE $ stringL $ jsonicConstructorTagModifier opts $ nameBase conName)
+               `appE` (litE $ stringL $ jsonicConstructorTagModifier opts $ nameBase cName)
                `appE` (varE obj)
                `appE` ( [|tpack|] `appE` fieldLabelExp opts field
                       )
@@ -1228,39 +1212,39 @@ parseArgs :: Name -- ^ Name of the type to which the constructor belongs.
                                         --   Right valName
           -> Q Exp
 -- Nullary constructors.
-parseArgs tName _ (NormalC conName []) (Left (valFieldName, obj)) =
-  getValField obj valFieldName $ parseNullaryMatches tName conName
-parseArgs tName _ (NormalC conName []) (Right valName) =
-  caseE (varE valName) $ parseNullaryMatches tName conName
+parseArgs tName _ (NormalC cName []) (Left (valFieldName, obj)) =
+  getValField obj valFieldName $ parseNullaryMatches tName cName
+parseArgs tName _ (NormalC cName []) (Right valName) =
+  caseE (varE valName) $ parseNullaryMatches tName cName
 
 -- Unary constructors.
-parseArgs _ _ (NormalC conName [_]) (Left (valFieldName, obj)) =
-  getValField obj valFieldName $ parseUnaryMatches conName
-parseArgs _ _ (NormalC conName [_]) (Right valName) =
-  caseE (varE valName) $ parseUnaryMatches conName
+parseArgs _ _ (NormalC cName [_]) (Left (valFieldName, obj)) =
+  getValField obj valFieldName $ parseUnaryMatches cName
+parseArgs _ _ (NormalC cName [_]) (Right valName) =
+  caseE (varE valName) $ parseUnaryMatches cName
 
 -- Polyadic constructors.
-parseArgs tName _ (NormalC conName ts) (Left (valFieldName, obj)) =
-    getValField obj valFieldName $ parseProduct tName conName $ genericLength ts
-parseArgs tName _ (NormalC conName ts) (Right valName) =
-    caseE (varE valName) $ parseProduct tName conName $ genericLength ts
+parseArgs tName _ (NormalC cName ts) (Left (valFieldName, obj)) =
+    getValField obj valFieldName $ parseProduct tName cName $ genericLength ts
+parseArgs tName _ (NormalC cName ts) (Right valName) =
+    caseE (varE valName) $ parseProduct tName cName $ genericLength ts
 
 -- Records.
-parseArgs tName opts (RecC conName ts) (Left (_, obj)) =
-    parseRecord opts tName conName ts obj
-parseArgs tName opts (RecC conName ts) (Right valName) = do
+parseArgs tName opts (RecC cName ts) (Left (_, obj)) =
+    parseRecord opts tName cName ts obj
+parseArgs tName opts (RecC cName ts) (Right valName) = do
   obj <- newName "recObj"
   caseE (varE valName)
-    [ match (conP 'JsonObject [varP obj]) (normalB $ parseRecord opts tName conName ts obj) []
-    , matchFailed tName conName "JsonObject"
+    [ match (conP 'JsonObject [varP obj]) (normalB $ parseRecord opts tName cName ts obj) []
+    , matchFailed tName cName "JsonObject"
     ]
 
 -- Infix constructors. Apart from syntax these are the same as
 -- polyadic constructors.
-parseArgs tName _ (InfixC _ conName _) (Left (valFieldName, obj)) =
-    getValField obj valFieldName $ parseProduct tName conName 2
-parseArgs tName _ (InfixC _ conName _) (Right valName) =
-    caseE (varE valName) $ parseProduct tName conName 2
+parseArgs tName _ (InfixC _ cName _) (Left (valFieldName, obj)) =
+    getValField obj valFieldName $ parseProduct tName cName 2
+parseArgs tName _ (InfixC _ cName _) (Right valName) =
+    caseE (varE valName) $ parseProduct tName cName 2
 
 -- Existentially quantified constructors. We ignore the quantifiers
 -- and proceed with the contained constructor.
@@ -1273,7 +1257,7 @@ parseProduct :: Name -- ^ Name of the type to which the constructor belongs.
              -> Name -- ^ 'Con'structor name.
              -> Integer -- ^ 'Con'structor arity.
              -> [Q Match]
-parseProduct tName conName numArgs =
+parseProduct tName cName numArgs =
     [ do arr <- newName "arr"
          -- List of: "parseJSON (arr `V.unsafeIndex` <IX>)"
          let x:xs = [ [|fromJSON|]
@@ -1289,10 +1273,10 @@ parseProduct tName conName numArgs =
                                            (litE $ integerL numArgs)
                                 )
                                 ( foldl' (\a b -> infixApp a [|(<*>)|] b)
-                                         (infixApp (conE conName) [|(<$>)|] x)
+                                         (infixApp (conE cName) [|(<$>)|] x)
                                          xs
                                 )
-                                ( parseTypeMismatch tName conName
+                                ( parseTypeMismatch tName cName
                                     (litE $ stringL $ "JsonArray of length " ++ show numArgs)
                                     ( infixApp (litE $ stringL $ "JsonArray of length ")
                                                [|(++)|]
@@ -1301,7 +1285,7 @@ parseProduct tName conName numArgs =
                                 )
                )
                []
-    , matchFailed tName conName "JsonArray"
+    , matchFailed tName cName "JsonArray"
     ]
 
 
@@ -1310,20 +1294,20 @@ parseProduct tName conName numArgs =
 --------------------------------------------------------------------------------
 
 matchFailed :: Name -> Name -> String -> MatchQ
-matchFailed tName conName expected = do
+matchFailed tName cName expected = do
   other <- newName "other"
   match (varP other)
-        ( normalB $ parseTypeMismatch tName conName
+        ( normalB $ parseTypeMismatch tName cName
                       (litE $ stringL expected)
                       ([|valueConName|] `appE` varE other)
         )
         []
 
 parseTypeMismatch :: Name -> Name -> ExpQ -> ExpQ -> ExpQ
-parseTypeMismatch tName conName expected actual =
+parseTypeMismatch tName cName expected actual =
     foldl appE
           [|parseTypeMismatch'|]
-          [ litE $ stringL $ nameBase conName
+          [ litE $ stringL $ nameBase cName
           , litE $ stringL $ show tName
           , expected
           , actual
@@ -1404,9 +1388,9 @@ conNotFoundFailTaggedObject t cs o =
                   t (intercalate ", " cs) o
 
 parseTypeMismatch' :: String -> String -> String -> String -> Either String fail
-parseTypeMismatch' tName conName expected actual =
+parseTypeMismatch' tName cName expected actual =
     Left $ printf "When parsing the constructor %s of type %s expected %s but got %s."
-                  conName tName expected actual
+                  cName tName expected actual
 
 
 --------------------------------------------------------------------------------

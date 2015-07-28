@@ -2,11 +2,14 @@
 
 {-| Unicode versions of common functions
  -}
-module Preface.Symbols where
+module Preface.Symbols (
+  (÷), (↑), (↓), (⍴), (×), (∪), (∩), (∋), (∈), (∧), (∨), (≤), (≥), (≠),
+  (➤), (⏎), (√), (¨), (⍨)
+) where
 
-import Data.Set
+import Data.Set (Set, union, member)
 import Data.List (intersect)
-import Data.Bits
+import Data.Bits ( Bits, (.&.), (.|.) )
 
 -- | Division
 -- DIVISION SIGN

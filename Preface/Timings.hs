@@ -6,13 +6,12 @@ module Preface.Timings (
   timings, timings', randomList
 ) where
 
-import System.CPUTime (getCPUTime)
-import System.IO (Handle, IOMode(..), withFile, hPutStr, hFlush)
-import System.Random (newStdGen, Random(..), RandomGen(..))
+import Preface.Imports
 
 strictShow :: Show a => Handle -> a -> IO ()
 strictShow h !x = (hPutStr h $! (show x)) >> hFlush h
 
+gt :: (Fractional a, Integral b) => b -> b -> a
 gt x y = fromIntegral (x - y) / 1000000000
 
 -- | This times two IO functions.  The third argument is the test data to pass to both functions.

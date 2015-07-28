@@ -5,22 +5,18 @@ module Preface.SCGI ( runSCGI, CGI(..), cgiGetHeaders, cgiGetBody,
     dumpCGI
   ) where
 
-import Control.Concurrent
-import Network.Socket
-import System.Environment (getEnvironment)
-import Data.ByteString (ByteString)
+import Preface.Imports
+
+import Network.Socket (accept)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
-import Control.Monad 
-import Network hiding (sClose, accept)
 import qualified Network.Socket.ByteString as B
-import Control.Exception
 import Preface.Stringy
-import System.IO
-import Data.Char
 
 type CGIFunction = (CGIVars -> CGI -> IO HTTPHeaders)
 
+{- this would be a handler function which limits the number of threads -}
+{-
 handlern :: CGIFunction -> QSem -> Socket -> IO ()
 handlern f qsem sockt = do
   waitQSem qsem
@@ -29,6 +25,7 @@ handlern f qsem sockt = do
       catch (doSCGI f sock) (\e -> hPutStrLn stderr $ "scgi: "++show (e::SomeException))
       signalQSem qsem
   handlern f qsem sockt
+-}
 
 handler :: CGIFunction -> Socket -> IO ()
 handler f sockt = do

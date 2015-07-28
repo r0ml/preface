@@ -19,21 +19,11 @@ module Preface.Xml (
   , consFromXML
 ) where
 
-import Data.List (isPrefixOf, foldl', partition)
-import Data.Char (isSpace, isAlphaNum)
-import Data.Maybe (catMaybes)
-import Control.Monad (liftM2)
-import Text.Printf
-import Data.Time (UTCTime)
-import Data.Either (partitionEithers)
-
-import qualified Data.Map as M
-import qualified Data.Text as T
-
-import Language.Haskell.TH
-import Language.Haskell.TH.Syntax (VarStrictType)
-
-import Debug.Trace
+import qualified Data.Map as M (lookup)
+import qualified Data.Text as T (pack)
+import Data.List (isPrefixOf)
+import Preface.Imports hiding(split)
+import Data.Char (isSpace)
 
 data XmlElement = XmlNode XmlTag [XmlAttr] [XmlElement] 
                 | XmlComment String 
@@ -303,9 +293,9 @@ consToXML opts cons = do
         lam1E (varP value) $ caseE (varE value) matches
   where matches
           | xmlAllNullaryToStringTag opts && all isNullary cons = trace "consToXML allNullaryToStringTag"
-                  [ match (conP conName []) (normalB $ constrNode opts conName) []
+                  [ match (conP cName []) (normalB $ constrNode opts cName) []
                   | con <- cons
-                  , let conName = getConName con
+                  , let cName = getConName con
                   ]
           | otherwise = trace "consToXML otherwise" [encodeArgs opts True con | con <- cons]
 
@@ -349,36 +339,35 @@ fieldLabelExp opts = litE . stringL . xmlFieldLabelModifier opts . nameBase
 -- ------------------------------------------------------
 
 parseArgs :: Name -> XmlOptions -> Con -> Either (String, Name) Name -> Q Exp
-parseArgs tName _ (NormalC conName []) (Left (valFieldName, obj)) =
-        getValField obj valFieldName $ parseNullaryMatches tName conName
+parseArgs tName _ (NormalC cName []) (Left (valFieldName, obj)) =
+        getValField obj valFieldName $ parseNullaryMatches tName cName
 
-parseArgs tName _ (NormalC conName []) (Right valName) = 
-        caseE (varE valName) $ parseNullaryMatches tName conName
+parseArgs tName _ (NormalC cName []) (Right valName) = 
+        caseE (varE valName) $ parseNullaryMatches tName cName
 
-parseArgs _ _ (NormalC conName [_]) (Left (valFieldName, obj)) = 
-        getValField obj valFieldName $ parseUnaryMatches conName
+parseArgs _ _ (NormalC cName _) (Left (valFieldName, obj)) = 
+        getValField obj valFieldName $ parseUnaryMatches cName
 
-parseArgs _ _ (NormalC conName [_]) (Right valName) =
-        caseE (varE valName) $ parseUnaryMatches conName
+parseArgs _ _ (NormalC cName _) (Right valName) =
+        caseE (varE valName) $ parseUnaryMatches cName
 
 -- Records.
-parseArgs tName opts (RecC conName ts) (Left (_, obj)) =
-    parseRecord opts tName conName ts obj
-parseArgs tName opts (RecC conName ts) (Right valName) = do
+parseArgs tName opts (RecC cName ts) (Left (_, obj)) =
+    parseRecord opts tName cName ts obj
+parseArgs tName opts (RecC cName ts) (Right valName) = do
   -- obj <- newName "recObj"
   caseE (varE valName)
-    [ match (conP 'XmlNode [ {-varP obj-} wildP, wildP, wildP ]) (normalB $ parseRecord opts tName conName ts {- obj -} valName ) []
-    , matchFailed tName conName "XmlNode"
+    [ match (conP 'XmlNode [ {-varP obj-} wildP, wildP, wildP ]) (normalB $ parseRecord opts tName cName ts {- obj -} valName ) []
+    , matchFailed tName cName "XmlNode"
     ]
 
 -- Infix constructors. Apart from syntax these are the same as
 -- polyadic constructors.
-{-
-parseArgs tName _ (InfixC _ conName _) (Left (valFieldName, obj)) =
-    getValField obj valFieldName $ parseProduct tName conName 2
-parseArgs tName _ (InfixC _ conName _) (Right valName) =
-    caseE (varE valName) $ parseProduct tName conName 2
--}
+
+parseArgs _tName _ (InfixC _ _cName _) (Left (_valFieldName, _obj)) = undefined
+--    getValField obj valFieldName $ parseProduct tName conName 2
+parseArgs _tName _ (InfixC _ _cName _) (Right _valName) = undefined
+--    caseE (varE valName) $ parseProduct tName conName 2
 
 -- Existentially quantified constructors. We ignore the quantifiers
 -- and proceed with the contained constructor.
@@ -387,12 +376,12 @@ parseArgs tName opts (ForallC _ _ con) contents =
 
 -- the names are mostly needed for error reporting
 parseRecord :: XmlOptions -> Name -> Name -> [VarStrictType] -> Name -> ExpQ
-parseRecord opts tName conName ts obj =
+parseRecord opts tName cName ts obj =
     foldl' (\a b -> infixApp a [|(<*>)|] b)
-           (infixApp (conE conName) [|(<$>)|] x)
+           (infixApp (conE cName) [|(<$>)|] x)
            xs
     where
-      x:xs = traceShow ("parseRecord",tName,conName,ts,obj) $ [ kind tx
+      x:xs = traceShow ("parseRecord",tName,cName,ts,obj) $ [ kind tx
             `appE` fieldLabelExp opts field | (field, _, tx) <- ts
              ]
       kind t = case t of 
@@ -401,7 +390,7 @@ parseRecord opts tName conName ts obj =
                   bt -> cxs [|lookupField|] bt
       cxs x2 _y = x2
           `appE` (litE $ stringL $ show tName)
-          `appE` (litE $ stringL $ xmlConstructorTagModifier opts $ nameBase conName)
+          `appE` (litE $ stringL $ xmlConstructorTagModifier opts $ nameBase cName)
           `appE` (varE obj)
 
 lookupArrayField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError [a]
@@ -470,14 +459,14 @@ data XmlArray a = XmlArray [a] -- undefined
 
 -- | Generates code to generate the XML encoding of a single constructor.
 encodeArgs :: XmlOptions -> Bool -> Con -> Q Match
-encodeArgs opts multiCons (NormalC conName []) = 
-        trace "ea 1" $ match (conP conName []) 
-              (normalB (encodeSum opts multiCons conName [e|toXML ([] :: [()]) |] ))
+encodeArgs opts multiCons (NormalC cName []) = 
+        trace "ea 1" $ match (conP cName []) 
+              (normalB (encodeSum opts multiCons cName [e|toXML ([] :: [()]) |] ))
               []
 
 
 -- Polyadic constructors with special case for unary constructors.
-encodeArgs opts multiCons (NormalC conName ts) = do
+encodeArgs opts multiCons (NormalC cName ts) = do
         let len = length ts
         args <- trace "ea 2" $ mapM newName ["arg"++show n | n <- [1..len]]
         xml <- case [ [|toXML|] `appE` varE arg | arg <- args] of
@@ -488,16 +477,16 @@ encodeArgs opts multiCons (NormalC conName ts) = do
                             trace (pprint p) [|()|]
                          return $ [|XmlArray|] `appE` listE es
 
-        match (conP conName $ map varP args)
-              (normalB $ encodeSum opts multiCons conName xml)
+        match (conP cName $ map varP args)
+              (normalB $ encodeSum opts multiCons cName xml)
               []
 
 -- Record constructor
 -- wants to generate 
 -- XmlNode conName [] . (map (\x -> XmlNode fldnam [] [toXML x]))
-encodeArgs opts multiCons (RecC conName ts) = do
+encodeArgs opts multiCons (RecC cName ts) = do
     args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
-    let exp2 = [| \z -> XmlNode z [] |] `appE` constrStr opts conName `appE` pairs 
+    let exp2 = [| \z -> XmlNode z [] |] `appE` constrStr opts cName `appE` pairs 
 
         pairs | xmlOmitNothingFields opts = infixApp maybeFields [|(++)|] restFields
               | otherwise = listE $ map toPair argCons
@@ -521,20 +510,20 @@ encodeArgs opts multiCons (RecC conName ts) = do
 
         toFieldName field = fieldLabelExp opts field
 
-    match (conP conName $ map varP args)
+    match (conP cName $ map varP args)
           ( normalB
           $ if multiCons 
-            then [| (\x -> XmlNode x []) |] `appE` constrStr opts conName `appE` listE [exp2]
+            then [| (\x -> XmlNode x []) |] `appE` constrStr opts cName `appE` listE [exp2]
             else exp2
           ) []
 
 -- Infix constructor
-encodeArgs opts multiCons (InfixC _ conName _ ) = do
+encodeArgs opts multiCons (InfixC _ cName _ ) = do
         a1 <- newName "argL"
         ar <- newName "argR"
-        trace "ea 4" $ match (infixP (varP a1) conName (varP ar))
+        trace "ea 4" $ match (infixP (varP a1) cName (varP ar))
               ( normalB
-              $ encodeSum opts multiCons conName
+              $ encodeSum opts multiCons cName
               $ [|toXML|] `appE` listE [ [|toXML|] `appE` varE a
                                        | a <- [a1, ar]
                                        ]
@@ -552,10 +541,10 @@ constrStr opts = stringE . xmlConstructorTagModifier opts . nameBase
 -- ----------------------------------------------------------
 
 encodeSum :: XmlOptions -> Bool -> Name -> Q Exp -> Q Exp
-encodeSum _opts multiCons _conName exp2
+encodeSum _opts multiCons _cName exp2
    | multiCons = [|XmlText|] `appE` exp2
                -- [|XmlNode|] `appE` (listE [constrStr opts conName, exp2])
-               
+   | otherwise = undefined            
 
 
 -- -------------------------------------------------------------
@@ -595,11 +584,11 @@ consFromXML tName opts cons = do
                   [ liftM2 (,) (normalG $
                                   infixApp (varE txt)
                                            [|(==)|]
-                                           (( stringE . xmlConstructorTagModifier opts . nameBase) conName)
+                                           (( stringE . xmlConstructorTagModifier opts . nameBase) cName)
                                )
-                               ([|Right|] `appE` conE conName)
+                               ([|Right|] `appE` conE cName)
                   | con <- cons
-                  , let conName = getConName con
+                  , let cName = getConName con
                   ]
                   ++
                   [ liftM2 (,)
@@ -870,19 +859,19 @@ parseProduct tName conName numArgs =
 --------------------------------------------------------------------------------
 
 matchFailed :: Name -> Name -> String -> MatchQ
-matchFailed tName conName expected = do
+matchFailed tName cName expected = do
   other <- newName "other"
   match (varP other)
-        ( normalB $ parseTypeMismatch tName conName expected
+        ( normalB $ parseTypeMismatch tName cName expected
                       ([|valueConName|] `appE` varE other)
         )
         []
 parseTypeMismatch :: Name -> Name -> String -> ExpQ -> ExpQ
-parseTypeMismatch tName conName expected actual =
+parseTypeMismatch tName cName expected actual =
     [| xmlError |] `appE` (foldl appE
           [| printf "When parsing the constructor %s of type %s expected %s but got %s"|]
           [ litE $ stringL $ show tName
-          , litE $ stringL $ nameBase conName
+          , litE $ stringL $ nameBase cName
           , litE $ stringL expected
           , actual
           ])

@@ -11,14 +11,10 @@ module Preface.SecureHash (
        )
 where
 
-import Data.ByteString (ByteString)
+import Preface.Imports
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString as B
-import Data.Bits (xor, (.&.), rotateL, (.|.), rotateR, complement, shiftR, Bits )
-import Data.Word (Word32, Word64)
-import Data.Int (Int64)
 import Preface.Byter
-import Data.List (zip4, foldl', transpose)
 
 type Digest = ByteString
 

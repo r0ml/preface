@@ -33,10 +33,10 @@ module Preface.Stringy
   , randomString
 ) where
 
-import Data.ByteString (ByteString)
+
+import Preface.Imports
+
 import qualified Data.ByteString.Lazy as L (ByteString, fromChunks)
-import Data.Text (Text)
-import Data.String (IsString)
 import qualified Data.ByteString as B
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -44,10 +44,7 @@ import qualified Data.Text.IO as T
 import qualified Data.Text.Read as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
-import Data.Bits
-import Data.Word (Word8)
 import qualified Data.Char as C
-import System.IO (Handle, hGetContents)
 import qualified Data.List as DL
 
 import Data.Array.Unboxed (UArray, listArray, (!))
@@ -55,11 +52,8 @@ import Data.Array.Unboxed (UArray, listArray, (!))
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Internal as BI
-import Foreign.ForeignPtr
 
 import Preface.Arrayed
-
-import System.Random (newStdGen, randomRs)
 
 type LazyByteString = LC.ByteString
 type LazyText = TL.Text

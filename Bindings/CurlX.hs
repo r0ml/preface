@@ -11,18 +11,12 @@ module Bindings.CurlX ( Curl, curl_debug, mkCurl
                       ,  SSLCtxtFunction, DebugFunction, ProgressFunction, ReadWriteFunction(..)
                       , c_curloptDefines, mkEnumCurl
                       , CurlInfoValueType(..), CurlCode(..)
-                      , curl_version_number, curl_version_string
                       )
        where
 
 import Preface.Str (enum, str)
-import Foreign.C.Types (CLong(..), CInt(..), CChar)
-import Foreign.Ptr (Ptr, FunPtr)
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, newForeignPtr_)
-import Control.Concurrent (MVar, newMVar, withMVar)
-import Foreign.Concurrent (addForeignPtrFinalizer)
-import Data.Char (isSpace)
-import Language.Haskell.TH
+import Preface.Imports
+import Preface.XImports
 
 -- | a Curl is the opaque datatype which represents the interface to libcurl
 -- As libcurl is not thread-safe, 'Curl' wraps the ForeignPtr to the underlying
@@ -91,22 +85,14 @@ type SSLCtxtFunction
 
 instance Show SSLCtxtFunction where show _ = "<fun>"
                                  
-#include <curl/curl.h>
-
 _CURLINFO_LONG :: CInt
-_CURLINFO_LONG = (#const CURLINFO_LONG)
+_CURLINFO_LONG = 0x200000
 _CURLINFO_STRING :: CInt
-_CURLINFO_STRING = (#const CURLINFO_STRING)
+_CURLINFO_STRING = 0x100000
 _CURLINFO_DOUBLE :: CInt
-_CURLINFO_DOUBLE = (#const CURLINFO_DOUBLE)
+_CURLINFO_DOUBLE = 0x300000
 _CURLINFO_SLIST :: CInt
-_CURLINFO_SLIST = (#const CURLINFO_SLIST)
-
-curl_version_number :: Int
-curl_version_number = #const LIBCURL_VERSION_NUM
-
-curl_version_string :: String
-curl_version_string = #const_str LIBCURL_VERSION
+_CURLINFO_SLIST = 0x400000
 
 foreign import ccall "curl/easy.h curl_easy_getinfo" c_curl_easy_getinfo :: CurlStruct -> CLong -> Ptr () -> IO CInt
 
@@ -146,11 +132,11 @@ mkCurl = do
   fh  <- newForeignPtr_ h -- wrap it as a foreignptr ( for finalization)
   v1  <- newMVar fh -- wrap it behind an MVar to prevent multithreaded access
   let fnalizr = curl_debug "FREE: CURL" >> c_curl_easy_cleanup h
-  Foreign.Concurrent.addForeignPtrFinalizer fh fnalizr
+  addForeignPtrFinalizer fh fnalizr
   return Curl { curl_struct = v1 }
 
 curl_add_finalizer :: Curl -> (IO ()) -> IO ()
-curl_add_finalizer h g = withMVar (curl_struct h) $ \fh -> Foreign.Concurrent.addForeignPtrFinalizer fh g
+curl_add_finalizer h g = withMVar (curl_struct h) $ \fh -> addForeignPtrFinalizer fh g
 
 curl_debug :: String -> IO ()
 -- curl_debug msg = trace msg $ return ()

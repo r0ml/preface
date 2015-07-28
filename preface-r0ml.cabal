@@ -32,12 +32,11 @@ Library
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.SCGI
             , Preface.Str, Preface.StrUtils, Preface.Binary, Preface.Arrayed
-            , Preface.Timings
+            , Preface.Timings, Preface.Imports
             , Preface.Xml, Preface.JSONic
             , Bindings.Curl, Bindings.CurlX
             , Bindings.Posix, Bindings.Util
             , Bindings.Vfs
-            -- , Bindings.KQueue
             , Bindings.Msg, Bindings.Syslog
   Extra-Libraries: curl
   Hs-Source-Dirs: .

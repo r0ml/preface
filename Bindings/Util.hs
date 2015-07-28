@@ -13,5 +13,3 @@ import Language.Haskell.TH.Quote (QuasiQuoter)
 enumIx8 :: QuasiQuoter
 enumIx8 = enumI ((8*) . read)
 
-
-

@@ -1,24 +1,10 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ForeignFunctionInterface, QuasiQuotes #-}
 
 module Bindings.Msg
 where
 
-import Foreign.Storable (Storable(..))
-import Foreign.C.Types (CTime, CLong, CUInt(..), CInt(..))
-import Foreign.C.String (CString, withCString)
-import Foreign.C.Error (throwErrnoIf)
-import Foreign.Ptr (Ptr, plusPtr)
-import Foreign.ForeignPtr (castForeignPtr, withForeignPtr, mallocForeignPtrBytes)
-import Foreign.Marshal.Alloc (alloca)
-import Data.Time (UTCTime(..))
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.ByteString (ByteString)
-import Data.ByteString.Internal (fromForeignPtr, toForeignPtr)
-import Data.Bits ( (.|.) )
-import Foreign.Marshal.Utils (copyBytes)
-
-#include <sys/msg.h>
-#include <sys/ipc.h>
+import Preface.Imports
+import Preface.Str (enumIr, storable)
 
 foreign import ccall unsafe "sys/msg.h msgget" c_msgget :: CUInt -> CInt -> IO CInt
 foreign import ccall unsafe "sys/msg.h msgsnd" c_msgsnd :: CUInt -> Ptr CInt -> CInt -> CInt -> IO CInt
@@ -28,47 +14,69 @@ foreign import ccall unsafe "sys/ipc.h ftok" c_ftok :: CString -> CInt -> IO CIn
 
 data Msgq = Msgq Int deriving (Eq, Show)
 
-msgget :: String -> IO Msgq
-msgget ks = do
-  k <- throwErrnoIf (== -1) "ftok" $ withCString ks $ \sn -> do c_ftok sn (toEnum 33)
-  kr <- throwErrnoIf (== -1) "msgget" $ fmap fromIntegral (c_msgget (fromIntegral k) ((#const IPC_CREAT) .|. 0x1B0))
-  return (Msgq kr)
+[enumIr|IPC_Control
+  IPC_RMID 0
+  IPC_SET  1
+  IPC_STAT 2
+|]
 
-msgsnd :: Msgq -> Int -> ByteString -> IO ()
+[enumIr|IPC_Flags
+  IPC_R      000400
+  IPC_W      000200
+  IPC_M      010000
+  IPC_CREAT  001000
+  IPC_EXCL   002000
+  IPC_NOWAIT 004000
+|]
+
+msgget :: String -> IO (Either Errno Msgq)
+msgget ks = do
+  k <- withCString ks $ \sn -> do c_ftok sn (toEnum 33)
+  if k < 0 then Left <$> getErrno 
+           else do kr <- fromIntegral <$> c_msgget (fromIntegral k) (fromIntegral (fromEnum IPC_CREAT .|. 0x1B0))
+                   if kr < 0 then Left <$> getErrno
+                             else return . Right . Msgq $ kr
+
+msgsnd :: Msgq -> Int -> ByteString -> IO (Either Errno ())
 msgsnd (Msgq q) typ bs = do
   let (fp, off, len) = toForeignPtr bs
       zxl = 8
   fpx <- mallocForeignPtrBytes (zxl+len)
-  _k <- throwErrnoIf (== -1) "msgsnd" $ withForeignPtr fpx $ \sn -> withForeignPtr fp $ \sn2 -> do 
+  k <- withForeignPtr fpx $ \sn -> withForeignPtr fp $ \sn2 -> do 
       copyBytes (plusPtr sn zxl) (plusPtr sn2 off) len
       poke sn (toEnum typ :: CInt)
-      c_msgsnd (toEnum q) sn (toEnum (zxl+len)) (#const IPC_NOWAIT)
-  return ()
+      c_msgsnd (toEnum q) sn (toEnum (zxl+len)) (ff IPC_NOWAIT)
+  if k < 0 then Left <$> getErrno else return (Right ())
   
-msgrcv :: Msgq -> Int -> IO ByteString
+msgrcv :: Msgq -> Int -> IO (Either Errno ByteString)
 msgrcv (Msgq q) typ = do
   let siz = 800
   fpx <- mallocForeignPtrBytes siz -- this is the max size
-  k <- throwErrnoIf (== -1) "msgrcv" $ withForeignPtr fpx $ \sn -> c_msgrcv (toEnum q) sn (toEnum siz) (toEnum typ) ((#const IPC_NOWAIT))
-  return (fromForeignPtr (castForeignPtr fpx) 0 (fromEnum k))
+  k <- withForeignPtr fpx $ \sn -> c_msgrcv (toEnum q) sn (toEnum siz) (toEnum typ) (ff IPC_NOWAIT)
+  if k < 0 then Left <$> getErrno else return $ Right (fromForeignPtr (castForeignPtr fpx) 0 (fromIntegral k))
 
-data IpcPerm = IpcPerm {
-  ipcPerm_uid :: Int,
-  ipcPerm_gid :: Int,
-  ipcPerm_cuid :: Int,
-  ipcPerm_cgid :: Int,
-  ipcPerm_mode :: Int
-} deriving Show
-instance Storable IpcPerm where
-  sizeOf _ = (#size struct ipc_perm)
-  alignment _ = 4
-  poke _e _ev = undefined
-  peek e = IpcPerm <$> fmap fromIntegral ((#peek struct ipc_perm, uid) e :: IO CUInt)
-                   <*> fmap fromIntegral ((#peek struct ipc_perm, gid) e :: IO CUInt)
-                   <*> fmap fromIntegral ((#peek struct ipc_perm, cuid) e :: IO CUInt)
-                   <*> fmap fromIntegral ((#peek struct ipc_perm, cgid) e :: IO CUInt)
-                   <*> fmap fromIntegral ((#peek struct ipc_perm, mode) e :: IO CUInt)
-                   
+[storable|IpcPerm
+  uid CUInt
+  gid CUInt
+  cuid CUInt
+  cgid CUInt
+  mode CUInt
+|]
+
+[storable|MsqidDs
+  perm IpcPerm
+  stime CTime
+  rtime CTime
+  ctime CTime
+  cbytes CLong
+  qnum CLong
+  qbytes CLong
+  lspid CUInt
+  lrpid CUInt
+|]
+  
+
+{-  
 data MsqidDs = MsqidDs {
   msqidDs_perm :: IpcPerm,
   msqidDs_stime :: UTCTime,
@@ -80,10 +88,15 @@ data MsqidDs = MsqidDs {
   msqidDs_lspid :: Int,
   msqidDs_lrpid :: Int
   } deriving Show
+-}
 
 ct2t :: CTime -> UTCTime
 ct2t = posixSecondsToUTCTime . realToFrac
 
+ff :: (Enum a, Integral b) => a -> b
+ff = fromIntegral . fromEnum
+
+{-
 instance Storable MsqidDs where
   sizeOf _ = (#size struct msqid_ds) 
   alignment _ = 4
@@ -98,20 +111,17 @@ instance Storable MsqidDs where
                    <*> fmap fromIntegral ((#peek struct msqid_ds, msg_lrpid) e :: IO CUInt)
                   
   poke _e _ev = undefined
+-}
 
-
-
-
-  
-ipcStat :: Msgq -> IO MsqidDs
+ipcStat :: Msgq -> IO (Either Errno MsqidDs)
 ipcStat (Msgq q) = alloca $ \p -> do 
-    _ <- throwErrnoIf (== -1) "msgctl" $ c_msgctl (toEnum q) (#const IPC_STAT) p
-    peek p
+    e <- c_msgctl (toEnum q) (ff IPC_STAT) p
+    if e < 0 then Left <$> getErrno else Right <$> peek p
 
-ipcRm :: Msgq -> IO MsqidDs
+ipcRm :: Msgq -> IO (Either Errno MsqidDs)
 ipcRm (Msgq q) = alloca $ \p -> do 
-    _ <- throwErrnoIf (== -1) "msgctl" $ c_msgctl (toEnum q) (#const IPC_RMID) p
-    peek p
+    e <- c_msgctl (toEnum q) (ff IPC_RMID) p
+    if e < 0 then Left <$> getErrno else Right <$> peek p
 
 
 {- this is linux only

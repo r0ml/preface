@@ -17,20 +17,10 @@ module Bindings.Curl
        ) where
 
 import Bindings.CurlX as X
-import Data.ByteString (ByteString, packCStringLen)
 import qualified Data.ByteString as B (take, drop, concat, null, head, tail, empty, init, last)
 import qualified Data.ByteString.Char8 as B (lines, elemIndex, pack)
-import Data.Bits (shiftL, (.|.) )
-import Foreign.C.Types (CChar, CInt(..))
-import Foreign.C.String (CString, peekCString, withCString)
-import Foreign.Ptr (Ptr, castPtr, nullPtr, castFunPtrToPtr)
-import Data.Word (Word32, Word64)
-import Foreign.Storable (Storable(..))
-import Foreign.Marshal (allocaBytes)
-import Data.IORef (newIORef, readIORef, modifyIORef)
-import Control.Monad (foldM)
-import Data.List (intercalate)
-import Data.Char (isSpace)
+import Preface.Imports
+import Preface.XImports
 
 type CurlHeader = [(ByteString, ByteString)]
 

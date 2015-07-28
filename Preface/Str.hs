@@ -41,25 +41,11 @@ module Preface.Str (
 ) where
  
 -- import Preface.R0ml
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (SomeException, try, catch)
-import System.Environment (lookupEnv)
-import Data.Char (isLower, isUpper, isAlpha, isAlphaNum, isAlpha, isSpace, toLower)
-import Data.Tuple (swap)
-import Data.Maybe (fromMaybe)
-import System.Process (readProcessWithExitCode)
-import Data.ByteString (ByteString)
-import Data.Int (Int64, Int32)
-import qualified Data.ByteString.Char8 as B (unpack)
+import Preface.Imports
+import Data.Char (isSpace)
 
-import Language.Haskell.TH
-import Language.Haskell.TH.Quote (QuasiQuoter(..)) 
--- import qualified Text.Parsec as P
-import GHC.IO.Exception
-import qualified Data.Text as T (Text, unpack)
-import Debug.Trace
-import Foreign.Storable (Storable(..), peekByteOff)
-import Foreign.C.Types (CULong, CUInt, CChar)
+import qualified Data.ByteString.Char8 as BC (unpack)
+import qualified Data.Text as T (unpack)
 
 type ShellError = (Int,String)
 
@@ -226,8 +212,8 @@ class Show a => NSShow a where
 
 instance {-# OVERLAPPABLE #-} Show a => NSShow a where nsShow = show
 instance {-# OVERLAPPING #-} NSShow String where nsShow x = x
-instance NSShow ByteString where nsShow = B.unpack
-instance NSShow T.Text where nsShow = T.unpack
+instance NSShow ByteString where nsShow = BC.unpack
+instance NSShow Text where nsShow = T.unpack
 
 -- this can be used as $(interpolate x) 
 -- I need the environment if the interpolation includes environment variables, but not otherwise
@@ -355,41 +341,67 @@ genEnumI name vals = do
 
 storable :: QuasiQuoter
 storable = QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined }
-  where qd s = let (hm : tm) = words (deComma (stripComments s))
-                in {- traceShow (hm, tm) $ -} genStorable hm (zip (stride 2 tm) (map f (stride 2 (tail tm))))
-        f x = case x of
-                "ulong" -> ''Int64
-                "uint" -> ''Int32
-                z -> trace ("unknown type: "++z) ''TypeQ
-
-genStorable :: String -> [(String, Name)] -> Q [Dec]
+  where qd s = let (hm : tmx) = words (deComma (stripComments s))
+                   nms = stride 2 tmx
+                   tm = map xl (stride 2 (tail tmx))
+                in {- traceShow (hm, tm) $ -} genStorable hm (zip nms (map f tm ))
+        f (x,y) = ( mkName x, y)
+        xl x = let (y,z) = break (=='/') x
+                in (y, if null z then 1 else (read (drop 1 z) :: Int))
+genStorable :: String -> [(String, (Name,Int))] -> Q [Dec]
 genStorable name vals = do
         dd <- dataD (cxt[]) nam [] [dv] [''Show]
-        let sx _a c = if c == ''Int64 then 8 else 4
-            so = foldl sx 0 dq :: Int
-            dq = map snd vals
+        let so = [|foldl (+) 0 $(lens)|]
+            msv = map snd vals
+            lens = listE $ map ( \(tn, nx) -> [|nx * sizeOf (undefined :: $(conT tn))|] ) msv
+            namo n = mkName ("o_"++ show n)
+            nbx (n, (tn,nx)) = [ bindS (varP (mkName ("b_"++show n)))
+                                    [|peekByteOff $(varE (mkName "a")) $(varE (namo n))  |],
+                                 letS [ valD (varP (namo (n+1)))
+                                    (normalB [|$(varE (namo n)) + (nx * sizeOf (undefined :: $(conT tn)))|] 
+                                    ) [] ]
+                               ]
+            smsx = map nbx (zip [0..] msv)
+            inx = letS [ valD (varP (mkName "o_0")) (normalB [|0|]) [] ]
+            smsa = inx : concat smsx
+            cns = foldl appE (conE nam) (map (varE . mkName . ("b_"++) . show) [0.. (length vals - 1) ])
+            retc = noBindS (appE [|return|] $ cns)
         fe <- instanceD (cxt [])
                 (appT (conT ''Storable) (conT nam))
                 [
-                 funD (mkName "peek") [clause [varP (mkName "a") ] (normalB 
-                      (snd (foldl tpm (0, (appE [|pure|] (conE nam))) vals )))  []],
+                 funD (mkName "peek") [clause [varP (mkName "a") ] (normalB (doE (smsa ++ [retc]))) []],
+                      -- (snd (foldl tpm (0, (appE [|pure|] (conE nam))) vals )))  []],
                  funD (mkName "poke") [clause [wildP, wildP] (normalB [| undefined |]) []],
-                 funD (mkName "sizeOf") [clause [wildP] (normalB [|so|]) []],
+                 funD (mkName "sizeOf") [clause [wildP] (normalB so) []],
                  funD (mkName "alignment") [clause [wildP] (normalB (litE (integerL 4))) []]
                  ]
         return [dd, fe]
-  where dv = recC nam ( map (\(n,t) -> varStrictType (mkName (lnam++"_"++n)) (strictType notStrict (conT t))) vals)
+  where dv = recC nam ( map (\(n,(t,ll)) -> varStrictType (mkName (lnam++"_"++n)) (strictType notStrict (conT t))) vals)
         nam = mkName name
         lnam = toLower (head name) : tail name
-        tpm (n,x) (_a,b) = (n+bLen b, (infixApp x [|(<*>)|] (appE [|fmap fromIntegral|] (sigE ( appE ( appE [|peekByteOff|] (varE (mkName "a")) ) (litE (integerL (fromIntegral n)))) (appT [t|IO|] (conT (cType b) ))))))
-        cType x 
-          | x == ''Int64 = ''CULong
-          | x == ''Int32 = ''CUInt
-          | otherwise = ''CChar
-        bLen x
-          | x == ''Int64 = sizeOf (0 :: Int64)  
-          | x == ''Int32 = sizeOf (0 :: Int32) 
-          | otherwise = sizeOf (0 :: CChar) 
+
+        frag :: (Int, (Name, Int)) -> ExpQ
+        frag (n, b@(bb,x)) 
+             | bb == ''String = let offset = litE (integerL (fromIntegral n)) 
+                                    caster = appT [t|IO|] (conT (cType b) )
+                                    parm = varE (mkName "a")
+                                    slen = litE (integerL (fromIntegral x))
+                                    dopeek = [|peekCStringLen (plusPtr $(parm) $(offset), $(slen))|]
+                                 in sigE dopeek caster
+             | otherwise = let offset = litE (integerL (fromIntegral n))
+                               caster = appT [t|IO|] (conT (cType b) )
+                               dopeek = appE ( appE [|peekByteOff|] (varE (mkName "a"))) offset 
+                            in sigE dopeek caster
+ 
+        tpm :: (Int, ExpQ) -> (String, (Name, Int) ) -> (Int, ExpQ) 
+        tpm (n,x) (_a,b) = (n+bLen b, (infixApp x [|(<*>)|] (frag (n, b))))
+        cType (x,n) = x
+        bLen (x,n)
+          | x == mkName "CUInt" = n * sizeOf (0 :: CUInt)  
+          | x == mkName "CULong" = n * sizeOf (0 :: CULong) 
+          | x == mkName "CUShort" = n * sizeOf (0 :: CUShort)
+          | x == mkName "String" = n
+          | otherwise = error ("unknown type: " ++ show x) 
 
 class KValic a where
         toKVL :: a -> [(String, String)]

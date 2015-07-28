@@ -4,14 +4,12 @@ where
 
 -- import Control.Monad.State as State
 
+import Preface.Imports
+
 import qualified Network.Socket as S (accept, connect)
 import qualified Network.Socket.ByteString as S (send, recv)
-import Network.Socket
-import Data.ByteString
-import Foreign.Ptr
-import Foreign.ForeignPtr
-import qualified Data.Map as M
-import qualified Foreign.Concurrent as Concurrent
+import qualified Data.Map as M (Map, insert, lookup, fromList)
+import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
 -- getState :: (Monad m, State.MonadState s m) => m s 
 -- getState = State.get

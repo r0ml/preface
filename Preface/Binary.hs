@@ -7,18 +7,9 @@ module Preface.Binary (
   , lowLevel
 ) where
 
-import Data.ByteString (ByteString, pack, index)
-import Data.Bits (shiftL, shiftR, (.|.) )
-import Data.Int (Int64, Int32, Int16)
-import GHC.Word
-import Data.List (unfoldr)
+import Preface.Imports
 
--- for lowLevel
-import Foreign.Storable (poke)
-import System.IO.Unsafe (unsafePerformIO)
-import Data.ByteString.Internal (mallocByteString, fromForeignPtr)
-import Foreign.Ptr (castPtr)
-import Foreign.ForeignPtr (withForeignPtr)
+import Data.ByteString (pack, index)
 import Unsafe.Coerce (unsafeCoerce)
 
 nth :: ByteString -> Int -> Word8

@@ -37,3 +37,13 @@ instance Arrayed LC.ByteString where
   aTake = LC.take . fromIntegral
   aSplitAt = LC.splitAt . fromIntegral
 
+
+
+{-
+ - let a = pack [0,0,14,44] ::ByteString
+ - x <- unsafeForeignPtrToStorableArray (castForeignPtr b) (0,0) :: IO (StorableArray Int Int32)
+ - y <- unsafeRead x 0 
+ - showHex y ""
+ -}
+
+
