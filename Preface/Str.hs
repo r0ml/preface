@@ -364,14 +364,31 @@ genStorable name vals = do
             smsx = map nbx (zip [0..] msv)
             inx = letS [ valD (varP (mkName "o_0")) (normalB [|0|]) [] ]
             smsa = inx : concat smsx
+            
+            nby (n, (tn, nx)) = [ noBindS
+                                    [|pokeByteOff $(varE (mkName "a")) $(varE (namo n)) $(varE (mkName ("b_"++show n))) |],
+                                 letS [ valD (varP (namo (n+1)))
+                                    (normalB [|$(varE (namo n)) + (nx * sizeOf (undefined :: $(conT tn)))|] 
+                                    ) []
+                                  ]
+                                ]
+            smsy = map nby (zip [0..] msv)
+            smsb = inx : concat smsy
+
             cns = foldl appE (conE nam) (map (varE . mkName . ("b_"++) . show) [0.. (length vals - 1) ])
+            
+            cny = conP nam (map (varP . mkName . ("b_"++) . show) [0.. (length vals - 1) ])
             retc = noBindS (appE [|return|] $ cns)
+            retk = noBindS [|return ()|]
         fe <- instanceD (cxt [])
                 (appT (conT ''Storable) (conT nam))
                 [
                  funD (mkName "peek") [clause [varP (mkName "a") ] (normalB (doE (smsa ++ [retc]))) []],
                       -- (snd (foldl tpm (0, (appE [|pure|] (conE nam))) vals )))  []],
-                 funD (mkName "poke") [clause [wildP, wildP] (normalB [| undefined |]) []],
+                 -- if read-only, I could do this:
+                 -- funD (mkName "poke") [clause [wildP, wildP] (normalB [| undefined |]) []],
+                 funD (mkName "poke") [clause [varP (mkName "a"), cny]
+                    (normalB (doE (smsb ++ [retk] ))) [] ],
                  funD (mkName "sizeOf") [clause [wildP] (normalB so) []],
                  funD (mkName "alignment") [clause [wildP] (normalB (litE (integerL 4))) []]
                  ]

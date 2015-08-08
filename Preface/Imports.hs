@@ -78,7 +78,7 @@ import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
 import Data.Bits as X (Bits(..), (.&.), shiftR, shiftL, (.|.), complement, xor, rotateR, rotateL,
                        testBit, setBit, finiteBitSize)
-import Data.ByteString as X (ByteString, useAsCString, packCStringLen)
+import Data.ByteString as X (ByteString, useAsCString, packCString, packCStringLen)
 import Data.ByteString.Internal as X (toForeignPtr, fromForeignPtr, mallocByteString)
 import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 
@@ -115,6 +115,7 @@ import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..), CUShort(..),
 import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, peekCStringLen)
 import Foreign.Concurrent as X (addForeignPtrFinalizer)
 import Foreign.Marshal as X (alloca, allocaBytes, allocaArray, fromBool,copyBytes)
+import Foreign.Marshal.Utils as X (new, with)
 import Foreign.Marshal.Array as X (peekArray, pokeArray)
 import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, nullPtr, castFunPtrToPtr)
 import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignPtrBytes, castForeignPtr, newForeignPtr, newForeignPtr_, ForeignPtr)

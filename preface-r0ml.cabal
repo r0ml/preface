@@ -30,18 +30,20 @@ Library
 
   Exposed-modules: Preface.R0ml
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
-            , Preface.Symbols, Preface.SecureHash, Preface.SCGI
+            , Preface.Symbols, Preface.SecureHash
+            , Preface.SCGI, Preface.WebSocket
             , Preface.Str, Preface.StrUtils, Preface.Binary, Preface.Arrayed
-            , Preface.Timings, Preface.Imports
+            , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic
             , Bindings.Curl, Bindings.CurlX
             , Bindings.Posix, Bindings.Util
             , Bindings.Vfs
             , Bindings.Msg, Bindings.Syslog
-  Extra-Libraries: curl
+            , Bindings.Zlib
+  Extra-Libraries: curl z
   Hs-Source-Dirs: .
--- IF THE -lcurl IS MUSSING, HADDOCK FAILS
-  Ghc-options: -Wall -lcurl
+-- IF THE -lcurl IS MISSING, HADDOCK FAILS
+  Ghc-options: -Wall -lcurl -lz
   Default-Language: Haskell2010
 
 -- Test-Suite testXml
@@ -87,3 +89,19 @@ Executable badTest
   Ghc-options: -Wall 
   Main-is: BadTest.hs
 
+Executable zlibTest
+  Default-Language: Haskell2010
+  Build-Depends: base, bytestring, stm, network, random, unix, process, directory
+                 , time, template-haskell, filepath, containers, text
+  hs-source-dirs: . test
+  extra-libraries: z
+  Ghc-options: -Wall -ddump-splices -threaded
+  Main-is: ZlibTest.hs
+
+Executable wsClient
+  Default-Language: Haskell2010
+  Build-Depends: base, preface-r0ml
+  hs-source-dirs: test
+  Ghc-Options: -Wall -threaded
+  Main-is: WSClient.hs
+  

@@ -6,8 +6,6 @@ module Preface.R0ml (module X, module Preface.R0ml
   ,Stringy(..)
   -- | A class which implements Char functions for Word8, Char8 and Char
   , Chary(..)
-  , module Preface.Timings
-
  ) where
 
 {-
@@ -36,7 +34,7 @@ import Preface.StrUtils as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
 
-import Preface.Timings -- as X
+import Preface.Timings as X
 
 import Preface.Xml as X
 import Preface.JSONic as X
@@ -44,10 +42,13 @@ import Preface.JSONic as X
 import Bindings.Curl as X
 import Bindings.Posix as X
 
+import Preface.Pipes as X
+
 -- import Data.Vector as X ( (!), Vector )
 -- import qualified Data.Vector as V
 
 import Preface.SCGI as X
+import Preface.WebSocket as X
 
 import Test.QuickCheck as X ( quickCheck, Arbitrary(..), quickCheckWith, quickCheckResult,
                               quickCheckWithResult )

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+
+<title>WebSocket test</title>
+
+<script language="javascript" type="text/javascript">
+
+// var wsUri = "ws://localhost/ws/";
+var wsUri = "ws://localhost:9090/ws/";
+var output;
+
+function init() {
+  output = document.getElementById("output");
+  testWebSocket();
+}
+
+function testWebSocket() {
+  ws = new WebSocket(wsUri);
+  ws.onopen = onOpen;
+  ws.onclose = onClose;
+  ws.onmessage = onMessage;
+  ws.onerror = onError;
+}
+
+function onOpen(evt) { writeToScreen("CONNECTED"); }
+function onClose(evt) { console.log(evt); writeToScreen("DISCONNECTED"); }
+function onMessage(evt) {
+  var m = evt.data
+  if (m.match(/^login:/)) {
+    ws.send("login: host=localhost user=r0ml+2@sharewave.com dbname=storewave password=never-");
+  }
+  writeToScreen('<span style="color:blue;">RESPONSE: '+evt.data+'</span>');
+  }
+function onError(evt) { console.log(evt); writeToScreen('<span style="color: re;">ERROR: '+evt.data+'</span>');
+  }
+
+function doSend(message) { writeToScreen("SENT: "+message); ws.send(message); }
+function writeToScreen(message) {
+  var pre = document.createElement("p");
+  pre.style.wordWrap = "break-word";
+  pre.innerHTML = message;
+  output.appendChild(pre);
+}
+
+function doRequest(inp) { ws.send(inp.value); inp.value=''; }
+window.addEventListener("load",init,false);
+</script>
+
+<h2>WebSocket Test</h2>
+<button onclick="ws.close()">Stop</button>
+<label>Cmd<input onblur="doRequest(this)" onkeypress="if (event.keyCode==13) doRequest(this);"></input></label>
+<div id="output"></div>
