@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, TypeFamilies #-}
 
-module Preface.SCGI ( runSCGI, CGI(..), cgiGetHeaders, cgiGetBody,
-    writeResponse, sendResponse, sendRedirect, sendLocalRedirect, doCGI, 
-    dumpCGI
+module Preface.SCGI ( runSCGI, CGI(..), cgiGetHeaders, cgiGetBody
+    , writeResponse, sendResponse, sendRedirect, sendLocalRedirect, doCGI
+    , dumpCGI, isCGI, CGIFunction
+    
   ) where
 
 import Preface.Imports
@@ -13,6 +14,10 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Network.Socket.ByteString as B
 import Preface.Stringy
 
+-- | A @CGIFunction@ will be called by either the CGI or SCGI runtime to execute
+-- the CGI call.  The function will take a list of key/value pairs representing the 
+-- environment variables set by the CGI server, and a CGI instance which provides access
+-- to retrieving the request parameters and response stream.
 type CGIFunction = (CGIVars -> CGI -> IO HTTPHeaders)
 
 {- this would be a handler function which limits the number of threads -}
@@ -173,6 +178,17 @@ dumpCGI h a = do
   writeResponse a (show h)
   return [("Status","200 OK"), ("Content-Type","text/plain")]
 
+-- | check to see if I'm being called as a CGI (else run as main)
+isCGI :: IO Bool
+isCGI = do
+  v <- lookupEnv "GATEWAY_INTERFACE"
+  return $ maybe False (=="CGI/1.1") v
+
+-- | run a @CGIFunction@.  This is typically used by defining a @main@ which is:
+-- 
+-- > main :: IO ()
+-- > main = doCGI cgif
+--
 doCGI :: CGIFunction -> IO ()
 doCGI f = do
   a <- getCGI

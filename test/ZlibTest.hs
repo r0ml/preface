@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- import Preface.R0ml
-import Data.ByteString
-import Bindings.Zlib 
-import System.Environment
+import Preface.R0ml
+-- import Data.ByteString
+-- import Bindings.Zlib 
+-- import System.Environment
 
 main :: IO ()
 main = do

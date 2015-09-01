@@ -112,9 +112,10 @@ curlMultiPost s os ps h =  mapM_ (setopt h) ([CurloptVerbose True, CurloptURL s,
 
 -- | 'curlPost' performs. a common POST operation, namely that
 -- of submitting a sequence of name=value pairs.
-curlPost :: URLString -> [String] -> Curl -> IO CurlCode
-curlPost s ps h = do
+curlPost :: URLString -> [CurlOption] -> [String] -> Curl -> IO CurlCode
+curlPost s opts ps h = do
   mapM_ (setopt h) [CurloptVerbose True, CurloptPostFields ps, CurloptCookieJar "cookies", CurloptURL s]
+  mapM_ (setopt h) opts
   toCode <$> curlPrim h c_easy_perform
 
 {-   iv <- 

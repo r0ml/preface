@@ -463,3 +463,11 @@ stripComments = stripComments' True where
 deComma :: String -> String
 deComma = map (\x -> if x == ',' then ' ' else x) 
 
+
+{-  It is possible to generate foreign function calls via Template Haskell
+ -  This would be useful in generating bindings more easily
+runQ [d|foreign import ccall unsafe "alert" c_alert :: IO () |]
+[ForeignD (ImportF CCall Unsafe "static alert" c_alert_2 (AppT (ConT GHC.Types.IO) (TupleT 0)))]
+
+-}
+

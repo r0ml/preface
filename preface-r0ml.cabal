@@ -25,6 +25,7 @@ Library
                  -- for building introspection and testing modules
                  , Cabal, QuickCheck
                  
+                 , async
                  , ghc
                  -- , deepseq, ghc, haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
 
@@ -34,7 +35,7 @@ Library
             , Preface.SCGI, Preface.WebSocket
             , Preface.Str, Preface.StrUtils, Preface.Binary, Preface.Arrayed
             , Preface.Timings, Preface.Imports, Preface.Pipes
-            , Preface.Xml, Preface.JSONic
+            , Preface.Xml, Preface.JSONic, Preface.IO
             , Bindings.Curl, Bindings.CurlX
             , Bindings.Posix, Bindings.Util
             , Bindings.Vfs
@@ -91,9 +92,10 @@ Executable badTest
 
 Executable zlibTest
   Default-Language: Haskell2010
-  Build-Depends: base, bytestring, stm, network, random, unix, process, directory
-                 , time, template-haskell, filepath, containers, text
-  hs-source-dirs: . test
+  Build-Depends: base, preface-r0ml
+                 -- , bytestring, stm, network, random, unix, process, directory
+                 -- , time, template-haskell, filepath, containers, text
+  hs-source-dirs: test
   extra-libraries: z
   Ghc-options: -Wall -ddump-splices -threaded
   Main-is: ZlibTest.hs

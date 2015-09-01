@@ -1,4 +1,4 @@
-{- GHC 7.10 comes with the following builtin libraries:
+{- | GHC 7.10 comes with the following builtin libraries:
 
 array  -- Data.Array
 base
@@ -52,6 +52,8 @@ import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkI
 -- import Control.DeepSeq as X (NFData(..), deepseq, ($!!), force)
 import Control.Concurrent.STM as X (TChan, atomically,
      writeTChan, readTChan, newTChanIO, newTChan)
+
+import Control.Concurrent.Async as X
 
 import Control.Exception as X (Exception(..), SomeException,
                                IOException, ArithException, ArrayException, AssertionFailed,
@@ -116,12 +118,13 @@ import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, pee
 import Foreign.Concurrent as X (addForeignPtrFinalizer)
 import Foreign.Marshal as X (alloca, allocaBytes, allocaArray, fromBool,copyBytes)
 import Foreign.Marshal.Utils as X (new, with)
-import Foreign.Marshal.Array as X (peekArray, pokeArray)
+import Foreign.Marshal.Array as X (peekArray, pokeArray, withArray)
 import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, nullPtr, castFunPtrToPtr)
 import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignPtrBytes, castForeignPtr, newForeignPtr, newForeignPtr_, ForeignPtr)
 import Foreign.Storable as X (Storable(..), peek, poke)
 
 import GHC.Generics as X hiding (Arity, Fixity)
+import GHC.Exts as X (sortWith, groupWith)
 
 import Language.Haskell.TH as X hiding (Arity, Fixity)
 import Language.Haskell.TH.Quote as X
@@ -142,9 +145,11 @@ import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetContents
         , openFile, withFile, IOMode(..), stdin, stderr, stdout )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO)
 
-import System.Environment as X (getArgs, getEnvironment, lookupEnv)
+import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv)
 import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
+
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
+  -- Does this work
   readProcessWithExitCode,
   CreateProcess(..))
 
