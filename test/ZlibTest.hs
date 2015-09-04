@@ -10,7 +10,7 @@ main = do
   args <- getArgs
 
   if Prelude.null args then do
-    print "one"
+    putStrLn "one"
     let zz = pack [75,44,78,73,75,4,98,32,2,0,0,0,255,255] ::ByteString
     inf <- inflater 
     zPut inf zz  
@@ -21,17 +21,17 @@ main = do
 
     print =<< zGet inf
   else do
-      print "two"
+      putStrLn "two"
       let zz = "This is a string of things" :: ByteString
       def <- deflater
 
-      print "a" 
+      putStrLn "a" 
       zPut def zz
     
-      print "b"
+      putStrLn "b"
       print =<< zGet def
 
-      print "c"
+      putStrLn "c"
       zDone def
 
       hh <- zGet def
@@ -48,7 +48,9 @@ main = do
 
       -- Data.ByteString.putStrLn . right =<< zGet def
 
+{-
+right :: Either a b -> b
 right (Right x) = x
-    
+  -}  
 
 

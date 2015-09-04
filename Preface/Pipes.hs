@@ -4,12 +4,10 @@ module Preface.Pipes (
   pipeSource
   , (|->)
   , (-->) , (--<)
+  , (--|)
   ) where
 
-import Control.Monad (ap)
-import System.IO.Unsafe (unsafeInterleaveIO)
-import Control.Concurrent
-import Data.Char
+import Preface.Imports
 
 {-
 untilM :: (a -> Bool) -> [IO a] -> IO [a]
@@ -80,10 +78,10 @@ pipeSource a = do
   r <- newChan
   _t <- forkIO $ u r a
   return r
-  where u r a = do
-                 aa <- a
+  where u r j = do
+                 aa <- j
                  writeChan r (Just aa)
-                 u r a
+                 u r j
 
 -- | this is a support function to implement a pipeline which will take
 -- either a non-IO function (Left) or an IO function (Right)
@@ -99,8 +97,8 @@ enPipe a b = do
                 Nothing -> writeChan y Nothing
                 Just q -> case b of 
                     Left f -> writeChan y (Just (f q)) >> u x y
-                    Right f ->  do z <- f q
-                                   writeChan y (Just z)
+                    Right f ->  do j <- f q
+                                   writeChan y (Just j)
                                    u x y
 (-->) :: IO (Chan (Maybe a)) -> (a->b) -> IO (Chan (Maybe b))
 a --> b = enPipe a (Left b)

@@ -361,7 +361,7 @@ genStorable name vals = do
                                     (normalB [|$(varE (namo n)) + (nx * sizeOf (undefined :: $(conT tn)))|] 
                                     ) [] ]
                                ]
-            smsx = map nbx (zip [0..] msv)
+            smsx = map nbx (zip [(0::Int)..] msv)
             inx = letS [ valD (varP (mkName "o_0")) (normalB [|0|]) [] ]
             smsa = inx : concat smsx
             
@@ -372,7 +372,7 @@ genStorable name vals = do
                                     ) []
                                   ]
                                 ]
-            smsy = map nby (zip [0..] msv)
+            smsy = map nby (zip [(0::Int)..] msv)
             smsb = inx : concat smsy
 
             cns = foldl appE (conE nam) (map (varE . mkName . ("b_"++) . show) [0.. (length vals - 1) ])
@@ -393,10 +393,10 @@ genStorable name vals = do
                  funD (mkName "alignment") [clause [wildP] (normalB (litE (integerL 4))) []]
                  ]
         return [dd, fe]
-  where dv = recC nam ( map (\(n,(t,ll)) -> varStrictType (mkName (lnam++"_"++n)) (strictType notStrict (conT t))) vals)
+  where dv = recC nam ( map (\(n,(t,_ll)) -> varStrictType (mkName (lnam++"_"++n)) (strictType notStrict (conT t))) vals)
         nam = mkName name
         lnam = toLower (head name) : tail name
-
+{-
         frag :: (Int, (Name, Int)) -> ExpQ
         frag (n, b@(bb,x)) 
              | bb == ''String = let offset = litE (integerL (fromIntegral n)) 
@@ -419,6 +419,7 @@ genStorable name vals = do
           | x == mkName "CUShort" = n * sizeOf (0 :: CUShort)
           | x == mkName "String" = n
           | otherwise = error ("unknown type: " ++ show x) 
+-}
 
 class KValic a where
         toKVL :: a -> [(String, String)]

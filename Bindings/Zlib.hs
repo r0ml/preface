@@ -3,7 +3,8 @@
 
 module Bindings.Zlib (
         Zlib, deflater, inflater, zPut, zGet, zDone
---        , zlibVersion
+        , ZStream(..)
+        , zlibVersion
         )
 where
 
@@ -37,6 +38,7 @@ type Zlib = (Chan (Maybe ByteString), Chan Zresult)
 zPut :: Zlib -> ByteString -> IO ()
 zPut (a,_) b = writeChan a (Just b)
 
+zDone :: (Chan (Maybe a), t) -> IO ()
 zDone (a,_) = writeChan a Nothing
 
 zGet :: Zlib -> IO Zresult
@@ -45,10 +47,10 @@ zGet (_,a) = readChan a
 type Feeder = ForeignPtr ZStream -> ByteString -> Bool -> IO Zresult
 
 zStart :: (IO (ForeignPtr ZStream)) -> Feeder -> IO Zlib
-zStart init doz = do
+zStart xinit doz = do
   input <- newChan
   response <- newChan
-  _ <- forkIO $ init >>= doloop input response
+  _ <- forkIO $ xinit >>= doloop input response
   return (input, response)
   where doloop input response zs = do
            dat <- readChan input
@@ -76,16 +78,16 @@ zInit :: Int -> Maybe Int -> Maybe ByteString -> IO (ForeignPtr ZStream)
 zInit wb lev bs = do
     let n = (sizeOf (undefined :: ZStream))
         vers = "1.2.5"
-        inflater = isNothing lev
+        nflater = isNothing lev
     zsx <- mallocForeignPtrBytes n
-    let ii = if inflater then (\zs x -> c_inflateInit2_ zs (fromIntegral wb) x (fromIntegral n))
+    let ii = if nflater then (\zs x -> c_inflateInit2_ zs (fromIntegral wb) x (fromIntegral n))
              else (\zs x -> c_deflateInit2_ zs (fromIntegral (fromJust lev))
                             (fromIntegral (fromEnum DEFLATED))
-                            (fromIntegral wb) (fromIntegral 8) -- memLevel  8 is the default
+                            (fromIntegral wb) (fromIntegral (8::Int)) -- memLevel  8 is the default
                             (fromIntegral $ fromEnum DEFAULT_STRATEGY )
                             x (fromIntegral n))
     res <- withForeignPtr zsx $ (\zs -> poke zs zStreamNew >> withCString vers (ii zs) )
-    let sd = if inflater then c_inflateSetDictionary else c_deflateSetDictionary
+    let sd = if nflater then c_inflateSetDictionary else c_deflateSetDictionary
     case bs of
          Nothing -> return ()
          Just bss -> withForeignPtr zsx $ \zstr ->

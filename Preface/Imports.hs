@@ -150,12 +150,14 @@ import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
 
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   -- Does this work
-  readProcessWithExitCode,
+  readProcessWithExitCode, runInteractiveProcess, terminateProcess,
   CreateProcess(..))
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
 
 import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
+
+import System.Timeout as X (timeout)
 
 -- import Text.Regex.TDFA as X ((=~), (=~~))
 import Text.Printf as X (printf)
