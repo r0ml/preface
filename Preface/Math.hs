@@ -5,6 +5,8 @@ module Preface.Math (
 )
 where 
 
+import Preface.Imports
+
 setMinus :: Ord a => [a] -> [a] -> [a]
 setMinus (x:xs) (y:ys) = case (compare x y) of 
           LT -> x : setMinus  xs  (y:ys)

@@ -30,10 +30,14 @@ xhtml
 to provide a single import / namespace containing all of the commonly used builtin functions.
 -}
 
-module Preface.Imports ( module X ) where
+module Preface.Imports ( module X, module Preface.Imports ) where
 
-import Control.Applicative as X ((<|>),(<$>),(<*),(*>),(<*>),(<$),(<**>), optional,
-                                 liftA, liftA2, liftA3, pure)
+import qualified Prelude as XX
+import Prelude as X hiding ( (++) )
+
+import qualified Control.Applicative as XX
+import Control.Applicative as X ((<|>), optional, liftA, liftA2, liftA3)
+
 import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkIOWithUnmask,
                                       killThread, throwTo, forkOn, forkOnWithUnmask,
                                       getNumCapabilities, setNumCapabilities, threadCapability,
@@ -63,15 +67,15 @@ import Control.Exception as X (Exception(..), SomeException,
                                RecConError, RecSelError, RecUpdError, ErrorCall, 
                                assert, AssertionFailed,
                                asyncExceptionToException, asyncExceptionFromException,
-                               throw, throwIO, ioError,  
+                               throw, throwIO,  
                                catch, catches, Handler(..), catchJust, handle, handleJust,
                                try, tryJust, evaluate, mapException,
                                mask, mask_, uninterruptibleMask, uninterruptibleMask_,
                                getMaskingState, allowInterrupt, MaskingState(..),
                                assert, bracket, bracket_, bracketOnError, finally, onException)
 import Control.Monad as X (
-        mapM, mapM_, forM, forM_, sequence, sequence_,
-        (=<<), (>=>), (<=<), forever, void, 
+        forM, forM_, 
+        (>=>), (<=<), forever, void, 
         join, msum, mplus, mfilter, filterM, mapAndUnzipM, zipWithM, zipWithM_, foldM, foldM_,
         replicateM, replicateM_, guard, when, unless,
         liftM, liftM2, liftM3, liftM4, liftM5, ap, (<$!>) )
@@ -93,11 +97,11 @@ import Data.IORef as X (IORef , newIORef, readIORef, writeIORef,
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
 import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl', 
-                       find, transpose, zip4, intersect, partition)
+                       find, transpose, zip4, intersect, partition
+                      , isPrefixOf, isSuffixOf, (\\) )
 import Data.Map as X (Map, assocs)
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
                         mapMaybe, catMaybes)
-import Data.Monoid as X (mconcat, mappend, mempty)
 import Data.Set as X (Set, union, member)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
@@ -172,3 +176,12 @@ import Network as X (PortID(..), listenOn )
 -- import Network.URI as X (unEscapeString)
 
 import Debug.Trace as X (trace, traceShow, traceIO)
+
+-- | This construction allows me to document Prelude functions
+(++) :: [a] -> [a] -> [a]
+(++) = (XX.++)
+
+-- | This is the same thing as `<*>` with the arguments reversed
+(<**>) :: Applicative f => f a -> f (a -> b) -> f b
+(<**>) = (XX.<**>)
+

@@ -12,7 +12,6 @@ where
 import Preface.Str
 import Preface.Imports
 import Data.ByteString (empty)
-import Foreign.Marshal (mallocBytes)
 
 [storable|ZStream
   next_in CString

@@ -2,8 +2,6 @@
 module Preface.Misc
 where
 
--- import Control.Monad.State as State
-
 import Preface.Imports
 
 import qualified Network.Socket as S (accept, connect)
@@ -16,6 +14,32 @@ import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
 -- putState :: (Monad m, State.MonadState s m) => s -> m ()
 -- putState = State.put
+
+
+-- | A functional equivalent to if/then/else syntax (CONDitional)
+-- The arguments are in the order condition, then, else
+cond :: Bool -> a -> a -> a
+cond t x y = if t then x else y
+
+-- | A functional equivalent to if/then/else syntax (CONDitional)
+-- The arguments are in the order then, else, condition
+cond' :: a -> a-> Bool -> a
+cond' x y t = if t then x else y
+
+-- | @flip@ takes a function and reverses the first and second arguments
+-- Another way of stating that is that moves the second argument into the first position
+-- @fflip@ takes the third argument and moves it into the first position
+fflip :: (c -> a -> b -> d) -> a -> b -> c -> d
+fflip f a b c = f c a b
+
+-- | Apply f to the second element of a tuple
+second :: (b->c) -> (a,b) -> (a,c)
+second f (a,b) = (a,f b)
+
+prepend :: [a] -> [a] -> [a]
+prepend = (++)
+
+instance Show Errno where show (Errno a) = "Errno " ++ show a
 
 sktRecv :: Socket -> Int -> IO ByteString
 sktRecv = S.recv

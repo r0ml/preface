@@ -4,12 +4,10 @@
  -}
 module Preface.Symbols (
   (÷), (↑), (↓), (⍴), (×), (∪), (∩), (∋), (∈), (∧), (∨), (≤), (≥), (≠),
-  (➤), (⏎), (√), (¨), (⍨)
+  (➤), (⏎), (√), (¨), (⍨), ℤ
 ) where
 
-import Data.Set (Set, union, member)
-import Data.List (intersect)
-import Data.Bits ( Bits, (.&.), (.|.) )
+import Preface.Imports
 
 -- | Division
 -- DIVISION SIGN
@@ -116,10 +114,12 @@ import Data.Bits ( Bits, (.&.), (.|.) )
 
 infixr 8 ¨
 (¨) :: (a->b) -> [a] -> [b]
-(¨) = Prelude.map
+(¨) = map
 
 (⍨) :: (a -> b -> c) -> b -> a -> c
 (⍨) = flip
+
+type ℤ = Int
 
 -- (join (*))¨ [1..10]
 -- ($[1..10])¨ take¨ [3,4,5]

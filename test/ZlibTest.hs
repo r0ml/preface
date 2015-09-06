@@ -6,7 +6,7 @@ main :: IO ()
 main = do
   args <- getArgs
 
-  if Prelude.null args then do
+  if null args then do
     putStrLn "one"
     let zz = pack [75,44,78,73,75,4,98,32,2,0,0,0,255,255] ::ByteString
     inf <- inflater 

@@ -176,13 +176,13 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strLast :: a -> (Char_y a)
     strLast x = nth x (strLen x - 1)
       
-    isPrefixOf :: a -> a -> Bool
+    strPrefixOf :: a -> a -> Bool
     startsWith :: a -> a -> Bool
-    startsWith = flip isPrefixOf
+    startsWith = flip strPrefixOf
     
-    isSuffixOf :: a -> a -> Bool
+    strSuffixOf :: a -> a -> Bool
     endsWith :: a -> a -> Bool
-    endsWith = flip isSuffixOf
+    endsWith = flip strSuffixOf
     
     strElemIndex :: (Char_y a) -> a -> Maybe Int 
 
@@ -267,8 +267,8 @@ instance Stringy T.Text where
   asString = T.unpack
   asText = id
   
-  isPrefixOf = T.isPrefixOf
-  isSuffixOf = T.isSuffixOf
+  strPrefixOf = T.isPrefixOf
+  strSuffixOf = T.isSuffixOf
 
   strElemIndex a b = fmap fromIntegral (T.findIndex (==a) b)
 
@@ -330,8 +330,8 @@ instance Stringy TL.Text where
   asString = TL.unpack
   asText = TL.toStrict 
   
-  isPrefixOf = TL.isPrefixOf
-  isSuffixOf = TL.isSuffixOf
+  strPrefixOf = TL.isPrefixOf
+  strSuffixOf = TL.isSuffixOf
 
   strElemIndex a b = let c = TL.length ( fst (TL.span (/=a) b)) in if c == TL.length b then Nothing else Just (fromIntegral c)
 
@@ -411,8 +411,8 @@ instance Stringy B.ByteString where
   asString = T.unpack . T.decodeUtf8
   asText = T.decodeUtf8
   
-  isPrefixOf = B.isPrefixOf
-  isSuffixOf = B.isSuffixOf
+  strPrefixOf = B.isPrefixOf
+  strSuffixOf = B.isSuffixOf
 
   strElemIndex a b = B.elemIndex a b
 
@@ -496,8 +496,8 @@ instance Stringy L.ByteString where
   asString = T.unpack . T.decodeUtf8 . asByteString
   asText = T.decodeUtf8 . asByteString
   
-  isPrefixOf = L.isPrefixOf
-  isSuffixOf = L.isSuffixOf
+  strPrefixOf = L.isPrefixOf
+  strSuffixOf = L.isSuffixOf
 
   strElemIndex a b = L.elemIndex a b
 
@@ -557,7 +557,7 @@ instance Stringy [Char] where
   strBrkSubstring pat src = search 0 src
     where search n s
             | null s             = (src,[])
-            | pat `DL.isPrefixOf` s = (take n src,s)
+            | pat `strPrefixOf` s = (take n src,s)
             | otherwise          = search (n+1) (tail s)
 
   strLines = lines
@@ -571,8 +571,8 @@ instance Stringy [Char] where
   asString = id
   asText = T.pack
   
-  isPrefixOf = DL.isPrefixOf
-  isSuffixOf = DL.isSuffixOf
+  strPrefixOf = DL.isPrefixOf
+  strSuffixOf = DL.isSuffixOf
   
   strElemIndex a b = DL.elemIndex a b
 
@@ -594,13 +594,13 @@ instance Stringy [Char] where
      split_ (a,b) (f:xs) = if d == f then split_ ([], reverse a : b) xs else split_ (f:a, b) xs
   splitStr d x = let (_,b) = split_ ([],[]) x in b where
      split_ (a,b) [] = ([], reverse (reverse a : b))
-     split_ (a,b) xs = if d `isPrefixOf` xs then split_ ([], reverse a : b) (strDrop (strLen d) xs) else split_ ((head xs):a, b) (tail xs)
+     split_ (a,b) xs = if d `strPrefixOf` xs then split_ ([], reverse a : b) (strDrop (strLen d) xs) else split_ ((head xs):a, b) (tail xs)
  
   splitWith = splitWith
 
   intercalate = DL.intercalate
-  strReadFile = Prelude.readFile
-  strWriteFile = Prelude.writeFile
+  strReadFile = readFile
+  strWriteFile = writeFile
 
   str2decimal x = if (null a) then Left "Parsing Error" else Right (head a)
         where a = reads x

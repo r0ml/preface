@@ -2,6 +2,7 @@
 module Preface.Arrayed ( Arrayed(..)
  ) where
 
+import Preface.Imports
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.ByteString as B
