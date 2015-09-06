@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Preface.Runner
-
-where 
+module Preface.Runner (
+  runWithTimeout
+) where 
 
 import Preface.Imports
 
@@ -22,7 +22,7 @@ runWithTimeout tim cmd args indat = do
   res <- hGetContents outp
   -- hGetContents errp
 
-  tot <- forkIO $ (threadDelay . floor . (1000000*) . toRational) tim >> terminateProcess ph
+  tot <- forkIO $ ((threadDelay . floor . (1000000*) . toRational) tim >> terminateProcess ph) `catch` ((\_e -> return ())::SomeException->IO ())
   
   -- ec <- getProcessExitCode ph
   ec <- waitForProcess ph

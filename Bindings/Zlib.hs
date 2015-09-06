@@ -4,6 +4,7 @@
 module Bindings.Zlib (
         Zlib, deflater, inflater, zPut, zGet, zDone
         , ZStream(..)
+        , inflater2
         , zlibVersion
         )
 where
@@ -11,6 +12,7 @@ where
 import Preface.Str
 import Preface.Imports
 import Data.ByteString (empty)
+import Foreign.Marshal (mallocBytes)
 
 [storable|ZStream
   next_in CString
@@ -24,7 +26,7 @@ import Data.ByteString (empty)
   zalloc CString
   zfree CString
   opaque CString
-  data_type CLong
+  data_type CULong
   adler CULong
   reserved CULong
 |]
@@ -44,37 +46,43 @@ zDone (a,_) = writeChan a Nothing
 zGet :: Zlib -> IO Zresult
 zGet (_,a) = readChan a
 
-type Feeder = ForeignPtr ZStream -> ByteString -> Bool -> IO Zresult
+type Feeder = ZMem -> ByteString -> Bool -> Chan Zresult -> IO ()
 
-zStart :: (IO (ForeignPtr ZStream)) -> Feeder -> IO Zlib
+zStart :: (IO ZMem) -> Feeder -> IO Zlib
 zStart xinit doz = do
   input <- newChan
   response <- newChan
-  _ <- forkIO $ xinit >>= doloop input response
+  _ <- forkIO $ xinit >>= doOuterLoop input response
   return (input, response)
-  where doloop input response zs = do
+  where doOuterLoop input response zs = do
            dat <- readChan input
            case dat of 
               Nothing -> do
-                  b <- doz zs Data.ByteString.empty True
-                  writeChan response b
+                  -- I'm going to assume that the final call doesnt need to inner-loop
+                  b <- doz zs Data.ByteString.empty True response
+                  -- writeChan response b
                   return ()
               Just x -> do
-                  b <- doz zs x False
-                  writeChan response b
-                  doloop input response zs
+                  b <- doz zs x False response
+                  -- writeChan response b
+                  doOuterLoop input response zs
 
 inflater :: IO Zlib
 inflater = zStart (zInit (-15) Nothing Nothing) doInflate where doInflate = feed c_inflate
+
+inflater2 :: IO Zlib
+inflater2 = zStart (zInit (31) Nothing Nothing) doInflate where doInflate = feed c_inflate
+
                
 -- the -1 means default compression level
 deflater :: IO Zlib
 deflater = zStart (zInit (-15) (Just (-1)) Nothing) doDeflate where doDeflate = feed c_deflate        
+data ZMem = ZMem (ForeignPtr ZStream) (ForeignPtr CChar)
 
 -- | Initialize an inflation or deflation process with the given windowBits. You will need
 -- to call 'feed' to feed compressed data to this and
 -- 'finish' to extract the final chunk of decompressed data.
-zInit :: Int -> Maybe Int -> Maybe ByteString -> IO (ForeignPtr ZStream) 
+zInit :: Int -> Maybe Int -> Maybe ByteString -> IO ZMem
 zInit wb lev bs = do
     let n = (sizeOf (undefined :: ZStream))
         vers = "1.2.5"
@@ -93,7 +101,7 @@ zInit wb lev bs = do
          Just bss -> withForeignPtr zsx $ \zstr ->
            unsafeUseAsCStringLen bss $ \(cstr, len) -> sd zstr cstr (fromIntegral len)
     fb <- setOutBuff zsx
-    return zsx
+    return (ZMem zsx fb)
   
 [enumIr|ZConstant
   NO_FLUSH 0 PARTIAL_FLUSH 1 SYNC_FLUSH 2 FULL_FLUSH 3 FINISH 4 BLOCK 5 DEFLATED 8 |]
@@ -117,6 +125,8 @@ defaultChunkSize = 32752
 setOutBuff :: ForeignPtr ZStream -> IO (ForeignPtr CChar)
 setOutBuff zsx = do
   fbuff <- mallocForeignPtrBytes defaultChunkSize
+  -- fbuffa <- mallocBytes defaultChunkSize
+  -- fbuff <- newForeignPtr_ fbuffa
   withForeignPtr zsx $ \zstr -> 
     withForeignPtr fbuff $ \buff -> do
       zz <- peek zstr
@@ -126,23 +136,29 @@ setOutBuff zsx = do
 type Flater = Ptr ZStream -> CInt -> IO CInt
 
 -- | Feed the given 'ByteString' 
-feed :: Flater -> ForeignPtr ZStream -> ByteString -> Bool -> IO Zresult
-feed f zsx bs bool = do
+feed :: Flater -> ZMem -> ByteString -> Bool -> Chan Zresult -> IO ()
+feed f (ZMem zsx zbuff) bs bool chan = do
   withForeignPtr zsx $ \zstr -> do
     unsafeUseAsCStringLen bs $ \(cstr, len) -> do
       zz <- peek zstr
       poke zstr zz { zStream_next_in = cstr, zStream_avail_in = fromIntegral len }
-      res <- f zstr (fromIntegral (fromEnum (if bool then FINISH else NO_FLUSH)))
-      if (res /= 0 && res /= 1 && res /= zBufError) then return (Left (Just (ZlibException (toEnum (fromEnum res)))))
-      else do
-        zy <- peek zstr
-        let avail = fromIntegral $ zStream_avail_out zy
-            buff = zStream_next_out zy
-            siz = defaultChunkSize - avail
-        rs <- packCStringLen (plusPtr buff (-siz), siz)
-        let zx = zy { zStream_avail_out = fromIntegral defaultChunkSize }
-        poke zstr zx
-        return $ Right rs
+      innerl zstr
+  where innerl zstr = do zoz <- peek zstr
+                         let obuff = zStream_next_out zoz
+                         res <- f zstr (fromIntegral (fromEnum (if bool then FINISH else NO_FLUSH)))
+                         if (res /= 0 && res /= 1 && res /= zBufError) then writeChan chan (Left (Just (ZlibException (toEnum (fromEnum res)))))
+                         else do zy <- peek zstr
+                                 let avail = fromIntegral $ zStream_avail_out zy
+                                     buff = zStream_next_out zy
+                                     siz = defaultChunkSize - avail
+                                     zin = zStream_avail_in zy
+                                     zti = zStream_total_in zy
+                                 rs <- packCStringLen (plusPtr buff (-siz), siz)
+                                 let zx = zy { zStream_next_out=obuff, zStream_avail_out = fromIntegral defaultChunkSize }
+                                 poke zstr zx
+                                 writeChan chan (Right rs)
+
+                                 if (zStream_avail_in zy > 0) then innerl zstr else return ()
 
 zlibVersion :: IO ByteString
 zlibVersion = c_zlibVersion >>= packCString

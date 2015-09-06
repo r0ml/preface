@@ -19,10 +19,9 @@ withBinaryTempFile template action = do
   tmpDir <- getTemporaryDirectory
   bracket
     (openBinaryTempFile tmpDir template)
-    (\(name, h) -> (hClose h >> ignoringIOErrors (removeFile name)))
+    (\(name, handle) -> (hClose handle >> ignoringIOErrors (removeFile name)))
     (uncurry action)
 
-ignoringIOErrors :: IO () -> IO ()
 ignoringIOErrors ioe = ioe `catch` (\e -> const (return ()) (e :: IOError))
 
 autotype :: String -> IO ()

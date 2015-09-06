@@ -98,7 +98,7 @@ Executable zlibTest
                  -- , time, template-haskell, filepath, containers, text
   hs-source-dirs: test
   extra-libraries: z
-  Ghc-options: -Wall -ddump-splices -threaded
+  Ghc-options: -debug -g -Wall -ddump-splices -threaded
   Main-is: ZlibTest.hs
 
 Executable wsClient

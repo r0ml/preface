@@ -1,9 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Preface.R0ml
--- import Data.ByteString
--- import Bindings.Zlib 
--- import System.Environment
 
 main :: IO ()
 main = do
@@ -20,37 +17,47 @@ main = do
     zDone inf
 
     print =<< zGet inf
-  else do
-      putStrLn "two"
-      let zz = "This is a string of things" :: ByteString
-      def <- deflater
+  else case head args of
+    "one" -> do putStrLn "two"
+                let zz = "This is a string of things" :: ByteString
+                def <- deflater
 
-      putStrLn "a" 
-      zPut def zz
+                putStrLn "a" 
+                zPut def zz
     
-      putStrLn "b"
-      print =<< zGet def
+                putStrLn "b"
+                print =<< zGet def
 
-      putStrLn "c"
-      zDone def
+                putStrLn "c"
+                zDone def
 
-      hh <- zGet def
+                hh <- zGet def
 
-      inf <- inflater
+                inf <- inflater
       
-      q <- case hh of 
-        Right h -> zPut inf h
-        Left h -> print h
+                q <- case hh of 
+                  Right h -> zPut inf h
+                  Left h -> print h
 
-      print =<< zGet inf
-      zDone inf
-      print =<< zGet inf
+                print =<< zGet inf
+                zDone inf
+                print =<< zGet inf
 
-      -- Data.ByteString.putStrLn . right =<< zGet def
+    "two" -> do a <- inflater2
+                c <- strReadFile (head ( tail args))
+                zPut a c
+                zDone a
+--                 _ <- either (const False) ((0 ==) . strLen) |-> zGet a --< putStrLn . (either show show)
+--                 return ()
 
-{-
-right :: Either a b -> b
-right (Right x) = x
-  -}  
-
+                whilex (either (const True) ((0 ==) . strLen)) (zGet a) (\x -> strPut (either (asByteString . show) id x))
+                
+                
+whilex :: (a -> Bool) -> IO a -> (a -> IO ()) -> IO ()
+whilex p f d = go
+    where go = do
+            x <- f
+            if p x
+                then return ()
+                else d x >> go
 
