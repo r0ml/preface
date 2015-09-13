@@ -33,10 +33,9 @@ waitForTermination :: IO ()
 waitForTermination = do
   istty <- queryTerminal stdInput
   mv <- newEmptyMVar
-  installHandler softwareTermination (CatchOnce (putMVar mv ())) Nothing
+  _ <- installHandler softwareTermination (CatchOnce (putMVar mv ())) Nothing
   case istty of
-    True  -> do installHandler keyboardSignal (CatchOnce (putMVar mv ())) Nothing
-                return ()
+    True  -> installHandler keyboardSignal (CatchOnce (putMVar mv ())) Nothing >> return ()
     False -> return ()
   takeMVar mv
 
@@ -46,7 +45,7 @@ test name r = Test t
   where t = TestInstance { run = return (Finished r), name = name, tags = [], options = [], setOption = \_ _ -> Right t }
 -}
 
-
+main :: IO ()
 main = do
 {-
   let dirnam = "/Users/r0ml/Desktop"
@@ -59,7 +58,7 @@ main = do
   -- mapM_ print arg
   -- I'll have to eyeball the results
     
-  return exitSuccess
+  exitSuccess
 
 {-
   let filename = "/tmp/clem"

@@ -5,7 +5,7 @@ module Bindings.Syslog ( startSyslog, setlogmask,
   SyslogPriority(..),  SyslogFacility(..),  SyslogOption(..)
   ) where
 
-import Preface.Str (enumIr)
+import Preface.FFITemplates (enumIr)
 -- Because it is a QuasiQuoter, @enumIx8@ must be defined in a different file
 import Bindings.Util (enumIx8)
 

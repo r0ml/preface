@@ -34,7 +34,9 @@ Library
             , Preface.Symbols, Preface.SecureHash, Preface.Runner
             , Preface.SCGI, Preface.WebSocket
             , Preface.Testing
-            , Preface.Str, Preface.StrUtils, Preface.Binary, Preface.Arrayed
+            , Preface.QuasiQuotes, Preface.FFITemplates
+            , Preface.IOQuotes
+            , Preface.StrUtils, Preface.Binary, Preface.Arrayed
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
             , Bindings.Curl, Bindings.CurlX
@@ -43,9 +45,10 @@ Library
             , Bindings.Msg, Bindings.Syslog
             , Bindings.Zlib
   Extra-Libraries: curl z
+  Default-Extensions: NoImplicitPrelude
   Hs-Source-Dirs: .
 -- IF THE -lcurl IS MISSING, HADDOCK FAILS
-  Ghc-options: -Wall -XNoImplicitPrelude
+  Ghc-options: -Wall 
 -- -lcurl -lz
   Default-Language: Haskell2010
 

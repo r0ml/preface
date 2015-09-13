@@ -14,7 +14,8 @@ module Bindings.CurlX ( Curl, curl_debug, mkCurl
                       )
        where
 
-import Preface.Str (enum, str)
+import Preface.FFITemplates (enum)
+import Preface.QuasiQuotes (str)
 import Preface.Imports
 import Preface.XImports
 

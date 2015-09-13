@@ -9,9 +9,9 @@ module Bindings.Zlib (
         )
 where
 
-import Preface.Str
 import Preface.Imports
 import Data.ByteString (empty)
+import Preface.FFITemplates
 
 [storable|ZStream
   next_in CString

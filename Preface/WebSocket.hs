@@ -8,7 +8,7 @@ import Preface.Binary
 import Preface.Misc
 import Preface.SecureHash
 import Bindings.Zlib -- (ZData, feed, flush, initInflate)
-import Preface.Str
+import Preface.FFITemplates
 
 encodeFrame :: ByteString -> FrameType -> ByteString -> ByteString
 encodeFrame fmask ft f = strCat [pack [byte0, byte1], len , fmask, 

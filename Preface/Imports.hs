@@ -88,9 +88,10 @@ import Data.ByteString as X (ByteString, useAsCString, packCString, packCStringL
 import Data.ByteString.Internal as X (toForeignPtr, fromForeignPtr, mallocByteString)
 import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 
-import Data.Char as X (chr, ord, toLower, digitToInt, isDigit, isAlpha,
-                       isHexDigit, {- isSpace, -}
-                       isUpper, isLower, toUpper, toLower, isAlphaNum)
+import Data.Char as X (chr, ord, toLower, digitToInt, isDigit, isAlpha
+                       , isHexDigit {- isSpace, -}
+                       , isUpper, isLower, toUpper, toLower, isAlphaNum
+                       , isSymbol, isPunctuation)
 import Data.Either as X (isLeft, isRight, lefts, rights, partitionEithers)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
@@ -177,6 +178,7 @@ import Network as X (PortID(..), listenOn )
 
 import Debug.Trace as X (trace, traceShow, traceIO)
 
+infixr 5 ++
 -- | This construction allows me to document Prelude functions
 (++) :: [a] -> [a] -> [a]
 (++) = (XX.++)

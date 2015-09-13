@@ -4,7 +4,7 @@ module Bindings.Msg
 where
 
 import Preface.Imports
-import Preface.Str (enumIr, storable)
+import Preface.FFITemplates (enumIr, storable)
 
 foreign import ccall unsafe "sys/msg.h msgget" c_msgget :: CUInt -> CInt -> IO CInt
 foreign import ccall unsafe "sys/msg.h msgsnd" c_msgsnd :: CUInt -> Ptr CInt -> CInt -> CInt -> IO CInt

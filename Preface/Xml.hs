@@ -21,7 +21,6 @@ module Preface.Xml (
 
 import qualified Data.Map as M (lookup)
 import qualified Data.Text as T (pack)
-import Data.List (isPrefixOf)
 import Preface.Imports hiding(split)
 import Data.Char (isSpace)
 

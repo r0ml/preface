@@ -1,7 +1,7 @@
 {- | This is r0ml's extended preface for GHC.
 -}
 
-module Preface.R0ml (module X, module Preface.R0ml
+module Preface.R0ml (module X
   -- | A class which implements String functions for various representations (UTF8, ByteString, and String)
   ,Stringy(..)
   -- | A class which implements Char functions for Word8, Char8 and Char
@@ -21,7 +21,10 @@ import Preface.Math as X
 
 import Preface.Runner as X
 
-import Preface.Str as X
+import Preface.QuasiQuotes as X
+import Preface.FFITemplates as X
+import Preface.IOQuotes as X
+
 import Preface.StrUtils as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
