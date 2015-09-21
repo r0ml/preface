@@ -53,11 +53,11 @@ import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkI
                                       tryTakeMVar, tryPutMVar, isEmptyMVar, withMVar, withMVarMasked,
                                       modifyMVar_, modifyMVar, modifyMVarMasked_, modifyMVarMasked,
                                       tryReadMVar, mkWeakMVar)
--- import Control.DeepSeq as X (NFData(..), deepseq, ($!!), force)
 import Control.Concurrent.STM as X (TChan, atomically,
      writeTChan, readTChan, newTChanIO, newTChan)
 
 import Control.Concurrent.Async as X
+import Control.DeepSeq as X (NFData(..), ($!!), force, deepseq)
 
 import Control.Exception as X (Exception(..), SomeException,
                                IOException, ArithException, ArrayException, AssertionFailed,
@@ -108,7 +108,7 @@ import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
 
 import Data.Time as X (UTCTime(..), fromGregorian, secondsToDiffTime, getCurrentTime, 
-        addUTCTime, iso8601DateFormat, rfc822DateFormat)
+        addUTCTime, iso8601DateFormat, rfc822DateFormat, diffUTCTime)
 import Data.Time.Clock as X (NominalDiffTime)
 import Data.Time.Clock.POSIX as X (posixSecondsToUTCTime)
 import Data.Time.Format as X (formatTime, parseTimeM, readsTime, TimeLocale, defaultTimeLocale)
@@ -116,7 +116,9 @@ import Data.Tuple as X (swap)
 import Data.Typeable as X (Typeable, typeOf )
 import Data.Word as X (Word8, Word16, Word32, Word64, byteSwap16, byteSwap32, byteSwap64)
 
-import Foreign.C.Error as X (getErrno, Errno(..))
+-- all of the C error codes (e.g. ePIPE, eTIME, eREMOTE, etc. should be 
+-- converted into an algebraic type)
+import Foreign.C.Error as X (getErrno, Errno(..), ePIPE)
 import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..), CUShort(..),
                              CDouble(..), CFloat(..), CShort(..), CLong(..), CULong(..), CTime(..) )
 import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, peekCStringLen)
@@ -130,6 +132,7 @@ import Foreign.Storable as X (Storable(..), peek, poke)
 
 import GHC.Generics as X hiding (Arity, Fixity)
 import GHC.Exts as X (sortWith, groupWith)
+import GHC.IO.Exception as X (IOException(..), IOErrorType(..) )
 
 import Language.Haskell.TH as X hiding (Arity, Fixity)
 import Language.Haskell.TH.Quote as X
@@ -147,6 +150,7 @@ import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirector
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
 import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetContents
+        , hGetBuf
         , openFile, withFile, IOMode(..), stdin, stderr, stdout )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO)
 
@@ -156,7 +160,7 @@ import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   -- Does this work
   readProcessWithExitCode, runInteractiveProcess, terminateProcess,
-  CreateProcess(..))
+  CreateProcess(..), ProcessHandle)
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
 

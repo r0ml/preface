@@ -11,7 +11,8 @@ where
 
 import Preface.Imports
 import Data.ByteString (empty)
-import Preface.FFITemplates
+import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates2 (storable)
 
 [storable|ZStream
   next_in CString
@@ -102,13 +103,13 @@ zInit wb lev bs = do
     fb <- setOutBuff zsx
     return (ZMem zsx fb)
   
-[enumIr|ZConstant
+[enumInt|ZConstant
   NO_FLUSH 0 PARTIAL_FLUSH 1 SYNC_FLUSH 2 FULL_FLUSH 3 FINISH 4 BLOCK 5 DEFLATED 8 |]
 
-[enumIr|ZStrategy
+[enumInt|ZStrategy
   FILTERED 1 HUFFMAN_ONLY 2 RLE 3 FIXED 4 DEFAULT_STRATEGY 0|]
 
-[enumIr|ZError
+[enumInt|ZError
   Z_OK 0 Z_STREAM_END 1 Z_NEED_DICT 2 Z_ERRNO -1 Z_STREAM_ERROR -2 Z_DATA_ERROR -3
   Z_MEM_ERROR -4 Z_BUF_ERROR -5 Z_VERSION_ERROR -6|]
 

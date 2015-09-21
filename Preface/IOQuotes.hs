@@ -6,6 +6,7 @@
 module Preface.IOQuotes (
     file
   , sh
+  , shbg
   , shebang
   , shin
   , python
@@ -99,6 +100,8 @@ Right "       0       5      28"
 shin :: QuasiQuoter
 shin = quasiQuoter $ \x -> [| shell3 "/bin/sh" ("-c" : words $(interpolate x)) |]
 
+shbg :: QuasiQuoter
+shbg = quasiQuoter $ \x -> [| let (z:a) = words $(interpolate x) in coproc z a |]  
 
 shebang :: QuasiQuoter
 shebang = quasiQuoter (\x -> let (a,_:b) = break (=='|') x in intShebang a b)
@@ -119,19 +122,93 @@ intShebang :: String -> String -> ExpQ
 intShebang a b = [| shell2 (words a) $(interpolate b) |]
 
 
-shell :: String -> IO (Either ShellError String)
+shell :: String -> IO (Int, String, String)
 shell cmd = do { shellEx <- fromMaybe "/bin/sh" <$> lookupEnv "SHELL"; shell2 [shellEx , "-c"] cmd }
 
-shell2 :: [String] -> String -> IO (Either ShellError String)
+shell2 :: [String] -> String -> IO (Int, String, String)
 shell2 x y = shell3 (head x) ( tail x ++ [y]) ""
 
-shell3 :: String -> [String] -> String -> IO (Either ShellError String)
+shell3 :: String -> [String] -> String -> IO (Int, String, String)
 shell3 int cmd inp = do
   (ex,out,err) <- 
      catch (readProcessWithExitCode int cmd inp) (\x -> return (ExitFailure 101, "", (show (x::SomeException))))
+  let outx = if null out || last out /= '\n' then out else init out 
   return $ case ex of 
-    ExitSuccess -> Right (if null out || last out /= '\n' then out else init out )
-    ExitFailure x -> Left (x,err)
+    ExitSuccess -> (0, "", outx)
+    ExitFailure x -> (x,err, out)
+
+
+-- | Fork a thread while doing something else, but kill it if there's an
+-- exception.
+--
+-- This is important in the cases above because we want to kill the thread
+-- that is holding the Handle lock, because when we clean up the process we
+-- try to close that handle, which could otherwise deadlock.
+
+{-
+withForkWait :: IO () -> (IO () ->  IO a) -> IO a
+withForkWait async body = do
+  waitVar <- newEmptyMVar :: IO (MVar (Either SomeException ()))
+  mask $ \restore -> do
+    tid <- forkIO $ try (restore async) >>= putMVar waitVar
+    let wait = takeMVar waitVar >>= either throwIO return
+    restore (body wait) `onException` killThread tid
+-}
+
+cleanupProcess :: (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle) -> IO ()
+cleanupProcess (Just si, Just so, Just se, ph) = do
+    terminateProcess ph
+    -- Note, it's important that other threads that might be reading/writing
+    -- these handles also get killed off, since otherwise they might be holding
+    -- the handle lock and prevent us from closing, leading to deadlock.
+    ignoreSigPipe (hClose si)
+    hClose so
+    hClose se
+    -- terminateProcess does not guarantee that it terminates the process.
+    -- Indeed on Unix it's SIGTERM, which asks nicely but does not guarantee
+    -- that it stops.
+
+-- readProcess a b c = coproc a b ( flip hPutStr c ) hGetContents
+ignoreSigPipe :: IO () -> IO ()
+ignoreSigPipe = handle $ \e -> case e of
+                                   IOError { ioe_type  = ResourceVanished
+                                           , ioe_errno = Just ioe }
+                                     | Errno ioe == ePIPE -> return ()
+                                   _ -> throwIO e
+
+readUpTo :: Handle -> Int -> IO String
+readUpTo h n = do
+   fp <- mallocForeignPtrBytes n
+   withForeignPtr fp $ \buf -> do
+     len <- hGetBuf h buf n
+     str <- peekCStringLen (buf, len)
+     return $ if len == n then str ++ " ..." else str
+
+coproc :: (Show a, NFData a) => String -> [String] -> Int -> (Handle -> IO ()) -> (Handle -> IO a) -> IO (ExitCode, Double, String, a)
+coproc cmd args timeoutval inf outf = do
+  let aa = proc cmd args
+      b = aa { std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe }
+
+  bracketOnError (createProcess b) cleanupProcess $
+    \(Just inh, Just outh, Just errh, ph) -> do
+        t1 <- getCurrentTime
+        f1 <- forkIO ( ignoreSigPipe (inf inh) >> ignoreSigPipe (hClose inh)  ) 
+        res <- newEmptyMVar
+        f2 <- forkIO ( do { a <- outf outh; deepseq a (putMVar res a); hClose outh } )
+        errg <- newEmptyMVar
+        f3 <- forkIO ( do { a <- readUpTo errh 200; deepseq a (putMVar errg a); hClose errh } )
+        f4 <- forkIO ( threadDelay (1000000 * timeoutval) >> terminateProcess ph >> putMVar errg ("timed out after "++(show timeoutval)++" seconds"))
+
+        ex <- waitForProcess ph
+        t2 <- getCurrentTime
+        r1 <- takeMVar res
+        r2 <- takeMVar errg
+
+        killThread f1
+        killThread f2
+        killThread f3
+        killThread f4
+        return (ex, 1000.0 * fromRational ( toRational (diffUTCTime t2 t1) ), r2, r1)
 
 -- trim :: String -> String
 -- trim x = let f = dropWhile isSpace x in reverse (dropWhile isSpace (reverse f))

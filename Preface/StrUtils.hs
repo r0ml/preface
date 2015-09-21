@@ -3,6 +3,8 @@
 module Preface.StrUtils (
     shell_escape
   , NSShow(..)
+  , deComma
+  , stripComments
 ) where
 
 import Preface.Imports
@@ -23,4 +25,17 @@ instance {-# OVERLAPPABLE #-} Show a => NSShow a where nsShow = show
 instance {-# OVERLAPPING #-} NSShow String where nsShow x = x
 instance NSShow ByteString where nsShow = BC.unpack
 instance NSShow Text where nsShow = T.unpack
+
+
+stripComments :: String -> String
+stripComments = stripComments' True where
+  stripComments' _ [] = []
+  stripComments' True s = if take 2 s == "/*" then ' ' : stripComments' False (drop 2 s)
+                                             else head s : stripComments' True (tail s)
+  stripComments' False s = if take 2 s == "*/" then stripComments' True (drop 2 s)
+                                              else stripComments' False (tail s)
+
+deComma :: String -> String
+deComma = map (\x -> if x == ',' then ' ' else x) 
+
 

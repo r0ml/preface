@@ -23,6 +23,8 @@ import Preface.Runner as X
 
 import Preface.QuasiQuotes as X
 import Preface.FFITemplates as X
+import Preface.FFITemplates2 as X
+import Preface.FFITemplates3 as X
 import Preface.IOQuotes as X
 
 import Preface.StrUtils as X

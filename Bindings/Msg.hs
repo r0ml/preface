@@ -4,7 +4,8 @@ module Bindings.Msg
 where
 
 import Preface.Imports
-import Preface.FFITemplates (enumIr, storable)
+import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates2 (storable)
 
 foreign import ccall unsafe "sys/msg.h msgget" c_msgget :: CUInt -> CInt -> IO CInt
 foreign import ccall unsafe "sys/msg.h msgsnd" c_msgsnd :: CUInt -> Ptr CInt -> CInt -> CInt -> IO CInt
@@ -14,19 +15,19 @@ foreign import ccall unsafe "sys/ipc.h ftok" c_ftok :: CString -> CInt -> IO CIn
 
 data Msgq = Msgq Int deriving (Eq, Show)
 
-[enumIr|IPC_Control
+[enumInt|IPC_Control
   IPC_RMID 0
   IPC_SET  1
   IPC_STAT 2
 |]
 
-[enumIr|IPC_Flags
-  IPC_R      000400
-  IPC_W      000200
-  IPC_M      010000
-  IPC_CREAT  001000
-  IPC_EXCL   002000
-  IPC_NOWAIT 004000
+[enumInt|IPC_Flags
+  IPC_R      0x0100
+  IPC_W      0x0080
+  IPC_M      0x1000
+  IPC_CREAT  0x0200
+  IPC_EXCL   0x0400
+  IPC_NOWAIT 0x0800
 |]
 
 msgget :: String -> IO (Either Errno Msgq)

@@ -23,7 +23,8 @@ module Bindings.Vfs (
   , MountFlag(..)
 ) where
 
-import Preface.FFITemplates (storable, enumIr)
+import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates2 (storable)
 import Preface.Imports
 
 foreign import ccall unsafe "sys/statvfs.h statvfs" c_statvfs :: CString -> Ptr StatVFS -> IO CInt
@@ -87,7 +88,7 @@ statVFS path =
                   <*> (peekCString ((#ptr struct statfs,f_mntfromname) e :: CString))
  -}                 
 
-[enumIr|MountFlag
+[enumInt|MountFlag
 MNT_RDONLY      0x00000001      /* read only filesystem */
 MNT_SYNCHRONOUS 0x00000002      /* file system written synchronously */
 MNT_NOEXEC      0x00000004      /* can't exec from filesystem */

@@ -8,7 +8,7 @@ import Preface.Binary
 import Preface.Misc
 import Preface.SecureHash
 import Bindings.Zlib -- (ZData, feed, flush, initInflate)
-import Preface.FFITemplates
+import Preface.FFITemplates (enumInt)
 
 encodeFrame :: ByteString -> FrameType -> ByteString -> ByteString
 encodeFrame fmask ft f = strCat [pack [byte0, byte1], len , fmask, 
@@ -28,7 +28,7 @@ encodeFrame fmask ft f = strCat [pack [byte0, byte1], len , fmask,
         | otherwise      = (127, putWord64be $ fromIntegral len')
     byte1 = fromIntegral (maskflag .|. lenflag)
 
-[enumIr|FrameType
+[enumInt|FrameType
   ContinuationFrame 0 TextFrame 1 BinaryFrame 2
   CloseFrame 8 PingFrame 9 PongFrame 10
   |]

@@ -15,6 +15,7 @@ Source-Repository head
 Library
   Build-Depends: base >=4 && < 5
                  , array, bytestring, containers
+                 , deepseq
                  , directory, filepath
                  , template-haskell
                  , time, unix
@@ -27,19 +28,22 @@ Library
                  
                  , async
                  , ghc
-                 -- , deepseq, ghc, haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
+                 -- haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
 
   Exposed-modules: Preface.R0ml
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.Runner
             , Preface.SCGI, Preface.WebSocket
             , Preface.Testing
-            , Preface.QuasiQuotes, Preface.FFITemplates
+            , Preface.QuasiQuotes, Preface.FFITemplates, Preface.FFITemplates2
+            , Preface.FFITemplates3
             , Preface.IOQuotes
             , Preface.StrUtils, Preface.Binary, Preface.Arrayed
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
-            , Bindings.Curl, Bindings.CurlX
+            , Bindings.Curl, Bindings.Curl.CurlX
+            , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
+            , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
             , Bindings.Posix, Bindings.Util
             , Bindings.Vfs
             , Bindings.Msg, Bindings.Syslog
@@ -89,6 +93,15 @@ Test-Suite testPosix
   hs-source-dirs: test
   -- Test-Module: TestQQ
   main-is: TestPosix2.hs
+
+Executable testProcess
+  -- type: exitcode-stdio-1.0
+  Default-Language: Haskell2010
+  build-depends: preface-r0ml
+  default-extensions: NoImplicitPrelude
+  Ghc-options: -Wall -threaded
+  hs-source-dirs: test
+  main-is: TestProcess.hs
 
 Executable badTest
   Default-Language: Haskell2010

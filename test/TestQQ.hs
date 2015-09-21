@@ -32,8 +32,8 @@ main = do
 
   [file|$HOME/.profile|] >>= assertEqualG globl "file $HOME/.profile" False . null
 
-  w <- [sh|uname -s|]
-  assertEqualG globl "sh uname -s" (Right "Darwin") w
+  (e, r, w) <- [sh|uname -s|]
+  assertEqualG globl "sh uname -s" "Darwin" w
 
 
 {-  ,("seven", TestCase $ do

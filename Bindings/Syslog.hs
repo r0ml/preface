@@ -1,11 +1,10 @@
 {-# LANGUAGE ForeignFunctionInterface, QuasiQuotes #-}
--- {-# OPTIONS_GHC -ddump-splices #-}
 
-module Bindings.Syslog ( startSyslog, setlogmask,
-  SyslogPriority(..),  SyslogFacility(..),  SyslogOption(..)
+module Bindings.Syslog ( startSyslog, setlogmask
+  , SyslogPriority(..),  SyslogFacility(..),  SyslogOption(..)
   ) where
 
-import Preface.FFITemplates (enumIr)
+import Preface.FFITemplates (enumInt)
 -- Because it is a QuasiQuoter, @enumIx8@ must be defined in a different file
 import Bindings.Util (enumIx8)
 
@@ -43,7 +42,7 @@ LOG_LAUNCHD     24 /* launchd - general bootstrap daemon */
   |]
 
 -- | The SyslogOptions are set when logging begins
-[enumIr|SyslogOption
+[enumInt|SyslogOption
  LOG_PID         0x01    /* log the pid with each message */
  LOG_CONS        0x02    /* log on the console if errors in sending */
  LOG_ODELAY      0x04    /* delay open until first syslog() (default) */
@@ -52,12 +51,9 @@ LOG_LAUNCHD     24 /* launchd - general bootstrap daemon */
  LOG_PERROR      0x20    /* log to stderr as well */
   |]
 
--- closelog :: IO ()
--- closelog = c_closelog
-
 -- | Each log message identifies its priority.  It is possible to set the allowed
 -- syslog priorities, so that the priorities which are not set will be ignored.
-[enumIr|SyslogPriority
+[enumInt|SyslogPriority
 LOG_EMERG       0       /* system is unusable */
 LOG_ALERT       1       /* action must be taken immediately */
 LOG_CRIT        2       /* critical conditions */
@@ -104,8 +100,11 @@ startSyslog x = do
        withCString ident $ \p -> c_openlog p opt fac
 
 
--- foreign import ccall unsafe "closelog" c_closelog :: IO ()
 foreign import ccall unsafe "openlog" c_openlog :: CString -> CInt -> CInt -> IO ()
 foreign import ccall unsafe "setlogmask" c_setlogmask :: CInt -> IO CInt
 foreign import ccall unsafe "syslog" c_syslog :: CInt -> CString -> CString -> IO ()
+
+-- foreign import ccall unsafe "closelog" c_closelog :: IO ()
+-- closelog :: IO ()
+-- closelog = c_closelog
 

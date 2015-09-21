@@ -68,3 +68,7 @@ mapFromList = M.fromList
 newConcurrentForeignPtr :: Ptr a -> IO () -> IO (ForeignPtr a)
 newConcurrentForeignPtr = Concurrent.newForeignPtr
 
+stride :: Int -> [a] -> [a]
+stride _ [] = []
+stride n (x:xs) = x : stride n (drop (n-1) xs)
+
