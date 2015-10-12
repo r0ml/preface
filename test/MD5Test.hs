@@ -1,8 +1,7 @@
 
-import MD5
-import qualified Data.ByteString as B (empty)
+import Preface.R0ml
 
-test :: IO ()
-test = do 
-     putStrLn $ "Hash is:   " ++ show (stringMD5 . md5 $ B.empty )
+main :: IO ()
+main = do 
+     putStrLn $ "Hash is:   " ++ stringDigest (md5 strEmpty )
      putStrLn $ "Should Be: d41d8cd98f00b204e9800998ecf8427e" 

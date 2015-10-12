@@ -229,16 +229,17 @@ md5 bs = let initialState = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
           m3 = take 16 (drop 32 ma)
           m4 = take 16 (drop 48 ma)
           (z1,z2,z3,z4) = foldl ch2 (a,b,c,d) [
-             (\x y z -> z `xor` (x .&. (y `xor` z)) , ws,                     [ 7, 12, 17, 22], m1),
-             (\x y z -> y `xor` (z .&. (x `xor` y)) , everynth 4 (tail ws),   [ 5,  9, 14, 20], m2),
-             (\x y z -> x `xor` y `xor` z ,           everynth 2 (drop 5 ws), [ 4, 11, 16, 23], m3),
-             (\x y z -> y `xor` (x .|. complement z), everynth 6 ws         , [ 6, 10, 15, 21], m4) ]
+             (\x y z -> z `xor` (x .&. (y `xor` z)) , ws,                 [ 7, 12, 17, 22], m1),
+             (\x y z -> y `xor` (z .&. (x `xor` y)) , ynth 4 (tail ws),   [ 5,  9, 14, 20], m2),
+             (\x y z -> x `xor` y `xor` z ,           ynth 2 (drop 5 ws), [ 4, 11, 16, 23], m3),
+             (\x y z -> y `xor` (x .|. complement z), ynth 6 ws         , [ 6, 10, 15, 21], m4) ]
        in (z1+a, z2+b, z3+c, z4+d)
     mch fn h i j k x s ac = i + rotateL (fn i j k + (x + ac + h)) s
-    ch1 fn (h,i,j,k) ws rs ms = let r = mch fn h i j k (head ws) (head rs) (head ms)
-                 in r : (if null (tail ms) then [] else ch1 fn (k,r,i,j) (tail ws) (tail rs) (tail ms) )
+    ch1 fn (h,i,j,k) (w1:ws) (r1:rs) (m1:ms) = 
+                let r = mch fn h i j k w1 r1 m1
+                 in r : (if null ms then [] else ch1 fn (k,r,i,j) ws rs ms )
     ch2 e (f,w1,r,m) = let [h,i,j,k] = drop 12 (ch1 f e w1 (cycle r) m) in (h,k,j,i)
-    everynth n ys = head ys : everynth n (drop (n+1) ys )
+    ynth n (y1:ys) = y1 : ynth n (drop n ys )
 
 -- should this be base16 ?
 stringDigest :: Digest -> String
