@@ -41,6 +41,7 @@ Library
             , Preface.StrUtils, Preface.Binary, Preface.Arrayed
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
+            , Preface.Typing, Preface.Diff, Preface.Console
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost

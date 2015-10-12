@@ -1,15 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- These are required for the NSShow definitions
-
 module Preface.QuasiQuotes (
   str
-  , template
-
-  , iostr
+  , istr
   , interpolate
-
--- these are defined but (shouldn't / don't need to be) exported
 ) where
  
 -- import Preface.R0ml
@@ -23,13 +17,8 @@ quasiQuoter x = QuasiQuoter { quoteExp = x, quotePat = undefined, quoteDec = und
 str :: QuasiQuoter
 str = quasiQuoter $ \x -> [| x |]
 
-iostr :: QuasiQuoter
-iostr = quasiQuoter interpolate
-
--- Note: this will be the compile time file contents ?
--- | The compile time contents of the quoted filename.  The filename will be interpolated
-template :: QuasiQuoter
-template = str
+istr :: QuasiQuoter
+istr = quasiQuoter interpolate
 
 {-
 
@@ -50,10 +39,9 @@ quoteFile (QuasiQuoter { quoteExp = qe, quotePat = qp, quoteType = qt, quoteDec 
 
 -}
 
--- this can be used as $(interpolate x) 
--- I need the environment if the interpolation includes environment variables, but not otherwise
-interpolate :: String -> ExpQ
-interpolate q = [| let _v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in concat $(listE (interp q)) |]
+{-
+interpolateOld :: String -> ExpQ
+interpolateOld q = [| let _v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in concat $(listE (interp q)) |]
    -- [| concat $(listE (interp q)) |]
    where interp x =
            let -- v_v x = maybe x id (unsafePerformIO (lookupEnv x))
@@ -73,4 +61,26 @@ interpolate q = [| let _v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in co
                                   _ -> fail "can't get here"
                       _ -> fail "can't get here either"
             in stringE s1 : s3
+-}
+
+-- this can be used as $(interpolate x) 
+-- I need the environment if the interpolation includes environment variables, but not otherwise
+interpolate :: String -> ExpQ
+interpolate q = [| let _v_v x = maybe ("$"++x) id (unsafePerformIO (lookupEnv x)) in $(interp q) |]
+   where interp :: String -> ExpQ
+         interp x =
+           let (s1, s2) = break (=='$') x
+               s3 :: ExpQ
+               s3 = case s2 of
+                      [] -> stringE "" 
+                      '$': [] -> stringE "\n" 
+                      '$':'$': s5 -> [| "$" ++ $(interp s5) |]
+                      '$': s6@(c1:_) | isAlpha c1 && isLower c1 -> 
+                                 let (s8, s9) = namspan s6 in [| nsShow $(varE (mkName s8)) ++ $(interp s9) |]
+                                     | isAlpha c1 && isUpper c1 ->
+                                 let (s10, s11) = namspan s6
+                                  in [| $(appE (varE (mkName "_v_v")) (stringE s10) ) ++ $(interp s11) |]
+                      _ -> fail "can't get here either"
+            in [| $(stringE s1) ++ $(s3) |] 
+         namspan = span ( (||) <$> isAlphaNum <*> ('_' == ) )
 

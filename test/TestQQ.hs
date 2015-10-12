@@ -25,7 +25,7 @@ main = do
   let b = "clem"
       c = 334 :: Int
   u <- do { a <- lookupEnv "HOME" ; return (fromMaybe "." a) }
-  let v = [iostr|$HOME/$b-$c|]
+  let v = [istr|$HOME/$b-$c|]
   assertEqualG globl "str $HOME/$b-$c" (u++"/clem-334") v 
 
   assertEqualG globl "str No interpolation" "No interpolation" [str|No interpolation|]

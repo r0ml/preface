@@ -23,15 +23,12 @@ module Preface.IOQuotes (
 import Preface.Imports
 import Data.Char (isSpace)
 
-import Preface.StrUtils (NSShow(..))
+import Preface.QuasiQuotes (interpolate)
 
 type ShellError = (Int,String)
 
 quasiQuoter :: (String -> ExpQ) -> QuasiQuoter
 quasiQuoter x = QuasiQuoter { quoteExp = x, quotePat = undefined, quoteDec = undefined, quoteType = undefined }
-
-pt :: String->ExpQ
-pt x = [| do { let a = $(interpolate x) in try (readFile a) :: IO (Either SomeException String) } |]
 
 {-
 
@@ -59,6 +56,10 @@ quoteFile (QuasiQuoter { quoteExp = qe, quotePat = qp, quoteType = qt, quoteDec 
 -}
 file :: QuasiQuoter
 file = quasiQuoter pt
+  where pt :: String->ExpQ
+        pt x = [| do { let a = $(interpolate x) in try (readFile a) :: IO (Either SomeException String) } |]
+
+
 
 {- find an alternative for eval_ (plugins)
 -- scriptqq :: String -> ExpQ
@@ -227,28 +228,4 @@ strToMap q = filter (\(x,_) -> not (null x) ) (map parsePair (lines q))
                           y4 = if null y3 then y3 else dropWhile isSpace (tail y3)
                        in (y2, y4)
 
-
--- this can be used as $(interpolate x) 
--- I need the environment if the interpolation includes environment variables, but not otherwise
-interpolate :: String -> ExpQ
-interpolate q = [| let _v_v x = maybe x id (unsafePerformIO (lookupEnv x)) in concat $(listE (interp q)) |]
-   -- [| concat $(listE (interp q)) |]
-   where interp x =
-           let -- v_v x = maybe x id (unsafePerformIO (lookupEnv x))
-               (s1, s2) = break (=='$') x
-               s3 = case s2 of
-                      [] -> []
-                      '$':s4 -> case s4 of 
-                                  [] -> []
-                                  '$':s5 -> stringE "$" : interp s5
-                                  s6@(c1:_s7) | isAlpha c1 && isLower c1 -> 
-                                          let (s8, s9) = span (\x2 -> isAlphaNum x2 || '_' == x2 ) s6
-                                           in (appE [|nsShow|] (varE (mkName s8))): interp s9
-                                             | isAlpha c1 && isUpper c1 ->
-                                          let (s10, s11) = span (\x2 -> isAlphaNum x2 || '_' == x2) s6
-                                           in appE (varE (mkName "_v_v")) (stringE s10) : interp s11
-                                     --      in [| $(_v s10) |] : interp s11
-                                  _ -> fail "can't get here"
-                      _ -> fail "can't get here either"
-            in stringE s1 : s3
 

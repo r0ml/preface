@@ -191,6 +191,8 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strInit :: a -> a
     strPut :: a -> IO ()
     strPutLn :: a -> IO ()
+    strPutH :: Handle -> a -> IO ()
+    strPutHLn :: Handle -> a -> IO ()
 
     strMap :: ((Char_y a)->(Char_y a)) -> a -> a
     strMapAccumL :: (d -> (Char_y a) -> (d, (Char_y a))) -> d -> a -> (d, a)
@@ -276,7 +278,9 @@ instance Stringy T.Text where
   strInit = T.init
   strPut = T.putStr
   strPutLn = T.putStrLn
-  
+  strPutH = T.hPutStr
+  strPutHLn = T.hPutStrLn
+ 
   strMap = T.map
   strMapAccumL = T.mapAccumL
   pack = T.pack
@@ -339,7 +343,9 @@ instance Stringy TL.Text where
   strInit = TL.init
   strPut = T.putStr . TL.toStrict
   strPutLn = T.putStrLn . TL.toStrict
-  
+  strPutH h = T.hPutStr h . TL.toStrict
+  strPutHLn h = T.hPutStrLn h . TL.toStrict
+
   strMap = TL.map
   strMapAccumL = TL.mapAccumL
   pack = TL.pack
@@ -420,7 +426,9 @@ instance Stringy B.ByteString where
   strInit = B.init
   strPut = B.putStr
   strPutLn = BC.putStrLn
-  
+  strPutH = B.hPutStr
+  strPutHLn = BC.hPutStrLn
+
   strMap = B.map
   strMapAccumL = B.mapAccumL
   
@@ -505,7 +513,9 @@ instance Stringy L.ByteString where
   strInit = L.init
   strPut = L.putStr
   strPutLn = LC.putStrLn
-  
+  strPutH = L.hPutStr
+  strPutHLn = LC.hPutStrLn
+
   strMap = L.map
   strMapAccumL = L.mapAccumL
   pack = L.pack
@@ -580,7 +590,9 @@ instance Stringy [Char] where
   strInit = init
   strPut = putStr
   strPutLn = putStrLn
-  
+  strPutH = hPutStr
+  strPutHLn = hPutStrLn
+ 
   strMap = DL.map
   strMapAccumL = DL.mapAccumL
 

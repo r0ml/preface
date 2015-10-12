@@ -48,7 +48,7 @@ curlGet url xopts h = do
    mapM_ ($ h) (defaultSSLOpts ++ [curloptSetFailOnError False, curloptSetURL url] ++ xopts)
 
 
--- | Perform the actions already specified on the handle.
+-- Perform the actions already specified on the handle.
 -- Collects useful information about the returned message.
 -- Note that this function sets the
 -- 'CurlWriteFunction' and 'CurlHeaderFunction' options.

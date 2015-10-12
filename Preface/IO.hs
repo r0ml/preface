@@ -1,6 +1,6 @@
 
 module Preface.IO (
-    withBinaryTempFile, autotype, autotypeLn
+    withBinaryTempFile
 ) where
 
 import Preface.Imports
@@ -19,15 +19,8 @@ withBinaryTempFile template action = do
   tmpDir <- getTemporaryDirectory
   bracket
     (openBinaryTempFile tmpDir template)
-    (\(name, h) -> (hClose h >> ignoringIOErrors (removeFile name)))
+    (\(name, handle) -> (hClose handle >> ignoringIOErrors (removeFile name)))
     (uncurry action)
 
-ignoringIOErrors :: IO () -> IO ()
 ignoringIOErrors ioe = ioe `catch` (\e -> const (return ()) (e :: IOError))
 
-autotype :: String -> IO ()
-autotype ss = if null ss then return () else 
-   putChar (head ss) >> threadDelay 60000 >> autotype (tail ss)
-  
-autotypeLn :: String -> IO ()
-autotypeLn = (>> putStrLn "") . (>> threadDelay 500000) . autotype

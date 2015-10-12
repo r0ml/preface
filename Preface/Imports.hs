@@ -97,9 +97,10 @@ import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
-import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl', 
-                       find, transpose, zip4, intersect, partition
-                      , isPrefixOf, isSuffixOf, (\\) )
+import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl' 
+                      , find, transpose, zip4, intersect, partition
+                      , isPrefixOf, isSuffixOf, isInfixOf, (\\)
+                      , stripPrefix, intersperse )
 import Data.Map as X (Map, assocs)
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
                         mapMaybe, catMaybes)
@@ -140,21 +141,25 @@ import Language.Haskell.TH.Syntax as X hiding(Infix)
 
 import Numeric as X (readHex, readSigned, readDec, readFloat, showHex)
 
-import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist, getDirectoryContents,
-                         createDirectoryIfMissing, copyFile, getModificationTime,
-                         getHomeDirectory,
-                         removeDirectoryRecursive, createDirectory, removeFile )
-import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory,
-                        takeBaseName, splitExtension, takeExtension, takeFileName, joinPath, splitPath,
-                        normalise, isAbsolute)
+import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist
+                       , getDirectoryContents, getAppUserDataDirectory
+                       , createDirectoryIfMissing, copyFile, getModificationTime
+                       , getHomeDirectory, getCurrentDirectory
+                       , removeDirectoryRecursive, createDirectory, removeFile )
+import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory
+                        , takeBaseName, takeExtension, takeFileName, joinPath
+                        , splitPath, splitExtension, splitDirectories, splitSearchPath
+                        , isPathSeparator, isSearchPathSeparator
+                        , normalise, isAbsolute)
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
 import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetContents
         , hGetBuf
         , openFile, withFile, IOMode(..), stdin, stderr, stdout )
+import System.IO.Error as X ( ioeGetErrorType )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO)
 
-import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv)
+import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv, getProgName)
 import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
 
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
