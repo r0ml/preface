@@ -103,14 +103,14 @@ Executable md5Test
   hs-source-dirs: test
   main-is: MD5Test.hs
   
-Executable testProcess
-  -- type: exitcode-stdio-1.0
-  Default-Language: Haskell2010
-  build-depends: preface-r0ml
-  default-extensions: NoImplicitPrelude
-  Ghc-options: -Wall -threaded
-  hs-source-dirs: test
-  main-is: TestProcess.hs
+-- Executable testProcess
+--   -- type: exitcode-stdio-1.0
+--   Default-Language: Haskell2010
+--   build-depends: preface-r0ml
+--   default-extensions: NoImplicitPrelude
+--   Ghc-options: -Wall -threaded
+--   hs-source-dirs: test
+--   main-is: TestProcess.hs
 
 Executable badTest
   Default-Language: Haskell2010
