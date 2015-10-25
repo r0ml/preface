@@ -15,6 +15,7 @@ Source-Repository head
 Library
   Build-Depends: base >=4 && < 5
                  , array, bytestring, containers
+                 , binary
                  , deepseq
                  , directory, filepath
                  , template-haskell
@@ -42,6 +43,7 @@ Library
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
             , Preface.Typing, Preface.Diff, Preface.Console
+            , Preface.ASN1
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
@@ -94,6 +96,15 @@ Test-Suite testPosix
   hs-source-dirs: test
   -- Test-Module: TestQQ
   main-is: TestPosix2.hs
+
+Test-Suite testASN1
+  type: exitcode-stdio-1.0
+  Default-Language: Haskell2010
+  build-depends: preface-r0ml, bytestring, QuickCheck, time, base
+  default-extensions: NoImplicitPrelude
+  GHC-Options: -Wall
+  hs-source-dirs: test
+  main-is: TestASN1.hs
 
 Executable md5Test
   Default-Language: Haskell2010

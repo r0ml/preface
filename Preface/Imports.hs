@@ -82,6 +82,8 @@ import Control.Monad as X (
 
 import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
+import Data.Binary as X (decode, Binary)
+
 import Data.Bits as X (Bits(..), (.&.), shiftR, shiftL, (.|.), complement, xor, rotateR, rotateL,
                        testBit, setBit, finiteBitSize)
 import Data.ByteString as X (ByteString, useAsCString, packCString, packCStringLen)
@@ -154,7 +156,7 @@ import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirector
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
 import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetContents
-        , hGetBuf
+        , hGetBuf, hSetBuffering, BufferMode(..)
         , openFile, withFile, IOMode(..), stdin, stderr, stdout )
 import System.IO.Error as X ( ioeGetErrorType )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO)
@@ -168,6 +170,7 @@ import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   CreateProcess(..), ProcessHandle)
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
+import System.Posix.Signals as X (installHandler, sigTERM, sigINT)
 
 import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
 
