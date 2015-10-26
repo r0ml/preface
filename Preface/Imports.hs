@@ -136,6 +136,7 @@ import Foreign.Storable as X (Storable(..), peek, poke)
 import GHC.Generics as X hiding (Arity, Fixity)
 import GHC.Exts as X (sortWith, groupWith)
 import GHC.IO.Exception as X (IOException(..), IOErrorType(..) )
+import GHC.IO.Handle as X (hDuplicate)
 
 import Language.Haskell.TH as X hiding (Arity, Fixity)
 import Language.Haskell.TH.Quote as X
@@ -171,6 +172,7 @@ import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
 import System.Posix.Signals as X (installHandler, sigTERM, sigINT)
+
 
 import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
 

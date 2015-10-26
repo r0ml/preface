@@ -6,7 +6,12 @@ where
 import Preface.Imports
 
 import qualified Network.Socket as S (accept, connect, listen)
-import Network.Socket as X (iNADDR_ANY)
+import Network.Socket as X (iNADDR_ANY, setSocketOption, bindSocket, SocketOption(..)
+                            , maxListenQueue)
+import Network.BSD as X (getProtocolNumber)
+
+import System.Posix.Signals as P (Handler(..))
+
 import qualified Network.Socket.ByteString as S (send, recv)
 import qualified Data.Map as M (Map, insert, lookup, fromList)
 import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
@@ -55,7 +60,11 @@ sktAccept = S.accept
 sktConnect :: Socket -> SockAddr -> IO ()
 sktConnect = S.connect
 
+sktListen :: Socket -> Int -> IO () 
 sktListen = S.listen
+
+posixCatch :: IO () -> P.Handler
+posixCatch = P.Catch
 
 lookupWithDefault :: (Eq a) => b -> a -> [(a,b)] -> b
 lookupWithDefault d k l = let r = lookup k l in case r of { Nothing -> d ; Just e -> e }
