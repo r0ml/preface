@@ -82,7 +82,7 @@ import Control.Monad as X (
 
 import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
-import Data.Binary as X (decode, Binary)
+import Data.Binary as X (Binary)
 
 import Data.Bits as X (Bits(..), (.&.), shiftR, shiftL, (.|.), complement, xor, rotateR, rotateL,
                        testBit, setBit, finiteBitSize)
@@ -90,10 +90,10 @@ import Data.ByteString as X (ByteString, useAsCString, packCString, packCStringL
 import Data.ByteString.Internal as X (toForeignPtr, fromForeignPtr, mallocByteString)
 import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 
-import Data.Char as X (chr, ord, toLower, digitToInt, isDigit, isAlpha
+import Data.Char as X (chr, ord, toLower, isDigit, isAlpha, isAscii
                        , isHexDigit {- isSpace, -}
                        , isUpper, isLower, toUpper, toLower, isAlphaNum
-                       , isSymbol, isPunctuation)
+                       , isSymbol, isPunctuation, intToDigit, digitToInt)
 import Data.Either as X (isLeft, isRight, lefts, rights, partitionEithers)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
@@ -102,7 +102,7 @@ import Data.Ord as X (comparing)
 import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl' 
                       , find, transpose, zip4, intersect, partition
                       , isPrefixOf, isSuffixOf, isInfixOf, (\\)
-                      , stripPrefix, intersperse )
+                      , stripPrefix, intersperse, elemIndex )
 import Data.Map as X (Map, assocs)
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
                         mapMaybe, catMaybes)
@@ -142,7 +142,8 @@ import Language.Haskell.TH as X hiding (Arity, Fixity)
 import Language.Haskell.TH.Quote as X
 import Language.Haskell.TH.Syntax as X hiding(Infix)
 
-import Numeric as X (readHex, readSigned, readDec, readFloat, showHex)
+import Numeric as X (readHex, readSigned, readDec, readFloat, showHex, showOct
+                    , showIntAtBase )
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist
                        , getDirectoryContents, getAppUserDataDirectory
@@ -156,10 +157,10 @@ import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirector
                         , normalise, isAbsolute)
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
-import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetContents
-        , hGetBuf, hSetBuffering, BufferMode(..)
+import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine, hGetContents
+        , hGetBuf, hGetChar, hSetBuffering, BufferMode(..)
         , openFile, withFile, IOMode(..), stdin, stderr, stdout )
-import System.IO.Error as X ( ioeGetErrorType )
+import System.IO.Error as X ( isEOFError, ioeGetErrorType )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO)
 
 import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv, getProgName)
@@ -172,7 +173,7 @@ import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
 import System.Posix.Signals as X (installHandler, sigTERM, sigINT)
-
+import System.Posix.Types as X (Fd(..) )
 
 import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
 
@@ -184,7 +185,8 @@ import Text.Printf as X (printf)
 
 import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..),
      addrAddress, defaultProtocol, SocketType(..), Family(..), getAddrInfo, defaultHints,
-     socket, addrSocketType, addrFamily, fdSocket, mkSocket ) 
+     getSocketOption, ShutdownCmd(..), shutdown,
+     socket, addrSocketType, addrFamily, fdSocket, mkSocket, getPeerName, getSocketName ) 
 
 import Network as X (PortID(..), listenOn )
 -- import Network.Mime as X (defaultMimeLookup)

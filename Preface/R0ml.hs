@@ -44,6 +44,7 @@ import Preface.Console as X
 
 import Preface.ASN1 as X
 
+import Preface.Distributed as X
 
 import Bindings.Curl as X
 import Bindings.Posix as X

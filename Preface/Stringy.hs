@@ -118,7 +118,6 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
 
     -- | Drop the first n characters which test True on the given function
     strDropWhile :: ( (Char_y a) -> Bool) -> a -> a
-    strDropWhile = (snd .) . strBrk
 
     -- | Take the first n elements of a Stringy.  If n is greater than the length of the Stringy,
     -- only take the n elements.
@@ -127,23 +126,35 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
 
     -- | Take the first n characters which test True on the given function
     strTakeWhile :: ( (Char_y a)->Bool) -> a -> a
-    strTakeWhile = (fst .) . strBrk
 
     -- | Return a tuple which is the first n characters which test True, and then the remainder
     -- This would be equivalent to (strTakeWhile f s, strDropWhile f s)
-    strBrk :: ((Char_y a) -> Bool) -> a -> (a,a)
-
-    -- | strBreak is a synonym for strBrk
-    strBreak :: ((Char_y a) -> Bool) -> a -> (a,a)
-    strBreak = strBrk
+    strBrk :: ((Char_y a) -> Bool) -> a -> Maybe (a,a)
 
     -- | strBrkSubstring breaks a string by a the first occurence of the given substring    
-    strBrkSubstring :: a -> a -> (a,a)
+    strBrkStr :: a -> a -> Maybe (a,a)
 
-    -- | strBreakSubstring is a synonym for strBrkSubstring
-    strBreakSubstring :: a -> a -> (a,a)
-    strBreakSubstring = strBrkSubstring
-    
+    -- | strSplit breaks a string into every substring between occurences of the supplied char
+    strSplit :: (Char_y a) -> a -> [a]
+    strSplit = strSplitWith . (==)
+
+    -- | strSplitStr breaks a string into every substring between occurences of the supplied
+    --   delimiter string
+    strSplitStr :: (Stringy b) => b -> a -> [a]
+
+    -- | strSplitWith breaks a string into every substring between occurences of the supplied
+    --   function.  The function is applied to each character of the given string
+    strSplitWith :: ((Char_y a)->Bool) -> a -> [a]
+
+    -- | strSplitWhen breaks a string into every substring between occurences of the supplied
+    --   function.  The function is applied to the remaining string after each character
+    --   to locate whether this is a split location.  The function returns the number of
+    --   characters to drop if it is a match.  If the number is 0 or negative, that is
+    --   interpreted as "not a match" -- since a result of 0 would mean that the same
+    --   function would be applied again to the same string.
+    strSplitWhen :: (a -> Int) -> a -> [a]
+
+
     -- | split the given Stringy into a list of lines (split on newline)
     strLines :: a -> [a]
 
@@ -156,6 +167,9 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strCons :: (Char_y a) -> a -> a
     strSnoc :: a -> (Char_y a) -> a
     strHGetContents :: Handle -> IO a
+    strHGetLine :: Handle -> IO a
+    strHGet :: Handle -> Int -> IO a
+    strHPut :: Handle -> a -> IO ()
     nth :: a -> Int -> (Char_y a)
 
     asByteString :: a -> ByteString
@@ -175,15 +189,20 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
 
     strLast :: a -> (Char_y a)
     strLast x = nth x (strLen x - 1)
-      
+     
+    -- | strPrefixOf returns true if the first string is a prefix of the second string 
     strPrefixOf :: a -> a -> Bool
-    startsWith :: a -> a -> Bool
-    startsWith = flip strPrefixOf
+
+    -- startsWith :: a -> a -> Bool
+    -- startsWith = flip strPrefixOf
     
+    -- | strSuffixOf returns true if the first string is a suffix of the second string
     strSuffixOf :: a -> a -> Bool
-    endsWith :: a -> a -> Bool
-    endsWith = flip strSuffixOf
-    
+    -- endsWith :: a -> a -> Bool
+    -- endsWith = flip strSuffixOf
+
+        
+
     strElemIndex :: (Char_y a) -> a -> Maybe Int 
 
     strReverse :: a -> a
@@ -201,12 +220,7 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     unpack :: a -> [(Char_y a)]
 
     stripStart :: a -> a
-    
-    splitChar :: (Char_y a) -> a -> [a]
-    splitStr :: a -> a -> [a]
---    splitOn :: a -> a -> [a]
-    splitWith :: ((Char_y a)->Bool) -> a -> [a]
-
+   
     intercalate :: a -> [a] -> a
 
     strReadFile :: FilePath -> IO a
@@ -254,9 +268,13 @@ instance Stringy T.Text where
   strDropWhile = T.dropWhile
   strTakeWhile = T.takeWhile
 
-  strBrk = T.break 
-  strBrkSubstring = T.breakOn
+  strBrk x y = let (a,b) = T.break x y in if strNull b then Nothing else Just (a,strTail b)
+  strBrkStr x y = let (a,b) = T.breakOn x y in if strNull b then Nothing else Just (a,strDrop (strLen a) b)
    
+  strSplit = T.splitOn . stringleton
+  strSplitStr = T.splitOn . asText
+  strSplitWith = T.split
+
   strLines = T.lines 
   stringleton = T.singleton
   strReplicate n x = T.replicate (fromIntegral n) (stringleton x)
@@ -264,6 +282,9 @@ instance Stringy T.Text where
   strSnoc a b = T.snoc a b
   
   strHGetContents = T.hGetContents
+  strHGetLine = T.hGetLine
+  strHGet = undefined
+  strHPut = T.hPutStr
   nth t n = T.index t (fromIntegral n)
   asByteString = T.encodeUtf8
   asString = T.unpack
@@ -287,11 +308,6 @@ instance Stringy T.Text where
   unpack = T.unpack
 
   stripStart = T.stripStart
-
-  splitChar = T.splitOn . stringleton
-  splitStr = T.splitOn
---  splitOn = T.splitOn
-  splitWith = T.split
 
   intercalate = T.intercalate
   strReadFile = T.readFile
@@ -319,9 +335,14 @@ instance Stringy TL.Text where
   strDropWhile = TL.dropWhile
   strTakeWhile = TL.takeWhile
 
-  strBrk = TL.break 
-  strBrkSubstring = TL.breakOn
+  strBrk x y = let (a,b) = TL.break x y in if strNull b then Nothing else Just (a, strTail b)
+  strBrkStr x y = let (a,b) = TL.breakOn x y in if strNull b then Nothing else Just (a, strDrop (strLen x) b)
    
+  strSplit = TL.splitOn . stringleton
+  strSplitStr = TL.splitOn . asLazyText
+--  splitOn = TL.splitOn
+  strSplitWith = TL.split
+
   strLines = TL.lines 
   stringleton = TL.singleton
   strReplicate n x = TL.replicate (fromIntegral n) (stringleton x)
@@ -329,6 +350,9 @@ instance Stringy TL.Text where
   strSnoc a b = TL.snoc a b
   
   strHGetContents = TL.hGetContents
+  strHGetLine = TL.hGetLine
+  strHGet = undefined
+  strHPut = TL.hPutStr
   nth t n = TL.index t (fromIntegral n)
   asByteString = T.encodeUtf8 . TL.toStrict
   asString = TL.unpack
@@ -352,11 +376,6 @@ instance Stringy TL.Text where
   unpack = TL.unpack
 
   stripStart = TL.stripStart
-
-  splitChar = TL.splitOn . stringleton
-  splitStr = TL.splitOn
---  splitOn = TL.splitOn
-  splitWith = TL.split
 
   intercalate = TL.intercalate
   strReadFile = TL.readFile 
@@ -402,9 +421,13 @@ instance Stringy B.ByteString where
   strLen = fromIntegral . B.length
   strDropWhile = B.dropWhile
   strTakeWhile = B.takeWhile
-  strBrk f = B.break f -- (f . asChar)
-  strBrkSubstring = B.breakSubstring
+  strBrk f x = let (a,b) = B.break f x in if strNull b then Nothing else Just (a,strTail b)
+  strBrkStr f x = let (a,b) = B.breakSubstring f x in if strNull b then Nothing else Just (a, strDrop (strLen a) b)
   
+  strSplit = B.split
+  strSplitStr d x = let (a,b) = B.breakSubstring (asByteString d) x in if strNull b then [a] else a : strSplitStr d (strDrop (strLen d) b) 
+  strSplitWith = B.splitWith
+
   strLines = BC.lines
   stringleton = B.singleton
   strReplicate n w = B.replicate (fromIntegral n) (asByte w)
@@ -412,6 +435,9 @@ instance Stringy B.ByteString where
   strSnoc a b = B.snoc a b
   
   strHGetContents = B.hGetContents
+  strHGetLine = B.hGetLine
+  strHGet = B.hGet
+  strHPut = B.hPut
   nth a b = (B.index a (fromIntegral b))
   asByteString = id
   asString = T.unpack . T.decodeUtf8
@@ -436,12 +462,6 @@ instance Stringy B.ByteString where
   unpack = B.unpack
   
   stripStart = strDropWhile isSpace
-
-  splitChar = B.split
-  splitStr d x = let (a,b) = B.breakSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
-
---  splitOn = B.splitOn
-  splitWith = B.splitWith
 
   intercalate = B.intercalate
   strReadFile = B.readFile
@@ -499,6 +519,9 @@ instance Stringy L.ByteString where
   strCons a b = L.cons a b
   strSnoc a b = L.snoc a b
   strHGetContents = L.hGetContents
+  strHGetLine = L.hGetLine
+  strHGet = L.hGet
+  strHPut = L.hPut
   nth a b = L.index a (fromIntegral b)
   asByteString = L.toStrict
   asString = T.unpack . T.decodeUtf8 . asByteString
@@ -524,7 +547,7 @@ instance Stringy L.ByteString where
   stripStart = strDropWhile isSpace
 
   splitChar = L.split
-  splitStr d x = let (a,b) = strBrkSubstring d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
+  splitStr d x = let (a,b) = strBrkStr d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
   splitWith = L.splitWith
 
   intercalate = L.intercalate
@@ -563,19 +586,34 @@ instance Stringy [Char] where
   strLen = fromIntegral . length
   strDropWhile = dropWhile
   strTakeWhile = takeWhile
-  strBrk = break 
-  strBrkSubstring pat src = search 0 src
+  strBrk x y = let (a,b) = break x y in if null b then Nothing else Just (a, strTail b)
+  strBrkStr pat src = search 0 src
     where search n s
-            | null s             = (src,[])
-            | pat `strPrefixOf` s = (take n src,s)
+            | null s             = Nothing 
+            | pat `strPrefixOf` s = Just (take n src, drop n s)
             | otherwise          = search (n+1) (tail s)
 
+  strSplit d x = let (_,b) = split_ ([],[]) x in b where
+     split_ (a,b) [] = ([], reverse (reverse a : b))
+     split_ (a,b) (f:xs) = if d == f then split_ ([], reverse a : b) xs else split_ (f:a, b) xs
+  strSplitStr d x = let (_,b) = split_ ([],[]) x in b where
+     dx = asString d
+     dn = strLen d
+     split_ (a,b) [] = ([], reverse (reverse a : b))
+     split_ (a,b) xs = if dx `strPrefixOf` xs then split_ ([], reverse a : b) (strDrop dn xs) else split_ ((head xs):a, b) (tail xs)
+ 
   strLines = lines
   stringleton = (:[]) 
   strReplicate n x = replicate (fromIntegral n) (asChar x)
   strCons a b = a : b
   strSnoc a b = a ++ [b]
   strHGetContents = hGetContents
+  strHGetLine = hGetLine
+  strHGet h n = if n <= 0 then return "" else do
+        a <- hGetChar h
+        b <- strHGet h (n-1)
+        return (a:b)
+  strHPut = hPutStr
   nth a b = (!!) a (fromIntegral b)
   asByteString = T.encodeUtf8 . T.pack
   asString = id
@@ -600,15 +638,6 @@ instance Stringy [Char] where
   unpack = id
 
   stripStart = strDropWhile isSpace 
-
-  splitChar d x = let (_,b) = split_ ([],[]) x in b where
-     split_ (a,b) [] = ([], reverse (reverse a : b))
-     split_ (a,b) (f:xs) = if d == f then split_ ([], reverse a : b) xs else split_ (f:a, b) xs
-  splitStr d x = let (_,b) = split_ ([],[]) x in b where
-     split_ (a,b) [] = ([], reverse (reverse a : b))
-     split_ (a,b) xs = if d `strPrefixOf` xs then split_ ([], reverse a : b) (strDrop (strLen d) xs) else split_ ((head xs):a, b) (tail xs)
- 
-  splitWith = splitWith
 
   intercalate = DL.intercalate
   strReadFile = readFile

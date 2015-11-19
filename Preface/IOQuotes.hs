@@ -4,8 +4,8 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
 
 module Preface.IOQuotes (
-    file
-  , sh
+    qqfile
+  , qqsh
   , shbg
   , shebang
   , shin
@@ -54,8 +54,8 @@ quoteFile (QuasiQuoter { quoteExp = qe, quotePat = qp, quoteType = qt, quoteDec 
 >   let a = ".profile" in [file|$HOME/$a|]
 
 -}
-file :: QuasiQuoter
-file = quasiQuoter pt
+qqfile :: QuasiQuoter
+qqfile = quasiQuoter pt
   where pt :: String->ExpQ
         pt x = [| do { let a = $(interpolate x) in try (readFile a) :: IO (Either SomeException String) } |]
 
@@ -83,11 +83,11 @@ file = quasiQuoter pt
 opts :: QuasiQuoter
 opts = quasiQuoter $ \x -> [| do {s <- readFile $(interpolate x); return $ strToMap s } |]
 
-{- | sh is a quasiquoter which interpolates the string and evaluates it with the system shell.  The result is either an
+{- | qqsh is a quasiquoter which interpolates the string and evaluates it with the system shell.  The result is either an
      error (the error code and contents of stderr), or the contents of stdout.
 -}
-sh :: QuasiQuoter
-sh = quasiQuoter $ \x -> [| shell $( interpolate x) |]
+qqsh :: QuasiQuoter
+qqsh = quasiQuoter $ \x -> [| shell $( interpolate x) |]
 
 {- | shin is a quasiquoter which interpolates everything up to the first @|@ as the shell command, and then
      interpolates everything after the @|@ to be the standard input to be passed to the shell command.

@@ -32,6 +32,8 @@ Library
                  -- haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
 
   Exposed-modules: Preface.R0ml
+            , Preface.TLS
+
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.Runner
             , Preface.SCGI, Preface.WebSocket
@@ -43,7 +45,7 @@ Library
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
             , Preface.Typing, Preface.Diff, Preface.Console
-            , Preface.ASN1
+            , Preface.ASN1, Preface.Distributed
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
@@ -51,11 +53,14 @@ Library
             , Bindings.Vfs
             , Bindings.Msg, Bindings.Syslog
             , Bindings.Zlib
-  Extra-Libraries: curl z
+
+
+  Extra-Libraries: curl z ssl crypto
+  Extra-Lib-Dirs: /Volumes/Storage/usr-local/Cellar/openssl/1.0.2d_1/lib
   Default-Extensions: NoImplicitPrelude
   Hs-Source-Dirs: .
 -- IF THE -lcurl IS MISSING, HADDOCK FAILS
-  Ghc-options: -Wall 
+  Ghc-options: -Wall -static
 -- -lcurl -lz
   Default-Language: Haskell2010
 
@@ -149,4 +154,12 @@ Executable wsClient
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded
   Main-is: WSClient.hs
+
+Executable tlsTest
+  Default-Language: Haskell2010
+  default-extensions: NoImplicitPrelude
+  Build-depends: preface-r0ml
+  hs-source-dirs: test
+  Ghc-Options: -Wall -threaded
+  Main-is: TlsTest.hs
   

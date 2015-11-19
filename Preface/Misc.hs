@@ -16,6 +16,9 @@ import qualified Network.Socket.ByteString as S (send, recv)
 import qualified Data.Map as M (Map, insert, lookup, fromList)
 import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
+import qualified Data.Binary as DB (encode, decode)
+import qualified Data.ByteString.Lazy as BL
+
 -- getState :: (Monad m, State.MonadState s m) => m s 
 -- getState = State.get
 
@@ -84,4 +87,10 @@ newConcurrentForeignPtr = Concurrent.newForeignPtr
 stride :: Int -> [a] -> [a]
 stride _ [] = []
 stride n (x:xs) = x : stride n (drop (n-1) xs)
+
+binaryEncode :: Binary a => a -> ByteString 
+binaryEncode = BL.toStrict . DB.encode
+
+binaryDecode :: Binary a => ByteString -> a
+binaryDecode = DB.decode . BL.fromStrict
 

@@ -26,14 +26,14 @@ main = do
       c = 334 :: Int
   u <- do { a <- lookupEnv "HOME" ; return (fromMaybe "." a) }
   let v = [istr|$HOME/$b-$c|]
-  assertEqualG globl "str $HOME/$b-$c" (u++"/clem-334") v 
+  assertEqualG globl "istr $HOME/$b-$c" (u++"/clem-334") v 
 
-  assertEqualG globl "str No interpolation" "No interpolation" [str|No interpolation|]
+  assertEqualG globl "str No interpolation" "No interpolation" [qqstr|No interpolation|]
 
-  [file|$HOME/.profile|] >>= assertEqualG globl "file $HOME/.profile" False . null
+  [qqfile|$HOME/.profile|] >>= assertEqualG globl "qqfile $HOME/.profile" False . null
 
-  (e, r, w) <- [sh|uname -s|]
-  assertEqualG globl "sh uname -s" "Darwin" w
+  (e, r, w) <- [qqsh|uname -s|]
+  assertEqualG globl "qqsh uname -s" "Darwin" w
 
 
 {-  ,("seven", TestCase $ do
@@ -46,9 +46,9 @@ main = do
   if z then exitSuccess else exitFailure
 
 
--- $(interpolate =<< runIO [file|$HOME/clem|]
+-- $(interpolate =<< runIO [qqfile|$HOME/clem|]
 
 
--- let ff x = [sh|$x|]
+-- let ff x = [qqsh|$x|]
 -- (either (putStrLn . show) putStrLn ) =<< (ff "ls -lR")
 

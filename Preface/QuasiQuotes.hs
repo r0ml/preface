@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Preface.QuasiQuotes (
-  str
+  qqstr
   , istr
   , interpolate
 ) where
@@ -14,8 +14,8 @@ quasiQuoter :: (String -> ExpQ) -> QuasiQuoter
 quasiQuoter x = QuasiQuoter { quoteExp = x, quotePat = undefined, quoteDec = undefined, quoteType = undefined }
 
 -- The QuasiQuoters
-str :: QuasiQuoter
-str = quasiQuoter $ \x -> [| x |]
+qqstr :: QuasiQuoter
+qqstr = quasiQuoter $ \x -> [| x |]
 
 istr :: QuasiQuoter
 istr = quasiQuoter interpolate

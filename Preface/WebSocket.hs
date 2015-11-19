@@ -147,17 +147,18 @@ readHttpResponse sock lft = do
   traceIO ("readHttpResponse: " ++ show more)
   if strNull more then return ([], lft) else do
     let utn = strCat [lft, more]
-        (prev,post) = strBreakSubstring (asByteString "\r\n\r\n") utn
-    if strNull post then readHttpResponse sock utn
-    else do let lns = breakSubstrings (asByteString "\r\n") prev
-                hds = ("Status",asString (head lns) ) : map zsplit (tail lns)
-            return (hds, strDrop 4 post)
-  where breakSubstrings b s = let (f,l) = strBreakSubstring b s
-                               in if strNull l then [f] else f : breakSubstrings b (strDrop (strLen b) l)
+    case strBrkStr (asByteString "\r\n\r\n") utn of
+        Nothing -> readHttpResponse sock utn
+        Just (prev, post) -> let lns = breakSubstrings (asByteString "\r\n") prev
+                                 hds = ("Status",asString (head lns) ) : map zsplit (tail lns)
+                              in return (hds, strDrop 4 post)
+  where breakSubstrings b s = case strBrkStr b s of
+                                 Nothing -> [s]
+                                 Just (f,l) -> f : breakSubstrings b (strDrop (strLen b) l)
         zsplit :: ByteString -> (String, String)
-        zsplit strx = let (key, val) = strBrk (== ':') (asString strx)
-                          (_, valx) = strBrk (/= ' ') (strDrop (1::Int) val)
-                       in ( key, valx)
+        zsplit strx = case strBrk (== ':') (asString strx) of
+                          Nothing -> (asString strx, "")
+                          Just (key, val) -> (key, stripStart val)
 
         sRecv sockx = catch (sktRecv sockx 4096 :: IO ByteString) 
                             (\e -> putStrLn ("readHttpResponse ==> " ++ show (e :: SomeException)) >> sClose sockx >> putStrLn "closed sock" >> return zilde)
@@ -241,17 +242,19 @@ readHdrs dohandshake sock envx ch lft = do
   traceIO ("readHdrs: " ++ show more)
   if strNull more then writeChan ch mkCloseFrame >> return ([], zilde) else do 
     let utn = strCat [lft, more]
-        (prev,post) = strBreakSubstring (asByteString "\r\n\r\n") utn
-    if strNull post then readHdrs dohandshake sock envx ch utn
-    else do let lns = breakSubstrings (asByteString "\r\n") prev
-                hds = map zsplit (tail lns)
-            return (hds, strDrop 4 post)
-  where breakSubstrings b s = let (f,l) = strBreakSubstring b s
-                               in if strNull l then [f] else f : breakSubstrings b (strDrop (strLen b) l)
+    case strBrkStr (asByteString "\r\n\r\n") utn of
+         Nothing -> readHdrs dohandshake sock envx ch utn
+         Just (prev, post) -> 
+           do let lns = breakSubstrings (asByteString "\r\n") prev
+                  hds = map zsplit (tail lns)
+              return (hds, post)
+  where breakSubstrings b s = case strBrkStr b s of 
+                                    Nothing -> [s] 
+                                    Just (f,l) -> f : breakSubstrings b l
         zsplit :: ByteString -> (String, String)
-        zsplit strx = let (key, val) = strBrk (== ':') (asString strx)
-                          (_, valx) = strBrk (/= ' ') (strDrop (1::Int) val)
-                       in ( key, valx)
+        zsplit strx = case strBrk (== ':') (asString strx) of
+                        Nothing -> (asString strx, "")
+                        Just (key, val) -> (key, stripStart val)
 
         sRecv sockx = catch (sktRecv sockx 4096 :: IO ByteString) 
                             (\e -> putStrLn ("readHdrs ==> " ++ show (e :: SomeException)) >> sClose sockx >> putStrLn "closed sock" >> return zilde)
