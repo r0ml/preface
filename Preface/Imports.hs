@@ -128,7 +128,7 @@ import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, pee
 import Foreign.Concurrent as X (addForeignPtrFinalizer)
 import Foreign.Marshal as X (alloca, allocaBytes, allocaArray, fromBool,copyBytes)
 import Foreign.Marshal.Utils as X (new, with)
-import Foreign.Marshal.Array as X (peekArray, pokeArray, withArray)
+import Foreign.Marshal.Array as X (peekArray, pokeArray, withArray, newArray0, newArray)
 import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, nullPtr, castFunPtrToPtr)
 import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignPtrBytes, castForeignPtr, newForeignPtr, newForeignPtr_, ForeignPtr)
 import Foreign.Storable as X (Storable(..), peek, poke)

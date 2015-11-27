@@ -48,8 +48,10 @@ import Preface.Distributed as X
 
 import Bindings.Curl as X
 import Bindings.Posix as X
-
+import Bindings.Python as X
+import Bindings.TLS as X
 import Bindings.Zlib as X
+
 
 import Preface.Pipes as X
 

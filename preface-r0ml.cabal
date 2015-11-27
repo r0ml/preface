@@ -32,7 +32,6 @@ Library
                  -- haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
 
   Exposed-modules: Preface.R0ml
-            , Preface.TLS
 
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.Runner
@@ -49,19 +48,31 @@ Library
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
-            , Bindings.Posix, Bindings.Util
+            , Bindings.Posix
+            , Bindings.Python
+            , Bindings.Util
+            , Bindings.TLS
             , Bindings.Vfs
             , Bindings.Msg, Bindings.Syslog
             , Bindings.Zlib
 
 
-  Extra-Libraries: curl z ssl crypto
+  -- this fails with pkgconfig because --modversion can't parse the openssl version
+  Extra-Libraries: ssl crypto
   Extra-Lib-Dirs: /Volumes/Storage/usr-local/Cellar/openssl/1.0.2d_1/lib
+
+  -- Extra-Libraries: python2.7
+  -- Extra-Lib-Dirs: /System/Library/Frameworks/Python.framework/Versions/2.7/lib
+
   Default-Extensions: NoImplicitPrelude
   Hs-Source-Dirs: .
 -- IF THE -lcurl IS MISSING, HADDOCK FAILS
-  Ghc-options: -Wall -static
--- -lcurl -lz
+  Ghc-options: -Wall 
+  -- -static
+  PkgConfig-Depends: python
+  PkgConfig-Depends: libcurl
+  PkgConfig-Depends: zlib
+  -- PkgConfig-Depends: openssl >= 1.0.2
   Default-Language: Haskell2010
 
 -- Test-Suite testXml
@@ -163,3 +174,11 @@ Executable tlsTest
   Ghc-Options: -Wall -threaded
   Main-is: TlsTest.hs
   
+Executable testPython 
+  Default-Language: Haskell2010
+  default-extensions: NoImplicitPrelude
+  Build-depends: preface-r0ml
+  hs-source-dirs: test
+  Ghc-Options: -Wall -threaded
+  Main-is: TestPython.hs
+

@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS_HADDOCK hide, prune #-}
 
-module Preface.TLS where
+module Bindings.TLS where
 
 import Preface.Imports
 import Preface.Stringy
