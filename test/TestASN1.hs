@@ -1,7 +1,7 @@
 -- import Test.Tasty.QuickCheck
 -- import Test.Tasty
 
-import Preface.R0ml
+import Preface
 
 import Data.Time
 import Test.QuickCheck
@@ -212,12 +212,12 @@ instance Arbitrary ASN1s where
                                 return ([Start str] ++ l ++ [End str])
 
 prop_header_marshalling_id :: ASN1Header -> Bool
-prop_header_marshalling_id v = (ofDone $ runGet getHeader $ putHeader v) == Right v
+prop_header_marshalling_id v = (ofDone $ asn1RunGet asn1GetHeader $ asn1PutHeader v) == Right v
     where ofDone (Done r _ _) = Right r
           ofDone _            = Left "not done"
 
 prop_event_marshalling_id :: ASN1Events -> Bool
-prop_event_marshalling_id (ASN1Events e) = (parseLBS $ toLazyByteString e) == Right e
+prop_event_marshalling_id (ASN1Events e) = (parseLBS $ asn1ToLazyByteString e) == Right e
 
 prop_asn1_der_marshalling_id v = (decodeASN1 DER . encodeASN1 DER) v `assertEq` Right v
     where assertEq got expected

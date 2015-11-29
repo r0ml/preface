@@ -1,5 +1,5 @@
 
-import Preface.R0ml
+import Preface
 
 square :: RawPyObject -> RawPyObject -> IO RawPyObject 
 square _i x = do
@@ -28,7 +28,6 @@ main = do
   gg <- getAttr m "__dict__"
 
   ss <- toPy "str(sqqq(float(19)))"
-  -- ss <- toPy "str(numargs())"
   pn <- toPyObject py_None
   f <- callObject eval [ss,gg,gg] []
   h <- fromPy f :: IO ByteString

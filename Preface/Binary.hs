@@ -8,12 +8,8 @@ module Preface.Binary (
 ) where
 
 import Preface.Imports
-
-import Data.ByteString (pack, index)
+import Preface.Stringy
 import Unsafe.Coerce (unsafeCoerce)
-
-nth :: ByteString -> Int -> Word8
-nth = index
 
 getWord64be :: Int -> ByteString -> Int64
 getWord64be n s = do (fromIntegral (nth s n) `shiftL` 56) .|.

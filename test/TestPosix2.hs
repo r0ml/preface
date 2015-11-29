@@ -1,7 +1,7 @@
 
 {-# LANGUAGE CPP #-}
 
-import Preface.R0ml
+import Preface
 
 import System.Posix.Terminal (queryTerminal)
 import System.Posix.Signals (Handler(CatchOnce), softwareTermination, installHandler, keyboardSignal)

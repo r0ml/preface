@@ -1,7 +1,7 @@
 
 {-# LANGUAGE TemplateHaskell #-}
 
-import Preface.R0ml
+import Preface
 -- import Distribution.TestSuite
 
 sdbWsdl :: String -> IO TestResult

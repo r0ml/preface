@@ -82,6 +82,8 @@ import Control.Monad as X (
 
 import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
+import Data.Array.IArray as X (Array, Ix(..), IArray(..), listArray, (!), bounds, array, elems)
+import Data.Array.Unboxed as X (UArray)
 import Data.Binary as X (Binary)
 
 import Data.Bits as X (Bits(..), (.&.), shiftR, shiftL, (.|.), complement, xor, rotateR, rotateL,
@@ -95,6 +97,7 @@ import Data.Char as X (chr, ord, toLower, isDigit, isAlpha, isAscii
                        , isUpper, isLower, toUpper, toLower, isAlphaNum
                        , isSymbol, isPunctuation, intToDigit, digitToInt)
 import Data.Either as X (isLeft, isRight, lefts, rights, partitionEithers)
+import Data.Function as X (on)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
     atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
@@ -102,7 +105,7 @@ import Data.Ord as X (comparing)
 import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl' 
                       , find, transpose, zip4, intersect, partition
                       , isPrefixOf, isSuffixOf, isInfixOf, (\\)
-                      , stripPrefix, intersperse, elemIndex )
+                      , stripPrefix, intersperse, elemIndex, group, groupBy )
 import Data.Map as X (Map, assocs)
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
                         mapMaybe, catMaybes)
@@ -113,7 +116,7 @@ import Data.Text as X (Text)
 import Data.Time as X (UTCTime(..), fromGregorian, secondsToDiffTime, getCurrentTime, 
         addUTCTime, iso8601DateFormat, rfc822DateFormat, diffUTCTime)
 import Data.Time.Clock as X (NominalDiffTime)
-import Data.Time.Clock.POSIX as X (posixSecondsToUTCTime)
+import Data.Time.Clock.POSIX as X (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.Format as X (formatTime, parseTimeM, readsTime, TimeLocale, defaultTimeLocale)
 import Data.Tuple as X (swap)
 import Data.Typeable as X (Typeable, typeOf )
@@ -142,26 +145,31 @@ import Language.Haskell.TH as X hiding (Arity, Fixity)
 import Language.Haskell.TH.Quote as X
 import Language.Haskell.TH.Syntax as X hiding(Infix)
 
-import Numeric as X (readHex, readSigned, readDec, readFloat, showHex, showOct
+import Numeric as X (readHex, readSigned, readDec, readFloat
+                    , showHex, showOct, readOct
                     , showIntAtBase )
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist
                        , getDirectoryContents, getAppUserDataDirectory
                        , createDirectoryIfMissing, copyFile, getModificationTime
                        , getHomeDirectory, getCurrentDirectory
-                       , removeDirectoryRecursive, createDirectory, removeFile )
+                       , removeDirectoryRecursive, createDirectory, removeFile
+                       , getPermissions, Permissions(..) )
 import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory
                         , takeBaseName, takeExtension, takeFileName, joinPath
                         , splitPath, splitExtension, splitDirectories, splitSearchPath
                         , isPathSeparator, isSearchPathSeparator
-                        , normalise, isAbsolute)
+                        , normalise, isAbsolute, isValid
+                        , addTrailingPathSeparator, hasTrailingPathSeparator)
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
 import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine, hGetContents
         , hGetBuf, hGetChar, hSetBuffering, BufferMode(..)
-        , openFile, withFile, IOMode(..), stdin, stderr, stdout )
+        , openFile, withFile, IOMode(..), stdin, stderr, stdout
+        , hSeek, SeekMode(..), hFileSize
+        , openBinaryFile )
 import System.IO.Error as X ( isEOFError, ioeGetErrorType )
-import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO)
+import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO, unsafeInterleaveIO)
 
 import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv, getProgName)
 import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
@@ -173,7 +181,7 @@ import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
 import System.Posix.Signals as X (installHandler, sigTERM, sigINT)
-import System.Posix.Types as X (Fd(..) )
+import System.Posix.Types as X (Fd(..), FileMode(..) )
 
 import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
 
@@ -186,7 +194,9 @@ import Text.Printf as X (printf)
 import Network.Socket as X (sClose, withSocketsDo, Socket(..), SockAddr(..),
      addrAddress, defaultProtocol, SocketType(..), Family(..), getAddrInfo, defaultHints,
      getSocketOption, ShutdownCmd(..), shutdown,
-     socket, addrSocketType, addrFamily, fdSocket, mkSocket, getPeerName, getSocketName ) 
+     socket, addrSocketType, addrFamily, fdSocket, mkSocket, getPeerName, getSocketName
+   , socketToHandle ) 
+
 
 import Network as X (PortID(..), listenOn )
 -- import Network.Mime as X (defaultMimeLookup)

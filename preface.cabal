@@ -1,5 +1,5 @@
-Name:           preface-r0ml
-Version:        0.2
+Name:           preface
+Version:        0.3
 Cabal-Version:  >= 1.22
 Description:    An extended Prelude
 License:        PublicDomain
@@ -31,7 +31,7 @@ Library
                  , ghc
                  -- haskeline, hpc, integer-gmp, pretty, terminfo, transformers, vector
 
-  Exposed-modules: Preface.R0ml
+  Exposed-modules: Preface
 
   Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.Runner
@@ -44,7 +44,7 @@ Library
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
             , Preface.Typing, Preface.Diff, Preface.Console
-            , Preface.ASN1, Preface.Distributed
+            , Preface.ASN1, Preface.Tar, Preface.HTTP, Preface.Distributed
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
@@ -78,7 +78,7 @@ Library
 -- Test-Suite testXml
 -- type: detailed-0.9
 --  Default-Language: Haskell2010
---  Build-Depends: base, Cabal, preface-r0ml
+--  Build-Depends: base, Cabal, preface
 --  hs-source-dirs: test
 --  Ghc-options: -Wall -static
 --  Test-Module: TestXml
@@ -86,7 +86,7 @@ Library
 --Test-Suite testJson
 --  type: detailed-0.9
 --  Default-Language: Haskell2010
---  Build-Depends: base, Cabal, preface-r0ml, QuickCheck, bytestring, text, time, containers
+--  Build-Depends: base, Cabal, preface, QuickCheck, bytestring, text, time, containers
 --  hs-source-dirs: test
 --  Ghc-options: -Wall -static
 --  test-module: TestJson
@@ -95,7 +95,7 @@ Test-Suite testStr
   -- type: detailed-0.9
   type: exitcode-stdio-1.0
   Default-Language: Haskell2010
-  build-depends: preface-r0ml
+  build-depends: preface
   default-extensions: NoImplicitPrelude
   Ghc-options: -Wall -static
   hs-source-dirs: test
@@ -106,7 +106,7 @@ Test-Suite testPosix
   -- type: detailed-0.9
   type: exitcode-stdio-1.0
   Default-Language: Haskell2010
-  build-depends: preface-r0ml, unix
+  build-depends: preface, unix
   default-extensions: NoImplicitPrelude
   Ghc-options: -Wall
   hs-source-dirs: test
@@ -116,7 +116,7 @@ Test-Suite testPosix
 Test-Suite testASN1
   type: exitcode-stdio-1.0
   Default-Language: Haskell2010
-  build-depends: preface-r0ml, bytestring, QuickCheck, time, base
+  build-depends: preface, bytestring, QuickCheck, time, base
   default-extensions: NoImplicitPrelude
   GHC-Options: -Wall
   hs-source-dirs: test
@@ -124,7 +124,7 @@ Test-Suite testASN1
 
 Executable md5Test
   Default-Language: Haskell2010
-  build-depends: preface-r0ml
+  build-depends: preface
   default-extensions: NoImplicitPrelude
   Ghc-options: -Wall -threaded
   hs-source-dirs: test
@@ -133,7 +133,7 @@ Executable md5Test
 -- Executable testProcess
 --   -- type: exitcode-stdio-1.0
 --   Default-Language: Haskell2010
---   build-depends: preface-r0ml
+--   build-depends: preface
 --   default-extensions: NoImplicitPrelude
 --   Ghc-options: -Wall -threaded
 --   hs-source-dirs: test
@@ -141,7 +141,7 @@ Executable md5Test
 
 Executable badTest
   Default-Language: Haskell2010
-  Build-Depends: preface-r0ml
+  Build-Depends: preface
   default-extensions: NoImplicitPrelude
   hs-source-dirs: test
   Ghc-options: -Wall 
@@ -150,7 +150,7 @@ Executable badTest
 Executable zlibTest
   Default-Language: Haskell2010
   default-extensions: NoImplicitPrelude
-  Build-Depends: preface-r0ml
+  Build-Depends: preface
                  -- , bytestring, stm, network, random, unix, process, directory
                  -- , time, template-haskell, filepath, containers, text
   hs-source-dirs: test
@@ -161,7 +161,7 @@ Executable zlibTest
 Executable wsClient
   Default-Language: Haskell2010
   default-extensions: NoImplicitPrelude
-  Build-Depends: preface-r0ml
+  Build-Depends: preface
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded
   Main-is: WSClient.hs
@@ -169,7 +169,7 @@ Executable wsClient
 Executable tlsTest
   Default-Language: Haskell2010
   default-extensions: NoImplicitPrelude
-  Build-depends: preface-r0ml
+  Build-depends: preface
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded
   Main-is: TlsTest.hs
@@ -177,7 +177,7 @@ Executable tlsTest
 Executable testPython 
   Default-Language: Haskell2010
   default-extensions: NoImplicitPrelude
-  Build-depends: preface-r0ml
+  Build-depends: preface
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded
   Main-is: TestPython.hs

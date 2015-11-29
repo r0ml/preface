@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleInstances, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 -----------------------------------------------------------------------------
 -- This is an implementation of the O(ND) diff algorithm as described here
@@ -10,10 +12,9 @@ module Preface.Diff (
   diff, DiffOperation(..)
 ) where
 
-import Preface.Imports hiding ((!))
+import Preface.Imports
 import Preface.Console
 import Preface.Stringy
-import Data.Array (  (!), listArray)
 
 data WhichInput = First | Second | Both deriving (Show, Eq)
 
@@ -24,10 +25,11 @@ data DL = DL {poi :: !Int, poj :: !Int, path::[WhichInput]} deriving (Show, Eq)
 
 instance Ord DL where x <= y = if poi x == poi y then  poj x > poj y else poi x <= poi y
 
-canDiag :: Eq a => (a -> a -> Bool) -> [a] -> [a] -> Int -> Int -> Int -> Int -> Bool
-canDiag eq as bs lena lenb = \ i j -> (( i < lena && j < lenb ) && ((arAs ! i) `eq` (arBs ! j)))
-    where arAs = listArray (0,lena - 1) as
-          arBs = listArray (0,lenb - 1) bs
+canDiag :: (IArray UArray a) => (a -> a -> Bool) -> [a] -> [a] -> Int -> Int -> Int -> Int -> Bool
+canDiag eq as bs lena lenb = 
+    let arAs = listArray (0, lena - 1) as :: UArray Int _ 
+        arBs = listArray (0, lenb - 1) bs :: UArray Int _
+     in  \ i j -> (( i < lena && j < lenb ) && ((arAs ! i) `eq` (arBs ! j)))
 
 dstep :: (Int -> Int -> Bool) -> [DL] -> [DL]
 dstep cd dls = f1 (head dls) : nextstep dls
@@ -40,13 +42,13 @@ addsnake cd dl = if cd pi pj then addsnake cd $ dl {poi = pi + 1, poj = pj + 1, 
     where pi = poi dl; pj = poj dl
 
 -- | Longest Common Subsequence (and Shortest Edit Sequence )
-lcs :: Eq a => (a -> a -> Bool) -> [a] -> [a] -> [WhichInput]
+lcs :: (IArray UArray a) => (a -> a -> Bool) -> [a] -> [a] -> [WhichInput]
 lcs eq as bs = path . head . dropWhile (\dl -> poi dl /= lena || poj dl /= lenb) .
                concat . iterate (dstep cd) . (:[]) . addsnake cd $ DL {poi=0,poj=0,path=[]}
             where cd = canDiag eq as bs lena lenb
                   lena = length as; lenb = length bs
 
-getDiffBy :: (Eq a) => (a -> a -> Bool) -> [a] -> [a] -> [SingleDiff a]
+getDiffBy :: (IArray UArray a) => (a -> a -> Bool) -> [a] -> [a] -> [SingleDiff a]
 getDiffBy eq a b = markup a b . reverse $ lcs eq a b
     where markup (x:xs)   ys (First:ds) = SingleLeft x : markup xs ys ds
           markup   xs   (y:ys) (Second:ds) = SingleRight y : markup xs ys ds
@@ -66,7 +68,7 @@ groupDiffs = doit
           getBoths (SingleBoth x y : xs) = (x:fsx, y:fsy, rest) where (fsx, fsy, rest) = getBoths xs
           getBoths bs = ([],[],bs)
 
-diff :: Eq a => [a] -> [a] -> [DiffOperation a]
+diff :: (IArray UArray a, Eq a ) => [a] -> [a] -> [DiffOperation a]
 diff x y = coalesce $ toDiffOp $ groupDiffs $ getDiffBy (==) x y
 
 toDiffOp :: Eq a => [MultiDiff a] -> [DiffOperation a]

@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-import Preface.R0ml
+import Preface
 
 assertEqualG :: (Eq a, Show a) => IORef Bool -> String -> a -> a -> IO ()
 assertEqualG g xstr a b = do

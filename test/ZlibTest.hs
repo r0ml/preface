@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Preface.R0ml
+import Preface
 
 main :: IO ()
 main = do

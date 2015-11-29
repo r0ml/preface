@@ -47,7 +47,7 @@ import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Char as C
 import qualified Data.List as DL
 
-import Data.Array.Unboxed (UArray, listArray, (!))
+-- import Data.Array.Unboxed (UArray, listArray, (!))
 
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Char8 as BC
@@ -113,16 +113,16 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strLen :: a -> Int
 
     -- | Drop the first n elements of a Stringy
-    strDrop :: Int -> a -> a
-    strDrop = aDrop
+    strDrop :: Integral b => b -> a -> a
+    strDrop = aDrop 
 
     -- | Drop the first n characters which test True on the given function
     strDropWhile :: ( (Char_y a) -> Bool) -> a -> a
 
     -- | Take the first n elements of a Stringy.  If n is greater than the length of the Stringy,
     -- only take the n elements.
-    strTake :: Int -> a -> a
-    strTake = aTake
+    strTake :: Integral b => b -> a -> a
+    strTake = aTake 
 
     -- | Take the first n characters which test True on the given function
     strTakeWhile :: ( (Char_y a)->Bool) -> a -> a
@@ -170,7 +170,7 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strHGetLine :: Handle -> IO a
     strHGet :: Handle -> Int -> IO a
     strHPut :: Handle -> a -> IO ()
-    nth :: a -> Int -> (Char_y a)
+    nth :: Integral b => a -> b -> (Char_y a)
 
     asByteString :: a -> ByteString
     asString :: a -> String

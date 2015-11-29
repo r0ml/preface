@@ -25,8 +25,8 @@ module Preface.ASN1
     , ASN1Length(..)
     , ASN1Event(..)
 
-    , toByteString
-    , toLazyByteString
+    , asn1ToByteString
+    , asn1ToLazyByteString
     -- * generic class for decoding and encoding stream
     , ASN1Decoding(..)
     , ASN1DecodingRepr(..)
@@ -60,9 +60,9 @@ module Preface.ASN1
 
     -- for test
     , mkSmallestLength
-    , runGet
-    , getHeader
-    , putHeader
+    , asn1RunGet
+    , asn1GetHeader
+    , asn1PutHeader
     , Result(..)
 
 {- no? -}
@@ -128,7 +128,7 @@ instance ASN1Decoding DER where
     decodeASN1 _ lbs = (map fst . decodeEventASN1Repr checkDER) `fmap` parseLBS lbs
 
 instance ASN1Encoding DER where
-    encodeASN1 _ l = toLazyByteString $ encodeToRaw l
+    encodeASN1 _ l = asn1ToLazyByteString $ encodeToRaw l
 
 decodeConstruction :: ASN1Header -> ASN1ConstructionType
 decodeConstruction (ASN1Header Universal 0x10 _ _) = Sequence
@@ -281,7 +281,7 @@ runParseState = loop
                      Partial f            -> Right (([], ParseState stackEnd (ExpectPrimitive len $ Just f) pos), B.empty)
                      Done p nPos remBytes -> Right (([Primitive p], ParseState stackEnd (ExpectHeader Nothing) nPos), remBytes)
 
-           runGetHeader Nothing  = \pos -> runGetPos pos getHeader
+           runGetHeader Nothing  = \pos -> runGetPos pos asn1GetHeader
            runGetHeader (Just f) = const f
 
            runGetPrimitive Nothing  n = \pos -> runGetPos pos (getBytes $ fromIntegral n)
@@ -316,12 +316,12 @@ parseBS bs = runParseState newParseState bs `mplusEither` onSuccess
                     | otherwise          = Left ParsingPartial
 
 -- | transform a list of ASN1 Events into a strict bytestring
-toByteString :: [ASN1Event] -> ByteString
-toByteString = B.concat . L.toChunks . toLazyByteString
+asn1ToByteString :: [ASN1Event] -> ByteString
+asn1ToByteString = B.concat . L.toChunks . asn1ToLazyByteString
 
 -- | transform a list of ASN1 Events into a lazy bytestring
-toLazyByteString :: [ASN1Event] -> L.ByteString
-toLazyByteString evs = L.fromChunks $ loop [] evs
+asn1ToLazyByteString :: [ASN1Event] -> L.ByteString
+asn1ToLazyByteString evs = L.fromChunks $ loop [] evs
     where loop _ [] = []
           loop acc (x@(Header (ASN1Header _ _ pc len)):xs) = toBs x : loop (if pc then (len == LenIndefinite):acc else acc) xs
           loop acc (ConstructionEnd:xs) = case acc of
@@ -330,7 +330,7 @@ toLazyByteString evs = L.fromChunks $ loop [] evs
                                               (False:r) -> loop r xs
           loop acc (x:xs) = toBs x : loop acc xs
 
-          toBs (Header hdr)      = putHeader hdr
+          toBs (Header hdr)      = asn1PutHeader hdr
           toBs (Primitive bs)    = bs
           toBs ConstructionBegin = B.empty
           toBs ConstructionEnd   = B.empty
@@ -472,9 +472,9 @@ runGetPos :: Position -> Get a -> B.ByteString -> Result a
 runGetPos pos m str = unGet m str Nothing (Incomplete Nothing) pos failK finalK
 {-# INLINE runGetPos #-}
 
-runGet :: Get a -> B.ByteString -> Result a
-runGet = runGetPos 0
-{-# INLINE runGet #-}
+asn1RunGet :: Get a -> B.ByteString -> Result a
+asn1RunGet = runGetPos 0
+{-# INLINE asn1RunGet #-}
 
 -- | If at least @n@ bytes of input are available, return the current
 --   input, otherwise fail.
@@ -641,7 +641,7 @@ encodePrimitive a =
         blen = B.length b
         len = makeLength blen
         hdr = encodePrimitiveHeader len a
-     in (B.length (putHeader hdr) + blen, [Header hdr, Primitive b])
+     in (B.length (asn1PutHeader hdr) + blen, [Header hdr, Primitive b])
   where
         makeLength len
             | len < 0x80 = LenShort len
@@ -672,7 +672,7 @@ encodeConstructed c@(Start _) children =
   where (clen, events) = encodeList children
         len  = mkSmallestLength clen
         h    = encodeHeader True len c
-        tlen = B.length (putHeader h) + clen
+        tlen = B.length (asn1PutHeader h) + clen
 
 encodeConstructed _ _ = error "not a start node"
 
@@ -900,8 +900,8 @@ putOID oids = case oids of
 
 
 -- | parse an ASN1 header
-getHeader :: Get ASN1Header
-getHeader = do
+asn1GetHeader :: Get ASN1Header
+asn1GetHeader = do
     (cl,pc,t1) <- parseFirstWord <$> getWord8
     tag        <- if t1 == 0x1f then getTagLong else return t1
     len        <- getLength
@@ -950,8 +950,8 @@ getLength = do
         uintbs = B.foldl (\acc n -> (acc `shiftL` 8) + fromIntegral n) 0
 
 -- | putIdentifier encode an ASN1 Identifier into a marshalled value
-putHeader :: ASN1Header -> B.ByteString
-putHeader (ASN1Header cl tag pc len) = B.concat
+asn1PutHeader :: ASN1Header -> B.ByteString
+asn1PutHeader (ASN1Header cl tag pc len) = B.concat
     [ B.singleton word1
     , if tag < 0x1f then B.empty else tagBS
     , lenBS]
