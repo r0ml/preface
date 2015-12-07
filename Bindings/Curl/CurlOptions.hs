@@ -4,6 +4,7 @@ module Bindings.Curl.CurlOptions where
 
 import Preface.Imports
 import Preface.XImports (intercalate)
+import Preface.FFITemplates
 import Bindings.Curl.CurlX
 import Bindings.Curl.CurlSSL
 
@@ -23,9 +24,6 @@ data SSHAuthType = SSHAuthPublickey | SSHAuthPassword | SSHAuthHost | SSHAuthKey
    deriving ( Enum, Show )
 
 type URLString = String
-
-toMask :: Enum a => [a] -> Word32
-toMask = foldr (\x y -> y .|.  (shiftL 1 (fromEnum x))) 0
 
 -- setopt :: Curl -> CurlOption -> IO CurlCode
 -- setopt cc z = (toEnum . fromIntegral) <$> seto z where

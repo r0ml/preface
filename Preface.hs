@@ -45,8 +45,10 @@ import Preface.Console as X
 import Preface.ASN1 as X
 import Preface.Tar as X
 import Preface.HTTP as X
+import Preface.Watch as X
 import Preface.Distributed as X
 
+import Bindings.Darwin as X
 import Bindings.Curl as X
 import Bindings.Posix as X
 import Bindings.Python as X

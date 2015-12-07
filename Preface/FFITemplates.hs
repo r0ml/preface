@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Preface.FFITemplates (
-    enum , enumInt , enumI
+    enum , enumInt , enumI, toMask, toCMask, bitsToList
 ) where
  
 import Preface.Imports
@@ -46,4 +46,16 @@ genEnum name vals = (:[]) <$> dataD (cxt[]) nam [] dv [''Eq, ''Bounded, ''Show, 
   where dv = map (\n -> normalC (mkName n) []) vals
         nam = mkName name
   -}
+
+toMask :: Enum a => [a] -> Word32
+toMask = foldr (\x y -> y .|.  (shiftL 1 (fromEnum x))) 0
+
+toCMask :: Enum a => [a] -> CUInt
+toCMask = foldr (\x y -> y .|.  (shiftL 1 (fromEnum x))) 0
+
+bitsToList :: Enum a => CUInt -> [a]
+bitsToList x = btl x 0
+  where btl x n = {- trace ("btl "++ show x++" "++ show n) $ -} if x == 0 then []
+            else if testBit x n then (toEnum (shiftL 1 n)) : btl (clearBit x n) (n+1)
+                     else btl x (n+1)
 

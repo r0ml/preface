@@ -45,6 +45,8 @@ Library
             , Preface.Xml, Preface.JSONic, Preface.IO
             , Preface.Typing, Preface.Diff, Preface.Console
             , Preface.ASN1, Preface.Tar, Preface.HTTP, Preface.Distributed
+            , Preface.Watch
+            , Bindings.Darwin
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
@@ -174,11 +176,19 @@ Executable tlsTest
   Ghc-Options: -Wall -threaded
   Main-is: TlsTest.hs
   
-Executable testPython 
+Executable testPython
   Default-Language: Haskell2010
   default-extensions: NoImplicitPrelude
   Build-depends: preface
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded
   Main-is: TestPython.hs
+
+Executable testWatch
+  Default-Language: Haskell2010
+  default-extensions: NoImplicitPrelude
+  Build-depends: preface
+  hs-source-dirs: test
+  Ghc-Options: -Wall -threaded 
+  Main-is: TestWatch.hs
 
