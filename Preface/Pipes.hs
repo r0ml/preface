@@ -5,9 +5,19 @@ module Preface.Pipes (
   , (|->)
   , (-->) , (--<)
   , (--|)
+  , while
+  , first
   ) where
 
 import Preface.Imports
+
+while :: (a -> Bool) -> [IO a] -> IO [a]
+while _f [] = return []
+while f (x:xs) = do { y <- x; if f y then fmap (y:) (while f xs) else return [] }
+
+first :: (a -> Bool) -> [IO a] -> IO (Maybe a)
+first _f [] = return Nothing
+first f (x:xs) = do { y <- x; if f y then return (Just y) else first f xs }
 
 {-
 untilM :: (a -> Bool) -> [IO a] -> IO [a]

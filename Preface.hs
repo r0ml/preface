@@ -48,6 +48,7 @@ import Preface.HTTP as X
 import Preface.Watch as X
 import Preface.Distributed as X
 
+import Bindings.CoreFoundation as X
 import Bindings.Darwin as X
 import Bindings.Curl as X
 import Bindings.Posix as X

@@ -6,7 +6,7 @@ where
 
 import Preface.Imports
 import Preface.FFITemplates
-import Bindings.Darwin
+import Bindings.CoreFoundation
 
 {-
 data EventStream = EventStream CEventStreamRef (FunPtr PathEvent)

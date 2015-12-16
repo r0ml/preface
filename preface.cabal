@@ -46,6 +46,7 @@ Library
             , Preface.Typing, Preface.Diff, Preface.Console
             , Preface.ASN1, Preface.Tar, Preface.HTTP, Preface.Distributed
             , Preface.Watch
+            , Bindings.CoreFoundation
             , Bindings.Darwin
             , Bindings.Curl, Bindings.Curl.CurlX
             , Bindings.Curl.CurlErrors, Bindings.Curl.CurlInfo, Bindings.Curl.CurlOptions

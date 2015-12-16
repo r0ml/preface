@@ -125,15 +125,16 @@ import Data.Word as X (Word8, Word16, Word32, Word64, byteSwap16, byteSwap32, by
 -- all of the C error codes (e.g. ePIPE, eTIME, eREMOTE, etc. should be 
 -- converted into an algebraic type)
 import Foreign.C.Error as X (getErrno, Errno(..), ePIPE)
-import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..), CUShort(..),
-                             CDouble(..), CFloat(..), CShort(..), CLong(..), CULong(..)
+import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..), CUShort(..)
+          , CDouble(..), CFloat(..), CShort(..), CLong(..), CULong(..)
+          , CUChar(..)
           , CTime(..), CSize(..) )
 import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, peekCStringLen)
 import Foreign.Concurrent as X (addForeignPtrFinalizer)
-import Foreign.Marshal as X (alloca, allocaBytes, mallocArray, allocaArray, fromBool,copyBytes)
+import Foreign.Marshal as X (alloca, allocaBytes, mallocArray, allocaArray, fromBool,copyBytes, free)
 import Foreign.Marshal.Utils as X (new, with)
 import Foreign.Marshal.Array as X (peekArray, pokeArray, withArray, newArray0, newArray)
-import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, nullPtr, castFunPtrToPtr)
+import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, castFunPtr, nullPtr, castFunPtrToPtr)
 import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignPtrBytes, castForeignPtr, newForeignPtr, newForeignPtr_, ForeignPtr)
 import Foreign.Storable as X (Storable(..), peek, poke)
 

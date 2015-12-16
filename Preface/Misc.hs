@@ -25,6 +25,7 @@ import qualified Data.ByteString.Lazy as BL
 -- putState :: (Monad m, State.MonadState s m) => s -> m ()
 -- putState = State.put
 
+type CBool = CChar
 
 -- | A functional equivalent to if/then/else syntax (CONDitional)
 -- The arguments are in the order condition, then, else

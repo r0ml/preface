@@ -2,6 +2,7 @@
 
 module Preface.FFITemplates (
     enum , enumInt , enumI, toMask, toCMask, bitsToList
+    , orList
 ) where
  
 import Preface.Imports
@@ -46,6 +47,9 @@ genEnum name vals = (:[]) <$> dataD (cxt[]) nam [] dv [''Eq, ''Bounded, ''Show, 
   where dv = map (\n -> normalC (mkName n) []) vals
         nam = mkName name
   -}
+
+orList :: Enum a => [a] -> CUInt
+orList = fromIntegral . (foldr ((.|.) . fromEnum) 0)
 
 toMask :: Enum a => [a] -> Word32
 toMask = foldr (\x y -> y .|.  (shiftL 1 (fromEnum x))) 0
