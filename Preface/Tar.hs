@@ -263,21 +263,16 @@ checkEntrySecurity entry = case tarEntryContent entry of
       | otherwise = Nothing
 
 -- | Errors arising from tar file names being in some way invalid or dangerous
-data FileNameError
-  = InvalidFileName FilePath
-  | AbsoluteFileName FilePath
-  deriving (Typeable)
+data FileNameError = InvalidFileName FilePath | AbsoluteFileName FilePath
 
-instance Show FileNameError where
-  show = showFileNameError Nothing
+instance Show FileNameError where show = showFileNameError
 
 instance Exception FileNameError
 
-showFileNameError :: Maybe PortabilityPlatform -> FileNameError -> String
-showFileNameError mb_plat err = case err of
-    InvalidFileName  path -> "Invalid"  ++ plat ++ " file name in tar archive: " ++ show path
-    AbsoluteFileName path -> "Absolute" ++ plat ++ " file name in tar archive: " ++ show path
-  where plat = maybe "" (' ':) mb_plat
+showFileNameError :: FileNameError -> String
+showFileNameError err = case err of
+    InvalidFileName  path -> "Invalid file name in tar archive: " ++ show path
+    AbsoluteFileName path -> "Absolute file name in tar archive: " ++ show path
 
 
 --------------------------
@@ -295,26 +290,14 @@ showFileNameError mb_plat err = case err of
 -- Note: This check must be used in conjunction with 'checkSecurity'
 -- (or 'checkPortability').
 --
-checkTarbomb :: FilePath -> TarEntries e -> TarEntries (Either e TarBombError)
+checkTarbomb :: FilePath -> TarEntries e -> TarEntries (Either e FilePath)
 checkTarbomb expectedTopDir = checkEntries (checkEntryTarbomb expectedTopDir)
 
-checkEntryTarbomb :: FilePath -> TarEntry -> Maybe TarBombError
+checkEntryTarbomb :: FilePath -> TarEntry -> Maybe FilePath
 checkEntryTarbomb expectedTopDir entry =
   case splitDirectories (tarEntryPath entry) of
     (topDir:_) | topDir == expectedTopDir -> Nothing
-    _ -> Just $ TarBombError expectedTopDir
-
--- | An error that occurs if a tar file is a \"tar bomb\" that would extract
--- files outside of the intended directory.
-data TarBombError = TarBombError FilePath
-                  deriving (Typeable)
-
-instance Exception TarBombError
-
-instance Show TarBombError where
-  show (TarBombError expectedTopDir)
-    = "File in tar archive is not in the expected directory " ++ show expectedTopDir
-
+    _ -> Just expectedTopDir
 
 --------------------------
 -- Portability
@@ -353,19 +336,19 @@ checkEntryPortability entry
   = Just $ NonPortableEntryNameChar posixPath
 
   | not (isValid posixPath)
-  = Just $ NonPortableFileName "unix"    (InvalidFileName posixPath)
+  = Just $ NonUnixFileName (InvalidFileName posixPath)
   | not (isValid windowsPath)
-  = Just $ NonPortableFileName "windows" (InvalidFileName windowsPath)
+  = Just $ NonWindowsFileName (InvalidFileName windowsPath)
 
   | isAbsolute posixPath
-  = Just $ NonPortableFileName "unix"    (AbsoluteFileName posixPath)
+  = Just $ NonUnixFileName (AbsoluteFileName posixPath)
   | isAbsolute windowsPath
-  = Just $ NonPortableFileName "windows" (AbsoluteFileName windowsPath)
+  = Just $ NonWindowsFileName (AbsoluteFileName windowsPath)
 
   | any (=="..") (splitDirectories posixPath)
-  = Just $ NonPortableFileName "unix"    (InvalidFileName posixPath)
+  = Just $ NonUnixFileName (InvalidFileName posixPath)
   | any (=="..") (splitDirectories windowsPath)
-  = Just $ NonPortableFileName "windows" (InvalidFileName windowsPath)
+  = Just $ NonWindowsFileName (InvalidFileName windowsPath)
 
   | otherwise = Nothing
 
@@ -388,11 +371,11 @@ data PortabilityError
   = NonPortableFormat Format
   | NonPortableFileType
   | NonPortableEntryNameChar FilePath
-  | NonPortableFileName PortabilityPlatform FileNameError
-  deriving (Typeable)
+  | NonUnixFileName {- PortabilityPlatform -} FileNameError
+  | NonWindowsFileName FileNameError
 
 -- | The name of a platform that portability issues arise from
-type PortabilityPlatform = String
+-- type PortabilityPlatform = String
 
 instance Exception PortabilityError
 
@@ -401,12 +384,12 @@ instance Show PortabilityError where
     where fmt = case format of V7Format    -> "old Unix V7 tar"
                                UstarFormat -> "ustar" -- I never generate this but a user might
                                GnuFormat   -> "GNU tar"
+                               UnrecognisedFormat -> "Unrecognised format"
   show NonPortableFileType        = "Non-portable file type in archive"
   show (NonPortableEntryNameChar posixPath)
     = "Non-portable character in archive entry name: " ++ show posixPath
-  show (NonPortableFileName platform err)
-    = showFileNameError (Just platform) err
-
+  show (NonUnixFileName err) = "(unix) "++showFileNameError err
+  show (NonWindowsFileName err) = "(windows) "++showFileNameError err
 
 --------------------------
 -- Utils
@@ -1025,69 +1008,73 @@ getEntry bs
         | Nothing /= strUntil (/= 0) trailing -> Left TrailingJunk
         | otherwise                    -> Right Nothing
 
-  | otherwise  = partial $ do
+  | otherwise  = 
+      let name       = getString   0 100 header
+          mode       = getOct    100   8 header
+          uid        = getOct    108   8 header
+          gid        = getOct    116   8 header
+          size_      = getOct    124  12 header
+          mtime      = getOct    136  12 header
+          chksum     = getOct    148   8 header
+          typecode   = getByte   156     header
+          linkname   = getString 157 100 header
+          magic      = getChars  257   8 header
+          uname      = getString 265  32 header
+          gname      = getString 297  32 header
+          devmajor   = getOct    329   8 header
+          devminor   = getOct    337   8 header
+          prefix     = getString 345 155 header
+-- trailing   = getBytes  500  12 header
 
-  case (chksum_, format_) of
-    (Ok chksum, _   ) | correctChecksum header chksum -> return ()
-    (Ok _,      Ok _) -> Error ChecksumIncorrect
-    _                 -> Error NotTarFormat
+          format = case magic of
+                          "\0\0\0\0\0\0\0\0" -> V7Format
+                          "ustar\NUL00"      -> UstarFormat
+                          "ustar  \NUL"      -> GnuFormat
+                          _                  -> UnrecognisedFormat
+
+
+          cksum = case (chksum, format) of
+            (Right chks, _   ) | correctChecksum header chks -> Right ()
+            (Right _,    _) -> Left ChecksumIncorrect
+            _             -> Left NotTarFormat
 
   -- These fields are partial, have to check them
-  format   <- format_;   mode     <- mode_;
-  uid      <- uid_;      gid      <- gid_;
-  size     <- size_;     mtime    <- mtime_;
-  devmajor <- devmajor_; devminor <- devminor_;
+--   format   <- format_;   mode     <- mode_;
+--   uid      <- uid_;      gid      <- gid_;
+--   size     <- size_;     mtime    <- mtime_;
+--   devmajor <- devmajor_; devminor <- devminor_;
+          size = either (const (0 :: Int64) ) id size_
+          content = strTake size (strDrop 512 bs)
+          padding = (512 - size) `mod` 512
+          bs'     = strDrop (512 + size + padding) bs
 
-  let content = strTake size (strDrop 512 bs)
-      padding = (512 - size) `mod` 512
-      bs'     = strDrop (512 + size + padding) bs
+          haserr = isLeft mode || isLeft uid || isLeft gid || isLeft size_
+                  || isLeft mtime || isLeft chksum || isLeft devminor
+                  || isLeft devmajor 
 
-      entry = TarEntry {
-        entryTarPath     = TarPath name prefix,
-        tarEntryContent     = case chr (fromEnum typecode) of
+          entry = TarEntry {
+             entryTarPath     = TarPath name prefix,
+             tarEntryContent     = case chr (fromEnum typecode) of
                    '\0' -> NormalFile      content size
                    '0'  -> NormalFile      content size
                    '1'  -> HardLink        (LinkTarget linkname)
                    '2'  -> SymbolicLink    (LinkTarget linkname)
-                   '3'  -> CharacterDevice devmajor devminor
-                   '4'  -> BlockDevice     devmajor devminor
+                   '3'  -> CharacterDevice (either (const 0) id devmajor) (either (const 0) id devminor)
+                   '4'  -> BlockDevice     (either (const 0) id devmajor) (either (const 0) id devminor)
                    '5'  -> Directory
                    '6'  -> NamedPipe
                    '7'  -> NormalFile      content size
                    _    -> OtherEntryType  (chr (fromEnum typecode)) content size,
-        entryPermissions = mode,
-        entryOwnership   = Ownership uname gname uid gid,
-        entryTime        = mtime,
-        entryFormat      = format
-    }
+             entryPermissions = either (const 0) id mode,
+             entryOwnership   = Ownership uname gname (either (const 0) id uid)  (either (const 0) id gid),
+             entryTime        = (either (const 0) id mtime),
+             entryFormat      = format
+          }
+       in if haserr then Left HeaderBadNumericEncoding
+          else if isLeft cksum then Left ChecksumIncorrect 
+          else Right (Just (entry, bs'))
 
-  return (Just (entry, bs'))
-
-  where
-   header = strTake 512 bs
-
-   name       = getString   0 100 header
-   mode_      = getOct    100   8 header
-   uid_       = getOct    108   8 header
-   gid_       = getOct    116   8 header
-   size_      = getOct    124  12 header
-   mtime_     = getOct    136  12 header
-   chksum_    = getOct    148   8 header
-   typecode   = getByte   156     header
-   linkname   = getString 157 100 header
-   magic      = getChars  257   8 header
-   uname      = getString 265  32 header
-   gname      = getString 297  32 header
-   devmajor_  = getOct    329   8 header
-   devminor_  = getOct    337   8 header
-   prefix     = getString 345 155 header
--- trailing   = getBytes  500  12 header
-
-   format_ = case magic of
-    "\0\0\0\0\0\0\0\0" -> return V7Format
-    "ustar\NUL00"      -> return UstarFormat
-    "ustar  \NUL"      -> return GnuFormat
-    _                  -> Error UnrecognisedTarFormat
+  where header = strTake 512 bs
 
 correctChecksum :: ByteString -> Int -> Bool
 correctChecksum header checksum = checksum == checksum'
@@ -1102,14 +1089,14 @@ correctChecksum header checksum = checksum == checksum'
 
 -- * TAR format primitive input
 
-getOct :: Integral a => Int64 -> Int64 -> ByteString -> Partial TarFormatError a
+getOct :: Integral a => Int64 -> Int64 -> ByteString -> Either TarFormatError a
 getOct off len = parseOct
                . asString
                . strTakeWhile (\c -> c /= 0  && c /= (fromIntegral (fromEnum ' ') ) )
                . strDropWhile (== (fromIntegral (fromEnum ' ')))
                . getBytes off len
   where
-    parseOct "" = return 0
+    parseOct "" = Right 0
     -- As a star extension, octal fields can hold a base-256 value if the high
     -- bit of the initial character is set. The initial character can be:
     --   0x80 ==> trailing characters hold a positive base-256 value
@@ -1121,11 +1108,11 @@ getOct off len = parseOct
     -- extra bits in the first character, but I don't think it works and the
     -- docs I can find on star seem to suggest that these will always be 0,
     -- which is what I will assume.
-    parseOct ('\128':xs) = return (readBytes xs)
-    parseOct ('\255':xs) = return (negate (readBytes xs))
+    parseOct ('\128':xs) = Right (readBytes xs)
+    parseOct ('\255':xs) = Right (negate (readBytes xs))
     parseOct s  = case readOct s of
-      [(x,[])] -> return x
-      _        -> Error HeaderBadNumericEncoding
+      [(x,[])] -> Right x
+      _        -> Left HeaderBadNumericEncoding
 
     readBytes = go 0
       where go acc []     = acc
@@ -1146,6 +1133,7 @@ getString off len = asString . strTakeWhile (/= 0) . getBytes off len
 -- These days we'd just use Either, but in older versions of base there was no
 -- Monad instance for Either, it was in mtl with an anoying Error constraint.
 --
+{-
 data Partial e a = Error e | Ok a
 
 partial :: Partial e a -> Either e a
@@ -1164,6 +1152,7 @@ instance Monad (Partial e) where
     Error m >>= _ = Error m
     Ok    x >>= k = k x
     fail          = error "fail @(Partial e)"
+-}
 
 type FileSize  = Int64
 -- | The number of seconds since the UNIX epoch
@@ -1253,6 +1242,7 @@ data Format =
      -- archives the standard USTAR/POSIX should be used.
      --
    | GnuFormat
+   | UnrecognisedFormat
   deriving (Eq, Ord)
 
 -- | @rw-r--r--@ for normal files
