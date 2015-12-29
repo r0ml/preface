@@ -51,8 +51,14 @@ main = do
 --                 return ()
 
                 whilex (either (const True) ((0 ==) . strLen)) (zGet a) (\x -> strPut (either (asByteString . show) id x))
-                
-                
+    "three" -> do a <- strReadFile "test/data/cabal.tar.gz" :: IO ByteString
+                  b <- ungzip a
+                  case b of 
+                    Left s -> print s
+                    Right j -> do strWriteFile "test/data/cabal.tar" j
+                                  tarExtract "test/data" "test/data/cabal.tar"
+                                  print "finished cleanly"
+                    
 whilex :: (a -> Bool) -> IO a -> (a -> IO ()) -> IO ()
 whilex p f d = go
     where go = do

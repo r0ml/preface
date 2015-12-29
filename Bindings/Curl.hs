@@ -14,7 +14,7 @@ module Bindings.Curl
        ) where
 
 import Bindings.Curl.CurlX as X
-import qualified Data.ByteString as B (take, drop, concat, null, head, tail, empty, init, last)
+import qualified Data.ByteString as B (take, drop, concat, null, head, tail, empty, init, last, length)
 import qualified Data.ByteString.Char8 as B (lines, elemIndex, pack)
 import Preface.Imports
 import Preface.XImports

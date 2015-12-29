@@ -106,7 +106,7 @@ import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl'
                       , find, transpose, zip4, intersect, partition
                       , isPrefixOf, isSuffixOf, isInfixOf, (\\)
                       , stripPrefix, intersperse, elemIndex, group, groupBy )
-import Data.Map as X (Map, assocs)
+import Data.Map as X (Map, assocs, findWithDefault, keys)
 import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
                         mapMaybe, catMaybes)
 import Data.Set as X (Set, union, member)
@@ -120,6 +120,9 @@ import Data.Time.Clock.POSIX as X (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.Format as X (formatTime, parseTimeM, readsTime, TimeLocale, defaultTimeLocale)
 import Data.Tuple as X (swap)
 import Data.Typeable as X (Typeable, typeOf )
+
+import Data.Version as X (Version(..), showVersion)
+
 import Data.Word as X (Word8, Word16, Word32, Word64, byteSwap16, byteSwap32, byteSwap64)
 
 -- all of the C error codes (e.g. ePIPE, eTIME, eREMOTE, etc. should be 
@@ -131,7 +134,7 @@ import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..), CUShort(..)
           , CTime(..), CSize(..) )
 import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, peekCStringLen)
 import Foreign.Concurrent as X (addForeignPtrFinalizer)
-import Foreign.Marshal as X (alloca, allocaBytes, mallocArray, allocaArray, fromBool,copyBytes, free)
+import Foreign.Marshal as X (alloca, allocaBytes, allocaBytesAligned, mallocArray, allocaArray, fromBool,copyBytes, free)
 import Foreign.Marshal.Utils as X (new, with)
 import Foreign.Marshal.Array as X (peekArray, pokeArray, withArray, newArray0, newArray)
 import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, castFunPtr, nullPtr, castFunPtrToPtr)
@@ -156,13 +159,17 @@ import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExis
                        , createDirectoryIfMissing, copyFile, getModificationTime
                        , getHomeDirectory, getCurrentDirectory
                        , removeDirectoryRecursive, createDirectory, removeFile
-                       , getPermissions, Permissions(..) )
+                       , getPermissions, Permissions(..)
+                       , getTemporaryDirectory
+                       , setCurrentDirectory )
 import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory
-                        , takeBaseName, takeExtension, takeFileName, joinPath
+                        , takeBaseName, takeExtension
+                        , dropFileName, takeFileName, joinPath
                         , splitPath, splitExtension, splitDirectories, splitSearchPath
                         , isPathSeparator, isSearchPathSeparator
                         , normalise, isAbsolute, isValid
-                        , addTrailingPathSeparator, hasTrailingPathSeparator)
+                        , addTrailingPathSeparator, hasTrailingPathSeparator
+                        , dropTrailingPathSeparator )
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
 import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine, hGetContents
@@ -170,7 +177,8 @@ import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine, hGe
         , openFile, withFile, IOMode(..), stdin, stderr, stdout
         , hSeek, SeekMode(..), hFileSize
         , openBinaryFile )
-import System.IO.Error as X ( isEOFError, ioeGetErrorType )
+import System.IO.Error as X ( isEOFError, ioeGetErrorType
+                            , isAlreadyExistsError )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO, unsafeInterleaveIO)
 
 import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv, getProgName)
@@ -179,7 +187,7 @@ import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
 import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   -- Does this work
   readProcessWithExitCode, runInteractiveProcess, terminateProcess,
-  CreateProcess(..), ProcessHandle)
+  CreateProcess(..), ProcessHandle, rawSystem )
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
 import System.Posix.Signals as X (installHandler, sigTERM, sigINT)

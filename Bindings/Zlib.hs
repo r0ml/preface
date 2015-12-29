@@ -6,6 +6,7 @@ module Bindings.Zlib (
         , ZStream(..)
         , inflater2
         , zlibVersion
+        , ungzip
         )
 where
 
@@ -13,6 +14,7 @@ import Preface.Imports
 import Data.ByteString (empty)
 import Preface.FFITemplates (enumInt)
 import Preface.FFITemplates2 (storable)
+import Preface.Stringy
 
 [storable|ZStream
   next_in CString
@@ -34,7 +36,7 @@ import Preface.FFITemplates2 (storable)
 zStreamNew :: ZStream
 zStreamNew = ZStream nullPtr 0 0 nullPtr 0 0 nullPtr nullPtr nullPtr nullPtr nullPtr 0 0 0
 
-type Zresult = Either (Maybe ZlibException) ByteString
+type Zresult = Either ZlibException ByteString
 type Zlib = (Chan (Maybe ByteString), Chan Zresult)
 
 zPut :: Zlib -> ByteString -> IO ()
@@ -73,7 +75,6 @@ inflater = zStart (zInit (-15) Nothing Nothing) doInflate where doInflate = feed
 inflater2 :: IO Zlib
 inflater2 = zStart (zInit (31) Nothing Nothing) doInflate where doInflate = feed c_inflate
 
-               
 -- the -1 means default compression level
 deflater :: IO Zlib
 deflater = zStart (zInit (-15) (Just (-1)) Nothing) doDeflate where doDeflate = feed c_deflate        
@@ -120,7 +121,8 @@ zBufError :: CInt
 zBufError = -5
 
 defaultChunkSize :: Int
-defaultChunkSize = 32752
+-- defaultChunkSize = 32752
+defaultChunkSize = 1048576
 
 setOutBuff :: ForeignPtr ZStream -> IO (ForeignPtr CChar)
 setOutBuff zsx = do
@@ -146,7 +148,9 @@ feed f (ZMem zsx zbuff) bs bool chan = do
   where innerl zstr = do zoz <- peek zstr
                          let obuff = zStream_next_out zoz
                          res <- f zstr (fromIntegral (fromEnum (if bool then FINISH else NO_FLUSH)))
-                         if (res /= 0 && res /= 1 && res /= zBufError) then writeChan chan (Left (Just (ZlibException (toEnum (fromEnum res)))))
+                         if (res /= 0 && res /= 1 && res /= zBufError)
+                         then do
+                                 writeChan chan (Left (ZlibException (toEnum (fromEnum res))))
                          else do zy <- peek zstr
                                  let avail = fromIntegral $ zStream_avail_out zy
                                      buff = zStream_next_out zy
@@ -179,4 +183,23 @@ foreign import ccall unsafe "deflateSetDictionary"
   c_deflateSetDictionary :: Ptr ZStream -> Ptr CChar -> CUInt -> IO ()
 foreign import ccall unsafe "inflateSetDictionary"
   c_inflateSetDictionary :: Ptr ZStream -> Ptr CChar -> CUInt -> IO ()
+
+ungzip :: ByteString -> IO (Either String ByteString)
+ungzip c = do 
+  a <- inflater2
+  zPut a c
+  zDone a
+  g <- go a
+  pure $ either Left (Right . strConcat) g
+  where go :: Zlib -> IO (Either String [ByteString]) 
+        go a = do
+                b <- zGet a
+                case b of 
+                     Left e -> pure $ Left (show e)
+                     Right r -> do
+                        if strNull r
+                           then pure $ Right [r]
+                           else do d <- go a
+                                   pure $ either Left (Right . (r:)) d
+
 

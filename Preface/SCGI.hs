@@ -61,7 +61,7 @@ toInt z = foldl (\x y -> 10*x+y) 0 (map digitToInt (filter isDigit z))
 
 netstring :: NetData -> IO (ByteString, NetData)
 netstring nd =
-  let (lenx, rest) = case strBrk (== asByte ':') (ndBuf nd) of { Nothing -> (asByteString (show (ndBuf nd)), (ndBuf nd)); Just (a,b) -> (a,b) }
+  let (lenx, rest) = case strUntil (== asByte ':') (ndBuf nd) of { Nothing -> (asByteString (show (ndBuf nd)), (ndBuf nd)); Just (a,b) -> (a,b) }
       lens = asString lenx
       len = toInt lens
    in do
@@ -120,7 +120,7 @@ getSCGI sock = do
         headersx = pairs . splitx
         pairs (x:y:xys) = (x, y) : pairs xys
         pairs _ = []
-        splitx str = case strBrk (== '\NUL') str of
+        splitx str = case strUntil (== '\NUL') str of
                         Nothing -> [ str ]
                         Just (token, rest) -> token : splitx (tail rest)
 

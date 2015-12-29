@@ -13,7 +13,7 @@ import Network.BSD as X (getProtocolNumber)
 import System.Posix.Signals as P (Handler(..))
 
 import qualified Network.Socket.ByteString as S (send, recv)
-import qualified Data.Map as M (Map, insert, lookup, fromList)
+import qualified Data.Map as M (Map, insert, lookup, fromList, alter)
 import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
 import qualified Data.Binary as DB (encode, decode)
@@ -81,6 +81,9 @@ mapLookup = M.lookup
 
 mapFromList :: Ord k => [(k, a)] -> M.Map k a 
 mapFromList = M.fromList
+
+mapAlter :: Ord k => (Maybe a -> Maybe a) -> k -> Map k a -> Map k a
+mapAlter = M.alter
 
 newConcurrentForeignPtr :: Ptr a -> IO () -> IO (ForeignPtr a)
 newConcurrentForeignPtr = Concurrent.newForeignPtr

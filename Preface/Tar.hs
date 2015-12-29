@@ -84,6 +84,7 @@ module Preface.Tar (
   -- This is because 'read' accepts common format variations while 'write'
   -- produces the standard format.
   tarRead,
+  tarList,
   tarWrite,
 
   -- * Packing and unpacking files to\/from internal representation
@@ -199,6 +200,12 @@ tarExtract :: FilePath -- ^ Destination directory
         -> FilePath -- ^ Tarball
         -> IO ()
 tarExtract dir tar = tarUnpack dir . tarRead =<< strReadFile tar
+
+tarList :: FilePath -> IO [FilePath]
+tarList tar = do
+  a <- strReadFile tar
+  let b = tarRead a
+  return (tarFoldEntries (\entry rest -> tarEntryPath entry : rest) [] (\x -> traceShow x ["unknown"]) b)
 
 -- | Append new entries to a @\".tar\"@ file from a directory of files.
 --
@@ -1014,8 +1021,8 @@ getEntry bs
   | strHead bs == 0 = case strSplitAt 1024 bs of
       (end, trailing)
         | strLen end /= 1024        -> Left ShortTrailer
-        | Nothing == strBrk (/= 0) end      -> Left BadTrailer
-        | Nothing == strBrk (/= 0) trailing -> Left TrailingJunk
+        | Nothing /= strUntil (/= 0) end      -> Left BadTrailer
+        | Nothing /= strUntil (/= 0) trailing -> Left TrailingJunk
         | otherwise                    -> Right Nothing
 
   | otherwise  = partial $ do
@@ -1171,7 +1178,7 @@ type TarPermissions = FileMode
 data TarEntry = TarEntry {
 
     -- | The path of the file or directory within the archive. This is in a
-    -- tar-specific form. Use 'entryPath' to get a native 'FilePath'.
+    -- tar-specific form. Use 'tarEntryPath' to get a native 'FilePath'.
     entryTarPath :: TarPath,
 
     -- | The real content of the entry. For 'NormalFile' this includes the

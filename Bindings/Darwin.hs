@@ -4,6 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Bindings.Darwin (
     ObjcClass, ObjcId, ObjcIvar, ObjcMethod, ObjcSel
@@ -15,15 +16,24 @@ module Bindings.Darwin (
   , objcGetIvarInfo
   , objcGetMethodTypeEncoding
   , objcGetMethodTypes
+  , objcClassObject
+  , objcNil
+  , objcImplementClass
 --  , objcGetMethod
   , nsBundleLoad
---  , module Bindings.Darwin
+  , CGPoint(..), CGRect(..)
+  , module Bindings.Darwin
 ) where
 
 import Preface.Imports
 import Preface.Pipes
 import Preface.Misc
+import Preface.FFITemplates2
 
+data ObjcArg = forall a . Argumentative a => MkObjcArg a
+
+objcNil = ObjcId nullPtr
+ 
 type Objc_Id = Ptr ()
 type SEL = Ptr Objc_Selector
 data Objc_Selector
@@ -40,7 +50,7 @@ type Objc_Ivar = Ptr Objc_StructIvar
 
 type NSString = Objc_Id
 
-newtype ObjcId = ObjcId Objc_Id
+newtype ObjcId = ObjcId Objc_Id deriving Show
 newtype ObjcClass = ObjcClass Objc_Class
 newtype ObjcIvar = ObjcIvar Objc_Ivar
 newtype ObjcMethod = ObjcMethod Objc_Method
@@ -79,6 +89,8 @@ objcGetSuperclasses (ObjcClass a) =
       c = ObjcClass b
    in if b == nullPtr then [] else c : objcGetSuperclasses c
 
+objcClassObject :: ObjcClass -> ObjcId
+objcClassObject (ObjcClass c) = ObjcId c
 
 foreign import ccall class_setSuperclass :: Objc_Class -> Objc_Class -> IO Objc_Class
 foreign import ccall class_isMetaClass :: Objc_Class -> CBool
@@ -86,7 +98,7 @@ foreign import ccall class_getInstanceSize :: Objc_Class -> CLong
 foreign import ccall class_getInstanceVariable :: Objc_Class -> CString -> IO Objc_Ivar
 foreign import ccall class_getClassVariable :: Objc_Class -> CString -> IO Objc_Ivar
 
-foreign import ccall class_addIvar :: Objc_Class -> CString -> CLong -> CChar -> CString -> CBool
+foreign import ccall class_addIvar :: Objc_Class -> CString -> CLong -> CChar -> CString -> IO CBool
 {-
  class_addIvar(c, "firstName", sizeof(id), log2(sizeof(id)), @encode(id));
  class_addIvar(c, "lastName", sizeof(id), log2(sizeof(id)), @encode(id));
@@ -123,9 +135,16 @@ objcGetMethodList (ObjcClass c) = alloca $ \x -> do
          free y
          return (map ObjcMethod d)
 
--- objcGetMethod :: ObjcClass -> ObjcSel -> ObjcMethod
--- objcGetMethod c s = do
-  
+objcGetClassMethod :: ObjcClass -> ObjcSel -> ObjcMethod
+objcGetClassMethod (ObjcClass c) (ObjcSel s) = unsafePerformIO $ do
+  m <- class_getClassMethod c s 
+  return (ObjcMethod m)
+
+objcGetInstanceMethod :: ObjcClass -> ObjcSel -> ObjcMethod
+objcGetInstanceMethod (ObjcClass c) (ObjcSel s) = unsafePerformIO $ do
+  m <- class_getInstanceMethod c s 
+  return (ObjcMethod m)
+
 objcGetMethodTypeEncoding :: ObjcMethod -> String
 objcGetMethodTypeEncoding (ObjcMethod m) = unsafePerformIO (
   method_getTypeEncoding m >>= peekCString)
@@ -170,6 +189,33 @@ foreign import ccall class_setVersion :: Objc_Class -> CUInt -> IO ()
 foreign import ccall objc_allocateClassPair :: Objc_Class -> CString -> CLong -> IO Objc_Class
 foreign import ccall objc_registerClassPair :: Objc_Class -> IO ()
 
+-- class name, superclass, array of instvar (name, size, align, type), 
+--    array of methods (selector, signature function)
+objcImplementClass :: String -> ObjcClass -> [(String,Int,Int,String)] -> [(String, String, FunPtr (IO ObjcId))] -> IO [Bool]
+
+objcImplementClass n (ObjcClass cc) i m = do
+    print "one"
+    c <- withCString n $ \nn -> objc_allocateClassPair cc nn 0
+    print ("two",c)
+    b1 <- mapM (addi c) i
+    print "three"
+    b2 <- mapM (addm c) m
+    print "four"
+    print b1
+    print b2
+    objc_registerClassPair c
+    print "five"
+    return (map ((/= 0) . fromEnum) (b1 ++ b2))
+  where addi c (i_n, i_s, i_a, i_t) =
+          withCString i_n $ 
+            \i_nn -> withCString i_t $ 
+               \i_tt -> class_addIvar c i_nn (fromIntegral i_s) (fromIntegral i_a) i_tt
+        addm c (m_n, m_s, m_p) =
+          withCString m_s $
+            \m_ss -> do 
+                sl <- withCString m_n c_sel_getUid
+                class_addMethod c sl (castFunPtr m_p) m_ss
+
 
 -- void objc_disposeClassPair(Class cls)
 --
@@ -210,7 +256,7 @@ objcGetClassList = alloca $ \x -> do
          free y
          return (map ObjcClass c)
 
-foreign import ccall objc_lookupClass :: CString -> Objc_Class
+-- foreign import ccall objc_lookupClass :: CString -> Objc_Class
 foreign import ccall objc_getMetaClass :: CString -> Objc_Class
 
 foreign import ccall ivar_getName :: Objc_Ivar -> IO CString
@@ -267,6 +313,20 @@ objcClass = ObjcClass . objc_Class
 nsString :: String -> IO NSString
 nsString x = withCString x $ \y -> objc_msgSendOO (objc_Class "NSString") (objc_Sel "stringWithUTF8String:") (castPtr y)
 
+data CGPoint = CGPoint Double Double deriving (Show, Eq)
+instance Storable CGPoint where
+  peek p = do 
+     a <- peek (castPtr p) :: IO CDouble
+     b <- peek (castPtr (plusPtr p (sizeOf (undefined::CDouble)))) :: IO CDouble
+     return (CGPoint (realToFrac a) (realToFrac b))
+  poke p (CGPoint a b) = do
+     poke (castPtr p) (realToFrac a ::CDouble)
+     poke (castPtr (plusPtr p (sizeOf (undefined::CDouble)))) (realToFrac b::CDouble)
+  sizeOf _ = 2 * sizeOf (undefined::CDouble) 
+  alignment _ = alignment (undefined :: CDouble)
+
+[storable|CGRect x CDouble y CDouble width CDouble height CDouble|]
+
 foreign import ccall "objc_msgSend_stret" objc_msgSend_stret0 :: Ptr () -> Objc_Id -> SEL -> IO ()
 foreign import ccall "objc_msgSend_stret" objc_msgSend_stret1 :: Ptr () -> Objc_Id -> SEL -> Objc_Id -> IO ()
 foreign import ccall "objc_msgSend_stret" objc_msgSend_stret2 :: Ptr () -> Objc_Id -> SEL -> Objc_Id -> Objc_Id -> IO ()
@@ -278,6 +338,7 @@ foreign import ccall "objc_msgSend" objc_msgSendOO :: Objc_Id -> SEL -> Objc_Id 
 foreign import ccall "objc_msgSend" objc_msgSendOOO :: Objc_Id -> SEL -> Objc_Id -> Objc_Id -> IO Objc_Id
 
 foreign import ccall "objc_msgSend" objc_msgSendI :: Objc_Id -> SEL -> IO CInt
+foreign import ccall "objc_msgSend" objc_msgSendC :: Objc_Id -> SEL -> IO CChar
 
 foreign import ccall "objc_msgSend" objc_msgSendOI :: Objc_Id -> SEL -> CInt -> IO Objc_Id
 foreign import ccall "objc_msgSend" objc_msgSendCI :: Objc_Id -> SEL -> CInt -> IO CChar
@@ -364,43 +425,74 @@ nsMethodSignatureForSelector c cl se = do
             a <- objc_msgSendOI r (objc_Sel "getArgumentTypeAtIndex:") x
             peekCString (castPtr a)
 
-nsInvoke :: forall a. forall b. (Argumentative a, Storable b, Argumentative b) => ObjcId -> ObjcSel -> [a] -> IO b 
+foreign import ccall object_getClass :: Objc_Id -> IO Objc_Class
 
-{-
+gargTypeOf :: ObjcArg -> ObjcArgType 
+gargTypeOf (MkObjcArg a) = argTypeOf a
+
+-- this won't work because the list [a] requires that all the arguments
+-- be the same type.
+-- I need a newtype Argument which wraps the arguments so that they can
+-- be placed in a list.
+nsInvoke :: forall b. (Argumentative b) => ObjcId -> ObjcSel -> [ObjcArg] -> IO b 
 nsInvoke (ObjcId x) sxi@(ObjcSel sx) [] = do
   ro <- objc_msgSendCO x (objc_Sel "respondsToSelector:") (castPtr sx)
   if ro /= 0 then do
-     z <- objc_msgSendO x sx
-     return z 
+     let zz = undefined :: b
+     case argTypeOf zz of 
+       ObjcTypeAt -> doObj 
+       ObjcTypei -> doInt
+       ObjcTypeI -> doInt
+       ObjcTypec -> doChar
+       ObjcTypeC -> doChar 
+       ObjcTypeStar -> doObj  
+       ObjcTypeHat a -> undefined
+       ObjcTypeColon -> undefined
+       ObjcTypev -> objc_msgSendV x sx >> return zz
   else error ("invalid selector for this object: " ++ show sxi)
--}
-foreign import ccall object_getClass :: Objc_Id -> IO Objc_Class
+ where doObj = do
+                q <- objc_msgSendO x sx
+                asArg (ObjcId q) $ \xx -> peek (castPtr xx) >>= fromArg
+       doInt =  do
+                q <- objc_msgSendI x sx
+                asArg (fromEnum q) $ \xx -> peek (castPtr xx) >>= fromArg
+       doChar =  do
+                q <- objc_msgSendC x sx
+                asArg (fromEnum q) $ \xx -> peek (castPtr xx) >>= fromArg
 
 nsInvoke (ObjcId x) sxi@(ObjcSel sx) al = do
   let zz = undefined :: b
-      max = map argTypeOf al
-      sig = argTypeOf zz ++ "@:"++ concat max
+      xmax = map (objcArgTypeString . gargTypeOf) al
+      sig = (objcArgTypeString (argTypeOf zz)) ++ "@:"++ concat xmax
   cls <- object_getClass x
   let mcq = class_isMetaClass cls
   m <- if fromEnum mcq == 0 then class_getInstanceMethod cls sx 
                    else class_getClassMethod x sx
   let ma = objcGetMethodTypes (ObjcMethod m)
-  print (show max)
-  print (show ma)
-
+  print (mcq, sig, xmax, ma)
   ro <- objc_msgSendCO x (objc_Sel "respondsToSelector:") (castPtr sx)
   if ro /= 0 then do
-    nsig <- withCString sig $ objc_msgSendOO (objc_Class "NSMethodSignature") (objc_Sel "signatureWithObjCTypes:") . castPtr
+    -- zbx <- withCString sig $ objc_msgSendOO (objc_Class "NSMethodSignature") (objc_Sel "signatureWithObjCTypes:") . castPtr
 
+    nsig<- objc_msgSendOO x (objc_Sel "methodSignatureForSelector:") (castPtr sx)
     inv <- objc_msgSendOO (objc_Class "NSInvocation") (objc_Sel "invocationWithMethodSignature:") nsig
     objc_msgSendVO inv (objc_Sel "setSelector:") (castPtr sx)
 
-    
-    mapM_ (\(aa,nn) -> asArg aa $ \z-> objc_msgSendVOI inv (objc_Sel "setArgument:atIndex") (castPtr z) (fromIntegral nn)) (zip al [2 .. (1 + length al) ])
-
+    print ("selector set: "++show sxi)
+    mapM_ (\(MkObjcArg aa,nn) -> asArg aa $ \z-> objc_msgSendVOI inv (objc_Sel "setArgument:atIndex:") (castPtr z) (fromIntegral nn)) (zip al [2 .. (1 + length al) ])
+    print "args set"
+    -- objc_msgSendV inv (objc_Sel "retainArguments") 
     objc_msgSendVO inv (objc_Sel "invokeWithTarget:") x
-    res <- alloca $ (\q -> objc_msgSendVO inv (objc_Sel "getReturnValue:") (castPtr q) >> fromArg q)
-    return res
+    print "invoked"
+    case argTypeOf zz of 
+      ObjcTypev -> return zz 
+      _ -> do res <- alloca $ (\q -> traceShow ("alloced",q) $ 
+                do objc_msgSendVO inv (objc_Sel "getReturnValue:") (castPtr q)
+                   traceIO "prepeek"
+                   qq <- peek q 
+                   fromArg qq)
+              print "resed"
+              return res
   else error ("invalid selector for this object: " ++ show sxi)
 
 {-
@@ -412,30 +504,73 @@ nsInvocation x = do
   + (NSInvocation *)invocationWithMethodSignature:(NSMethodSignature *)signature
 -}
 
-class Argumentative a where
-  type ArgRawType a
- 
-  argTypeOf :: a -> String
+class Storable (ArgRawType a) => Argumentative a where
+  type family ArgRawType a
+
+  argTypeOf :: a -> ObjcArgType
   -- argSizeOf :: a -> Int
   -- argSizeOf a = sizeOf a
   asArg :: a -> ( (Ptr (ArgRawType a) -> IO c) -> IO c )
-  fromArg :: Storable (ArgRawType a) => (Ptr (ArgRawType a)) -> IO a 
+  fromArg :: (ArgRawType a) -> IO a
+
+{-
+instance Argumentative ObjcArg where
+  argTypeOf (MkObjcArg b) = argTypeOf b
+  asArg (MkObjcArg b) = asArg b
+  fromArg (MkObjcArg b) = fromArg b
+-}
 
 -- instance Argumentative CChar where 
 --   { argTypeOf _ = "c"; type ArgRawType CChar = CChar; asArg = with }
 instance Argumentative Char where 
-  argTypeOf _ = "c"
+  argTypeOf _ = ObjcTypec 
   type ArgRawType Char = CChar
   asArg = with . CChar . fromIntegral . ord
-  fromArg = fmap (chr . fromEnum) . peek
+  fromArg = return . chr . fromEnum 
 
+instance Argumentative Bool where
+  argTypeOf _ = ObjcTypeB
+  type ArgRawType Bool = CChar
+  asArg x =  with (CChar (if x then 1 else 0))
+  fromArg = return . (/= 0) . fromEnum
+
+instance Argumentative () where
+  argTypeOf _ = ObjcTypev
+  type ArgRawType () = ()
+  asArg = undefined
+  fromArg x = return (x :: ())
+
+instance Storable () where
+  sizeOf _ = 8
+  alignment _ = 8
+  peek x = return ()
+  poke x y = return ()
+
+instance Argumentative CGPoint where 
+  argTypeOf _ = ObjcTypeStruct "CGPoint" "dd"
+  type ArgRawType CGPoint = CGPoint
+  asArg = with
+  fromArg = return 
+
+instance Argumentative CGRect where
+  argTypeOf _ = ObjcTypeStruct "CGRect" "dddd"
+  type ArgRawType CGRect = CGRect
+  asArg = with
+  fromArg = return
+ 
 -- instance Argumentative CInt where 
 --   { argTypeOf _ = "i"; type ArgRawType CInt = CInt; asArg = with }
 instance Argumentative Int where 
-  argTypeOf _ = "i"
+  argTypeOf _ = ObjcTypei
   type ArgRawType Int = CInt
   asArg = with . CInt . fromIntegral
-  fromArg = fmap fromEnum . peek
+  fromArg = return . fromEnum
+
+instance Argumentative CUInt where
+  argTypeOf _ = ObjcTypeI
+  type ArgRawType CUInt = CUInt
+  asArg = with 
+  fromArg = return
 
 {-
 instance Argumentative CShort where { argTypeOf _ = "s" }
@@ -452,53 +587,36 @@ instance Argumentative CDouble where { argTypeOf _ = "d" }
 -- instance Argumentative () where { argTypeOf _ = "v" }
 -}
 
-instance Argumentative String where
- argTypeOf _ = "*"
- type ArgRawType String = CChar
- asArg = withCString
- fromArg = peekCString
+data ObjcArgType =  ObjcTypeI | ObjcTypei | ObjcTypeAt 
+   | ObjcTypeHat ObjcArgType | ObjcTypeColon | ObjcTypeC | ObjcTypec 
+   | ObjcTypeStar
+   | ObjcTypes | ObjcTypel | ObjcTypeq | ObjcTypeS | ObjcTypeL | ObjcTypeQ
+   | ObjcTypef | ObjcTyped | ObjcTypeB | ObjcTypev | ObjcTypeHash
+   | ObjcTypeStruct String String
 
-instance Argumentative ObjcId where
- argTypeOf _ = "@"
- type ArgRawType ObjcId = Objc_Id
- asArg (ObjcId a) = with a
- fromArg = fmap ObjcId . peek
-
--- instance Argumentative Objc_Class { where argTypeOf _ = "#" }
-instance Argumentative ObjcSel where 
- argTypeOf _ = ":"
- type ArgRawType ObjcSel = SEL
- asArg (ObjcSel a) = with a
- fromArg = fmap ObjcSel . peek
-
--- instance (Argumentative a) => Argumentative [a] where { argTypeOf _ = "[": (argTypeOf (undefined :: a) ) ++ "]" }
-
-instance Argumentative a => Argumentative (Ptr a) where 
- argTypeOf _ = '^':argTypeOf ( undefined :: a)
- type ArgRawType (Ptr a) = Ptr a
- asArg = with
- fromArg = peek
-
+objcArgTypeString :: ObjcArgType -> String
+objcArgTypeString a = case a of
+  ObjcTypeI -> "I" -- unsigned int
+  ObjcTypei -> "i" -- int
+  ObjcTypeAt -> "@" -- object
+  ObjcTypeHat x -> '^':objcArgTypeString x
+  ObjcTypeColon -> ":" -- method selector (SEL)
+  ObjcTypeC -> "C" -- unsigned char
+  ObjcTypec -> "c" -- char
+  ObjcTypeStar -> "*" -- char * (string)
+  ObjcTypes -> "s" -- short
+  ObjcTypel -> "l" -- int (32-bit)
+  ObjcTypeq -> "q" -- long (64-bit)
+  ObjcTypeS -> "S" -- unsigned short
+  ObjcTypeL -> "L" -- unsigned int
+  ObjcTypeQ -> "Q" -- unsigned long
+  ObjcTypef -> "f" -- float
+  ObjcTyped -> "d" -- double
+  ObjcTypeB -> "B" -- bool (char)
+  ObjcTypev -> "v" -- void
+  ObjcTypeHash -> "#" -- Class
+  ObjcTypeStruct x y -> "{"++x++"="++y++"}"
 {-
- - Table 6-1  Objective-C type encodings
-c A char
-i An int
-s A short
-l A long l is treated as a 32-bit quantity on 64-bit programs.
-q A long long
-C An unsigned char
-I An unsigned int
-S An unsigned short
-L An unsigned long
-Q An unsigned long long
-f A float
-d A double
-B A C++ bool or a C99 _Bool
-v A void
-* A character string (char *)
-@ An object (whether statically typed or typed id)
-# A class object (Class)
-: A method selector (SEL)
 [array type] An array
 {name=type...} A structure
 (name=type...) A union
@@ -506,19 +624,62 @@ bnum A bit field of num bits
 ^type A pointer to type
 ?  An unknown type (among other things, this code is used for function pointers)
 -}
-{-
-Code Meaning
-r const
-n in
-N inout
-o out
-O bycopy
-R byref
-V oneway
- -} 
+
+instance Argumentative String where
+ argTypeOf _ = ObjcTypeStar
+ type ArgRawType String = Ptr CChar
+ asArg = \x y -> withCString x (\z -> with z y)
+ fromArg = peekCString 
+
+instance Argumentative ObjcId where
+ argTypeOf _ = ObjcTypeAt
+ type ArgRawType ObjcId = Objc_Id
+ asArg (ObjcId a) = with a
+ fromArg = return . ObjcId 
+
+-- instance Argumentative Objc_Class { where argTypeOf _ = "#" }
+instance Argumentative ObjcSel where 
+ argTypeOf _ = ObjcTypeColon
+ type ArgRawType ObjcSel = SEL
+ asArg (ObjcSel a) = with a
+ fromArg = return . ObjcSel 
+
+-- instance (Argumentative a) => Argumentative [a] where { argTypeOf _ = "[": (argTypeOf (undefined :: a) ) ++ "]" }
+
+instance Argumentative a => Argumentative (Ptr a) where 
+ argTypeOf _ = ObjcTypeHat (argTypeOf ( undefined :: a))
+ type ArgRawType (Ptr a) = Ptr a
+ asArg = with
+ fromArg = return  
+
+data ObjcTypeAnnotation = ObjcTypeConst | ObjcTypeIn | ObjcTypeInOut 
+       | ObjcTypeOut | ObjcTypeByCopy | ObjcTypeByRef | ObjcTypeOneWay
+       | ObjcTypeUndefined
+objcTypeAnnotationChar x = case x of 
+  ObjcTypeConst -> 'r'
+  ObjcTypeIn -> 'n'
+  ObjcTypeInOut -> 'N'
+  ObjcTypeOut -> 'o'
+  ObjcTypeByCopy -> 'O'
+  ObjcTypeByRef -> 'R'
+  ObjcTypeOneWay -> 'V'
+  ObjcTypeUndefined -> 'x'
+
+objcTypeAnnotation c = case c of
+  'r'-> ObjcTypeConst
+  'n'-> ObjcTypeIn
+  'N' -> ObjcTypeInOut
+  'o' -> ObjcTypeOut
+  'O' -> ObjcTypeByCopy
+  'R' -> ObjcTypeByRef
+  'V' -> ObjcTypeOneWay
+  _ -> ObjcTypeUndefined
+
 nsBundleLoad :: String -> IO Bool
 nsBundleLoad x = do
-  let f = \y -> objc_msgSendOO (objc_Class "NSBundle") (objc_Sel "bundleWithPath:") =<< (nsString (y ++ x ++ ".framework"))
+  let u = objc_Class "NSBundle"
+      w = objc_Sel "bundleWithPath:"
+      f = \y -> objc_msgSendOO u w =<< (nsString (y ++ x ++ ".framework"))
       p = ["/System/Library/Frameworks/", "/Library/Frameworks/"]
   b <- first (nullPtr /= ) (map f p)
   case b of
@@ -526,4 +687,3 @@ nsBundleLoad x = do
      Just bb -> objc_msgSendV bb (objc_Sel "load") >> return True
 
 
-  

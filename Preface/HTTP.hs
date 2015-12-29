@@ -1343,7 +1343,7 @@ data URIAuthority = URIAuthority { user :: Maybe String, password :: Maybe Strin
 -- >  ":<port>", and "/<url-path>" may be excluded.
 parseURIAuthority :: String -> Maybe URIAuthority
 parseURIAuthority s = let a = strTakeWhile (/= '/') s
-                          b = strBrk (=='@') a
+                          b = strUntil (=='@') a
                           (u, pw, z) = case b of { Nothing -> (Nothing, Nothing, a);
                                           Just (c,d) -> let (e,f) = pUserInfo c in (Just e, f, d) }
                           (h, p) = pHostPort z
@@ -1353,7 +1353,7 @@ parseURIAuthority s = let a = strTakeWhile (/= '/') s
 pHostPort :: String -> (String, Maybe Int)
 pHostPort s =
   -- h <- rfc2732host <++ munch (/=':')
-  case strBrk (==':') s of
+  case strUntil (==':') s of
       Nothing -> (s, Nothing)
       Just (c,d) -> case str2decimal d of { Left x -> (c, Nothing); Right (e,f) -> (c,Just e) } 
 
@@ -1368,7 +1368,7 @@ rfc2732host = do
 -}
 
 pUserInfo :: String -> (String, Maybe String)
-pUserInfo s = case strBrk (==':') s of { Nothing -> (s, Nothing); Just (u, p) -> (u, Just p) }
+pUserInfo s = case strUntil (==':') s of { Nothing -> (s, Nothing); Just (u, p) -> (u, Just p) }
 
 -- This function duplicates old Network.URI.authority behaviour.
 uriToAuthorityString :: URI -> String
@@ -2036,7 +2036,7 @@ parseHeaders = catMaybes . map parseHeader . joinExtended
 
      parseHeader :: String -> Maybe HttpHeader
      parseHeader str =
-        case strBrk (==':') (stripStart str) of
+        case strUntil (==':') (stripStart str) of
             Nothing -> Nothing
             Just (k,v) -> Just $ HttpHeader (HeaderName k) (stripStart v)
 
@@ -2481,7 +2481,7 @@ bufferReadLine :: HandleStream -> IO (SResult ByteString)
 bufferReadLine ref = onNonClosedDo ref $ \ conn -> do
   case connInput conn of
    Just c -> do
-    let (a,b1)  = case strBrk (== asByte '\n') c of { Nothing -> (c, strEmpty); Just (d,e) -> (d,e) }
+    let (a,b1)  = case strUntil (== asByte '\n') c of { Nothing -> (c, strEmpty); Just (d,e) -> (d,e) }
     modifyMVar_ (getRef ref) (\co -> return co{connInput=Just b1})
     return (return (strAppend a (asByteString "\n")))
    _ -> catchIO

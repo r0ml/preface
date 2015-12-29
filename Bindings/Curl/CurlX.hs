@@ -104,7 +104,9 @@ mkDebugFun (DebugFunction x) = do
   return fp
 
 curlPrim :: Curl -> ( CurlStruct -> IO a) -> IO a
-curlPrim c f  = withMVar (curl_struct c) $ \h -> withForeignPtr h f 
+curlPrim c f  = withMVar (curl_struct c) $ \h -> do
+   a <- withForeignPtr h f 
+   return a
 
 -- | Allocates a Haskell handle from a C handle.
 mkCurl :: IO Curl

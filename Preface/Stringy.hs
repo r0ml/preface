@@ -129,10 +129,12 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
 
     -- | Return a tuple which is the first n characters which test True, and then the remainder
     -- This would be equivalent to (strTakeWhile f s, strDropWhile f s)
-    strBrk :: ((Char_y a) -> Bool) -> a -> Maybe (a,a)
+    strUntil :: ((Char_y a) -> Bool) -> a -> Maybe (a,a)
 
     -- | strBrkSubstring breaks a string by a the first occurence of the given substring    
-    strBrkStr :: a -> a -> Maybe (a,a)
+    strUntilStr :: a -> a -> Maybe (a,a)
+
+    strBrk :: ((Char_y a) -> Bool) -> a -> (a,a)
 
     -- | strSplit breaks a string into every substring between occurences of the supplied char
     strSplit :: (Char_y a) -> a -> [a]
@@ -268,9 +270,11 @@ instance Stringy T.Text where
   strDropWhile = T.dropWhile
   strTakeWhile = T.takeWhile
 
-  strBrk x y = let (a,b) = T.break x y in if strNull b then Nothing else Just (a,strTail b)
-  strBrkStr x y = let (a,b) = T.breakOn x y in if strNull b then Nothing else Just (a,strDrop (strLen a) b)
-   
+  strUntil x y = let (a,b) = T.break x y in if strNull b then Nothing else Just (a,strTail b)
+  strUntilStr x y = let (a,b) = T.breakOn x y in if strNull b then Nothing else Just (a,strDrop (strLen a) b)
+  
+  strBrk = T.break
+ 
   strSplit = T.splitOn . stringleton
   strSplitStr = T.splitOn . asText
   strSplitWith = T.split
@@ -335,9 +339,11 @@ instance Stringy TL.Text where
   strDropWhile = TL.dropWhile
   strTakeWhile = TL.takeWhile
 
-  strBrk x y = let (a,b) = TL.break x y in if strNull b then Nothing else Just (a, strTail b)
-  strBrkStr x y = let (a,b) = TL.breakOn x y in if strNull b then Nothing else Just (a, strDrop (strLen x) b)
-   
+  strUntil x y = let (a,b) = TL.break x y in if strNull b then Nothing else Just (a, strTail b)
+  strUntilStr x y = let (a,b) = TL.breakOn x y in if strNull b then Nothing else Just (a, strDrop (strLen x) b)
+  
+  strBrk = TL.break
+ 
   strSplit = TL.splitOn . stringleton
   strSplitStr = TL.splitOn . asLazyText
 --  splitOn = TL.splitOn
@@ -421,9 +427,11 @@ instance Stringy B.ByteString where
   strLen = fromIntegral . B.length
   strDropWhile = B.dropWhile
   strTakeWhile = B.takeWhile
-  strBrk f x = let (a,b) = B.break f x in if strNull b then Nothing else Just (a,strTail b)
-  strBrkStr f x = let (a,b) = B.breakSubstring f x in if strNull b then Nothing else Just (a, strDrop (strLen a) b)
-  
+  strUntil f x = let (a,b) = B.break f x in if strNull b then Nothing else Just (a,strTail b)
+  strUntilStr f x = let (a,b) = B.breakSubstring f x in if strNull b then Nothing else Just (a, strDrop (strLen a) b)
+ 
+  strBrk = B.break
+ 
   strSplit = B.split
   strSplitStr d x = let (a,b) = B.breakSubstring (asByteString d) x in if strNull b then [a] else a : strSplitStr d (strDrop (strLen d) b) 
   strSplitWith = B.splitWith
@@ -586,12 +594,14 @@ instance Stringy [Char] where
   strLen = fromIntegral . length
   strDropWhile = dropWhile
   strTakeWhile = takeWhile
-  strBrk x y = let (a,b) = break x y in if null b then Nothing else Just (a, strTail b)
-  strBrkStr pat src = search 0 src
+  strUntil x y = let (a,b) = break x y in if null b then Nothing else Just (a, strTail b)
+  strUntilStr pat src = search 0 src
     where search n s
             | null s             = Nothing 
             | pat `strPrefixOf` s = Just (take n src, drop n s)
             | otherwise          = search (n+1) (tail s)
+
+  strBrk = break
 
   strSplit d x = let (_,b) = split_ ([],[]) x in b where
      split_ (a,b) [] = ([], reverse (reverse a : b))
