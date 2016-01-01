@@ -221,7 +221,12 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     pack :: [(Char_y a)] -> a
     unpack :: a -> [(Char_y a)]
 
-    stripStart :: a -> a
+    trimL :: a -> a
+    trimR :: a -> a
+    trimR = strReverse . trimL . strReverse . trimL
+
+    trim :: a -> a
+    trim = trimR . trimL 
    
     intercalate :: a -> [a] -> a
 
@@ -311,7 +316,7 @@ instance Stringy T.Text where
   pack = T.pack
   unpack = T.unpack
 
-  stripStart = T.stripStart
+  trimL = T.stripStart
 
   intercalate = T.intercalate
   strReadFile = T.readFile
@@ -381,7 +386,7 @@ instance Stringy TL.Text where
   pack = TL.pack
   unpack = TL.unpack
 
-  stripStart = TL.stripStart
+  trimL = TL.stripStart
 
   intercalate = TL.intercalate
   strReadFile = TL.readFile 
@@ -469,7 +474,7 @@ instance Stringy B.ByteString where
   pack = B.pack
   unpack = B.unpack
   
-  stripStart = strDropWhile isSpace
+  trimL = strDropWhile isSpace
 
   intercalate = B.intercalate
   strReadFile = B.readFile
@@ -495,14 +500,14 @@ instance Stringy B.ByteString where
       Left x -> Left x
       Right (y,z) -> Right (y, asByteString z)
 
-  strToLower = B.map (\x -> ctype_lower!x)
-  strToUpper = B.map (\x -> ctype_upper!x)
+  strToLower = B.map (BI.c2w . C.toLower . chr . fromEnum )
+  strToUpper = B.map (BI.c2w . C.toUpper . chr . fromEnum )
   
-ctype_lower :: UArray Word8 Word8
-ctype_lower = listArray (0,255) (map (BI.c2w . C.toLower) ['\0'..'\255'])
+-- ctype_lower :: UArray Word8 Word8
+-- ctype_lower = listArray (0,255) (map (BI.c2w . C.toLower) ['\0'..'\255'])
 
-ctype_upper :: UArray Word8 Word8
-ctype_upper = listArray (0,255) (map (BI.c2w . C.toUpper) ['\0'..'\255'])
+-- ctype_upper :: UArray Word8 Word8
+-- ctype_upper = listArray (0,255) (map (BI.c2w . C.toUpper) ['\0'..'\255'])
 
 {-
 instance Stringy L.ByteString where
@@ -552,7 +557,7 @@ instance Stringy L.ByteString where
   pack = L.pack
   unpack = L.unpack
 
-  stripStart = strDropWhile isSpace
+  trimL = strDropWhile isSpace
 
   splitChar = L.split
   splitStr d x = let (a,b) = strBrkStr d x in if strNull b then [a] else a : splitStr d (strDrop (strLen d) b) 
@@ -647,7 +652,7 @@ instance Stringy [Char] where
   pack = id
   unpack = id
 
-  stripStart = strDropWhile isSpace 
+  trimL = strDropWhile isSpace 
 
   intercalate = DL.intercalate
   strReadFile = readFile

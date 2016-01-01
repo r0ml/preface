@@ -33,7 +33,8 @@ to provide a single import / namespace containing all of the commonly used built
 module Preface.Imports ( module X, module Preface.Imports ) where
 
 import qualified Prelude as XX
-import Prelude as X hiding ( (++) )
+import Prelude as X hiding ( (++), length, map, init, scanl, zipWith )
+import Preface.Sequential as X
 
 import qualified Control.Applicative as XX
 import Control.Applicative as X ((<|>), optional, liftA, liftA2, liftA3)
@@ -82,7 +83,7 @@ import Control.Monad as X (
 
 import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
-import Data.Array.IArray as X (Array, Ix(..), IArray(..), listArray, (!), bounds, array, elems)
+import Data.Array.IArray as X (Array, Ix(..), IArray(..), listArray, bounds, array, elems)
 import Data.Array.Unboxed as X (UArray)
 import Data.Binary as X (Binary)
 
@@ -142,7 +143,7 @@ import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignP
 import Foreign.Storable as X (Storable(..), peek, poke)
 
 import GHC.Generics as X hiding (Arity, Fixity)
-import GHC.Exts as X (sortWith, groupWith)
+import GHC.Exts as X (sortWith, groupWith, IsList(..) )
 import GHC.IO.Exception as X (IOException(..), IOErrorType(..) )
 import GHC.IO.Handle as X (hDuplicate)
 
@@ -172,9 +173,10 @@ import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirector
                         , dropTrailingPathSeparator )
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
-import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine, hGetContents
+import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine
+        , hGetContents
         , hGetBuf, hGetChar, hSetBuffering, BufferMode(..)
-        , openFile, withFile, IOMode(..), stdin, stderr, stdout
+        , openFile, withFile, withBinaryFile, IOMode(..), stdin, stderr, stdout
         , hSeek, SeekMode(..), hFileSize
         , openBinaryFile )
 import System.IO.Error as X ( isEOFError, ioeGetErrorType
@@ -189,9 +191,12 @@ import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
   readProcessWithExitCode, runInteractiveProcess, terminateProcess,
   CreateProcess(..), ProcessHandle, rawSystem )
 
-import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus, isSymbolicLink)
+import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus
+                         , isSymbolicLink, FileOffset
+                         , createLink, createSymbolicLink, createNamedPipe
+                         , createPipe)
 import System.Posix.Signals as X (installHandler, sigTERM, sigINT)
-import System.Posix.Types as X (Fd(..), FileMode(..) )
+import System.Posix.Types as X (Fd(..), FileMode )
 
 import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
 

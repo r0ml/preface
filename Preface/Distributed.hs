@@ -4,7 +4,7 @@ module Preface.Distributed
 
 where
 
-import Preface.Imports hiding (decode)
+import Preface.Imports 
 import qualified Data.Binary as B
 import Preface.Stringy
 import Preface.Misc

@@ -44,7 +44,7 @@ type PAccum = (String, [StmtQ], [ExpQ])
 
 parseArg :: String -> PAccum
 parseArg s =
-  let s2 = (reverse . stripStart . reverse . stripStart) s
+  let s2 = trim s
       s3 = head s2
       pa
         | isDigit s3 = if all isDigit s2 then 
@@ -65,16 +65,16 @@ parseArg s =
 -- parseMoreArgs takes the selector partial, the do statements prefix, and the array of args so far
 -- it returns the updated selector partial, the updated do statements prefix, and the updated array of args so far.
 parseMoreArgs accum@(sel, dox, args) s = 
-  let s1 = stripStart s
+  let s1 = trimL s
    in if null s1 then accum
       else let (s5, s6) = break (==':') s1
                (sl, dx, a3) = parseArg (tail (traceShow ("parseMoreArgs",s6) s6))
             in (sel++s5++":"++sl, dox++dx, args++a3)
 
 nsParse :: String -> ExpQ
-nsParse q = let s1 = stripStart q
+nsParse q = let s1 = trimL q
                 (s2, s3) = break isSpace s1
-                s4 = stripStart s3
+                s4 = trimL s3
                 (s5, s6) = break (==':') s4
                 rcvr = parseRcvr s2
                 (sel, pfxs, args) = if null s6

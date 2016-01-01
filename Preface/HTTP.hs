@@ -119,14 +119,14 @@ Example use:
   ,  ConnError(..), failWith, fmapE, SResult, httpOpenStream
   , httpClose, httpCloseOnEnd, httpWriteBlock
   , httpReadBlock, httpReadLine, URI(..), URIAuth(..), parseURIReference
-  , sp, readsOne, encode64, trim, crlf, readsOne 
+  , sp, readsOne, encode64, crlf, readsOne 
 -- maybe not?
    , relativeTo, parseURI
    , HandleStream(..)
    , EndPoint(..)
    , isTCPConnectedTo
    , satisfy, oneOf, sequenceOf, lastOf, catManyOf
-   , encode64, trim, sepBy
+   , encode64, sepBy
        ) where
 
 
@@ -245,6 +245,7 @@ import Preface.Stringy
 import Preface.Misc
 import Preface.SecureHash (md5, stringDigest)
 
+import qualified Data.Array.IArray as A ((!))
 
 -- | @simpleHTTP req@ transmits the 'Request' @req@ by opening a /direct/, non-persistent
 -- connection to the HTTP server that @req@ is destined for, followed by transmitting
@@ -2036,9 +2037,9 @@ parseHeaders = catMaybes . map parseHeader . joinExtended
 
      parseHeader :: String -> Maybe HttpHeader
      parseHeader str =
-        case strUntil (==':') (stripStart str) of
+        case strUntil (==':') (trimL str) of
             Nothing -> Nothing
-            Just (k,v) -> Just $ HttpHeader (HeaderName k) (stripStart v)
+            Just (k,v) -> Just $ HttpHeader (HeaderName k) (trimL v)
 
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -2067,25 +2068,6 @@ split delim list = case delim `elemIndex` list of
     Nothing -> Nothing
     Just x  -> Just $ splitAt x list
 -}
-
--- | @trim str@ removes leading and trailing whitespace from @str@.
-trim :: String -> String
-trim xs = trimR (trimL xs)
-   
--- | @trimL str@ removes leading whitespace (as defined by 'Data.Char.isSpace')
--- from @str@.
-trimL :: String -> String
-trimL xs = dropWhile isSpace xs
-
--- | @trimL str@ removes trailing whitespace (as defined by 'Data.Char.isSpace')
--- from @str@.
-trimR :: String -> String
-trimR str = fromMaybe "" $ foldr trimIt Nothing str
- where
-  trimIt x (Just xs) = Just (x:xs)
-  trimIt x Nothing   
-   | isSpace x = Nothing
-   | otherwise = Just [x]
 
 {-
 -- | @splitMany delim ls@ removes the delimiter @delim@ from @ls@.
@@ -2177,7 +2159,7 @@ char3_int4 [] = []
 
 -- Retrieve base64 char, given an array index integer in the range [0..63]
 enc1 :: Int -> Char
-enc1 ch = encodeArray!ch
+enc1 ch = encodeArray A.! ch
 
 -- | Cut up a string into 72 char lines, each line terminated by CRLF.
 chop72 :: String -> String

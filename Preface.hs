@@ -57,6 +57,7 @@ import Bindings.Python as X
 import Bindings.TLS as X
 import Bindings.Zlib as X
 
+import Bindings.SQLite3 as X
 
 import Preface.Pipes as X
 

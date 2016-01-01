@@ -5,7 +5,6 @@
 module Bindings.TLS where
 
 import Preface.Imports
-import Preface.Stringy
 
 ssl_load_error_strings :: IO ()
 ssl_load_error_strings = c_ssl_load_error_strings

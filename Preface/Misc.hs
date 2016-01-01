@@ -98,3 +98,4 @@ binaryEncode = BL.toStrict . DB.encode
 binaryDecode :: Binary a => ByteString -> a
 binaryDecode = DB.decode . BL.fromStrict
 
+

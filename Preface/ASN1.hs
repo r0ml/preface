@@ -63,7 +63,7 @@ module Preface.ASN1
     , asn1RunGet
     , asn1GetHeader
     , asn1PutHeader
-    , Result(..)
+    , ASN1Result(..)
 
 {- no? -}
     , ASN1(..)
@@ -106,8 +106,6 @@ import Data.Time (TimeZone)
 -- import           Numeric (showHex)
 -- import Data.String
 import qualified Data.ByteString.Char8 as BC
-
-
 
 -- | Basic Encoding Rules (BER)
 data BER = BER
@@ -190,8 +188,8 @@ encodeToRaw = concatMap writeTree . mkTree
 -- where the construction terminate.
 type ConstructionEndAt = Maybe Word64
 
-data ParseExpect = ExpectHeader (Maybe (B.ByteString -> Result ASN1Header))
-                 | ExpectPrimitive Word64 (Maybe (B.ByteString -> Result ByteString))
+data ParseExpect = ExpectHeader (Maybe (B.ByteString -> ASN1Result ASN1Header))
+                 | ExpectPrimitive Word64 (Maybe (B.ByteString -> ASN1Result ByteString))
 
 type ParsePosition = Word64
 
@@ -250,9 +248,9 @@ runParseState = loop
            go :: ParseState -> ByteString -> Either ASN1Error (ParseCursor, ByteString)
            go (ParseState stackEnd (ExpectHeader cont) pos) bs =
                 case runGetHeader cont pos bs of
-                     Fail s                 -> Left $ ParsingHeaderFail s
-                     Partial f              -> Right (([], ParseState stackEnd (ExpectHeader $ Just f) pos), B.empty)
-                     Done hdr nPos remBytes
+                     ASN1Fail s                 -> Left $ ParsingHeaderFail s
+                     ASN1Partial f              -> Right (([], ParseState stackEnd (ExpectHeader $ Just f) pos), B.empty)
+                     ASN1Done hdr nPos remBytes
                         | isEOC hdr -> case stackEnd of
                                            []                  -> Right (([], ParseState [] (ExpectHeader Nothing) nPos), remBytes)
                                            Just _:_            -> Left StreamUnexpectedEOC
@@ -277,9 +275,9 @@ runParseState = loop
                                                             , remBytes)
            go (ParseState stackEnd (ExpectPrimitive len cont) pos) bs =
                 case runGetPrimitive cont len pos bs of
-                     Fail _               -> error "primitive parsing failed"
-                     Partial f            -> Right (([], ParseState stackEnd (ExpectPrimitive len $ Just f) pos), B.empty)
-                     Done p nPos remBytes -> Right (([Primitive p], ParseState stackEnd (ExpectHeader Nothing) nPos), remBytes)
+                     ASN1Fail _               -> error "primitive parsing failed"
+                     ASN1Partial f            -> Right (([], ParseState stackEnd (ExpectPrimitive len $ Just f) pos), B.empty)
+                     ASN1Done p nPos remBytes -> Right (([Primitive p], ParseState stackEnd (ExpectHeader Nothing) nPos), remBytes)
 
            runGetHeader Nothing  = \pos -> runGetPos pos asn1GetHeader
            runGetHeader (Just f) = const f
@@ -377,33 +375,33 @@ data ASN1Error = StreamUnexpectedEOC         -- ^ Unexpected EOC in the stream.
 instance Exception ASN1Error
 
 -- | The result of a parse.
-data Result r = Fail String
+data ASN1Result r = ASN1Fail String
               -- ^ The parse failed. The 'String' is the
               --   message describing the error, if any.
-              | Partial (B.ByteString -> Result r)
+              | ASN1Partial (B.ByteString -> ASN1Result r)
               -- ^ Supply this continuation with more input so that
               --   the parser can resume. To indicate that no more
               --   input is available, use an 'B.empty' string.
-              | Done r Position B.ByteString
+              | ASN1Done r Position B.ByteString
               -- ^ The parse succeeded.  The 'B.ByteString' is the
               --   input that had not yet been consumed (if any) when
               --   the parse succeeded.
 
-instance Show r => Show (Result r) where
-    show (Fail msg)  = "Fail " ++ show msg
-    show (Partial _) = "Partial _"
-    show (Done r pos bs) = "Done " ++ show r ++ " " ++ show pos ++ " " ++ show bs
+instance Show r => Show (ASN1Result r) where
+    show (ASN1Fail msg)  = "Fail " ++ show msg
+    show (ASN1Partial _) = "Partial _"
+    show (ASN1Done r pos bs) = "Done " ++ show r ++ " " ++ show pos ++ " " ++ show bs
 
-instance Functor Result where
-    fmap _ (Fail msg)  = Fail msg
-    fmap f (Partial k) = Partial (fmap f . k)
-    fmap f (Done r p bs) = Done (f r) p bs
+instance Functor ASN1Result where
+    fmap _ (ASN1Fail msg)  = ASN1Fail msg
+    fmap f (ASN1Partial k) = ASN1Partial (fmap f . k)
+    fmap f (ASN1Done r p bs) = ASN1Done (f r) p bs
 
 type Input  = B.ByteString
 type Buffer = Maybe B.ByteString
 
-type Failure   r = Input -> Buffer -> More -> Position -> String -> Result r
-type Success a r = Input -> Buffer -> More -> Position -> a      -> Result r
+type Failure   r = Input -> Buffer -> More -> Position -> String -> ASN1Result r
+type Success a r = Input -> Buffer -> More -> Position -> a      -> ASN1Result r
 type Position    = Word64
 
 -- | Have we read all available input?
@@ -413,7 +411,7 @@ data More = Complete
 
 -- | The Get monad is an Exception and State monad.
 newtype Get a = Get
-    { unGet :: forall r. Input -> Buffer -> More -> Position -> Failure r -> Success a r -> Result r }
+    { unGet :: forall r. Input -> Buffer -> More -> Position -> Failure r -> Success a r -> ASN1Result r }
 
 append :: Buffer -> Buffer -> Buffer
 append l r = B.append `fmap` l <*> r
@@ -461,18 +459,18 @@ put :: Position -> B.ByteString -> Get ()
 put pos s = Get (\_ b0 m p0 _ k -> k s b0 m (p0+pos) ())
 {-# INLINE put #-}
 
-finalK :: B.ByteString -> t -> t1 -> Position -> r -> Result r
-finalK s _ _ p a = Done a p s
+finalK :: B.ByteString -> t -> t1 -> Position -> r -> ASN1Result r
+finalK s _ _ p a = ASN1Done a p s
 
 failK :: Failure a
-failK _ _ _ p s = Fail (show p ++ ":" ++ s)
+failK _ _ _ p s = ASN1Fail (show p ++ ":" ++ s)
 
 -- | Run the Get monad applies a 'get'-based parser on the input ByteString
-runGetPos :: Position -> Get a -> B.ByteString -> Result a
+runGetPos :: Position -> Get a -> B.ByteString -> ASN1Result a
 runGetPos pos m str = unGet m str Nothing (Incomplete Nothing) pos failK finalK
 {-# INLINE runGetPos #-}
 
-asn1RunGet :: Get a -> B.ByteString -> Result a
+asn1RunGet :: Get a -> B.ByteString -> ASN1Result a
 asn1RunGet = runGetPos 0
 {-# INLINE asn1RunGet #-}
 
@@ -499,7 +497,7 @@ demandInput :: Get ()
 demandInput = Get $ \s0 b0 m0 p0 kf ks ->
   case m0 of
     Complete      -> kf s0 b0 m0 p0 "too few bytes"
-    Incomplete mb -> Partial $ \s ->
+    Incomplete mb -> ASN1Partial $ \s ->
       if B.null s
       then kf s0 b0 m0 p0 "too few bytes"
       else let update l = l - B.length s

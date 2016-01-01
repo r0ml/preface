@@ -213,7 +213,7 @@ instance Arbitrary ASN1s where
 
 prop_header_marshalling_id :: ASN1Header -> Bool
 prop_header_marshalling_id v = (ofDone $ asn1RunGet asn1GetHeader $ asn1PutHeader v) == Right v
-    where ofDone (Done r _ _) = Right r
+    where ofDone (ASN1Done r _ _) = Right r
           ofDone _            = Left "not done"
 
 prop_event_marshalling_id :: ASN1Events -> Bool

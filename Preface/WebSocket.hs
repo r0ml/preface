@@ -10,6 +10,8 @@ import Preface.SecureHash
 import Bindings.Zlib -- (ZData, feed, flush, initInflate)
 import Preface.FFITemplates (enumInt)
 
+default (Int)
+
 encodeFrame :: ByteString -> FrameType -> ByteString -> ByteString
 encodeFrame fmask ft f = strCat [pack [byte0, byte1], len , fmask, 
                                  if strNull fmask then f else maskPayload fmask f]
@@ -158,7 +160,7 @@ readHttpResponse sock lft = do
         zsplit :: ByteString -> (String, String)
         zsplit strx = case strUntil (== ':') (asString strx) of
                           Nothing -> (asString strx, "")
-                          Just (key, val) -> (key, stripStart val)
+                          Just (key, val) -> (key, trimL val)
 
         sRecv sockx = catch (sktRecv sockx 4096 :: IO ByteString) 
                             (\e -> putStrLn ("readHttpResponse ==> " ++ show (e :: SomeException)) >> sClose sockx >> putStrLn "closed sock" >> return zilde)
@@ -254,7 +256,7 @@ readHdrs dohandshake sock envx ch lft = do
         zsplit :: ByteString -> (String, String)
         zsplit strx = case strUntil (== ':') (asString strx) of
                         Nothing -> (asString strx, "")
-                        Just (key, val) -> (key, stripStart val)
+                        Just (key, val) -> (key, trimL val)
 
         sRecv sockx = catch (sktRecv sockx 4096 :: IO ByteString) 
                             (\e -> putStrLn ("readHdrs ==> " ++ show (e :: SomeException)) >> sClose sockx >> putStrLn "closed sock" >> return zilde)

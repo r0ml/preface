@@ -4,7 +4,6 @@ module Preface.IO (
 ) where
 
 import Preface.Imports
-import System.Directory (getTemporaryDirectory)
 import System.IO (openBinaryTempFile)
 
 -- Creates a new temporary file making use of the template.

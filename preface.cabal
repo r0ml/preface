@@ -46,6 +46,7 @@ Library
             , Preface.Typing, Preface.Diff, Preface.Console
             , Preface.ASN1, Preface.Tar, Preface.HTTP, Preface.Distributed
             , Preface.Watch
+            , Preface.Sequential
             , Bindings.CoreFoundation
             , Bindings.Objc
             , Bindings.Darwin
@@ -58,15 +59,19 @@ Library
             , Bindings.TLS
             , Bindings.Vfs
             , Bindings.Msg, Bindings.Syslog
+            , Bindings.SQLite3, Bindings.SQLite3.Direct, Bindings.SQLite3.Types
+            , Bindings.SQLite3.Bindings
             , Bindings.Zlib
 
 
   -- this fails with pkgconfig because --modversion can't parse the openssl version
-  Extra-Libraries: ssl crypto
+  Extra-Libraries: ssl crypto sqlite3
   Extra-Lib-Dirs: /Volumes/Storage/usr-local/Cellar/openssl/1.0.2d_1/lib
 
   -- Extra-Libraries: python2.7
   -- Extra-Lib-Dirs: /System/Library/Frameworks/Python.framework/Versions/2.7/lib
+
+  Include-Dirs: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/usr/include
 
   Default-Extensions: NoImplicitPrelude
   Hs-Source-Dirs: .

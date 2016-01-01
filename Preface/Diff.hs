@@ -16,6 +16,8 @@ import Preface.Imports
 import Preface.Console
 import Preface.Stringy
 
+import qualified Data.Array.IArray as A ((!))
+
 data WhichInput = First | Second | Both deriving (Show, Eq)
 
 data SingleDiff a = SingleLeft a | SingleRight a | SingleBoth a a deriving (Show, Eq)
@@ -29,7 +31,7 @@ canDiag :: (IArray UArray a) => (a -> a -> Bool) -> [a] -> [a] -> Int -> Int -> 
 canDiag eq as bs lena lenb = 
     let arAs = listArray (0, lena - 1) as :: UArray Int _ 
         arBs = listArray (0, lenb - 1) bs :: UArray Int _
-     in  \ i j -> (( i < lena && j < lenb ) && ((arAs ! i) `eq` (arBs ! j)))
+     in  \ i j -> (( i < lena && j < lenb ) && ((arAs A.! i) `eq` (arBs A.! j)))
 
 dstep :: (Int -> Int -> Bool) -> [DL] -> [DL]
 dstep cd dls = f1 (head dls) : nextstep dls
