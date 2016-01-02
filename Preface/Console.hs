@@ -12,7 +12,8 @@ csi args code = strConcat ["\ESC[" ,  intercalate ";" (map (asByteString . show)
 peach = setExtendedColor 202
 azure = setExtendedColor  27
 
-treset = "\ESC[m"
+treset :: ByteString
+treset = "\ESC[m" 
 
 charNotEquals = '\x2260'
 charCheck = '\x2714'
@@ -84,8 +85,15 @@ clearToLineEnd = csi [0] "K"
 setPosition n m = csi [n+1, m+1] "H"
 setColumn n = csi [n+1] "G"
 
+deleteChar :: ByteString
 deleteChar = csi [1] "P"
+
+insertChar :: Word8 -> ByteString
 insertChar a = strConcat [csi [4] "h", stringleton a]
+
+forwardChar :: ByteString
 forwardChar = "\ESC[C"
+
+backwardChar :: ByteString
 backwardChar = "\ESC[D"
 

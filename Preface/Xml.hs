@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Preface.Xml (
     XmlElement (..)
@@ -210,7 +211,7 @@ data XmlError = XmlError String
 instance Show XmlError where
         show (XmlError a) = a
 
-xmlError :: String -> Either XmlError a
+xmlError :: XMLic a => String -> Either XmlError a
 xmlError a = Left $ XmlError $ trace a a
 
 class XMLic a where
@@ -392,12 +393,13 @@ parseRecord opts tName cName ts obj =
           `appE` (litE $ stringL $ xmlConstructorTagModifier opts $ nameBase cName)
           `appE` (varE obj)
 
-lookupArrayField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError [a]
+lookupArrayField :: forall a . (XMLic a, XMLic [a]) => String -> String -> XmlElement -> String -> Either XmlError [a]
 lookupArrayField _tName _rec obj key =
         let fl = findNodes key obj
-            flm = map fromXML fl :: XMLic a => [Either XmlError a]
-            (ls, rs) = partitionEithers flm
-         in if null ls then Right rs else xmlError $ concatMap (\(XmlError x) -> x++"\n") ls
+            flm = map fromXML fl 
+            pex = partitionEithers flm 
+            (ls, rs) = pex :: ([XmlError], [a])
+         in if null ls then Right rs else ( xmlError $ concatMap (\(XmlError x) -> x++"\n") ls :: Either XmlError [a])
 
 lookupField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError a
 lookupField tName rec obj key = 
@@ -409,14 +411,14 @@ lookupField tName rec obj key =
           Just v  -> fromXML v 
           -- _z -> traceShow ("lookupField", obj) $ xmlError $ printf "lookupField: did not match XmlNode with single child when parsing key %s of %s (%s)" key rec (show _z)
 
-lookupMaybeField :: XMLic a => String -> String -> XmlElement -> String -> Either XmlError (Maybe a)
+lookupMaybeField :: (XMLic a, XMLic (Maybe a)) => String -> String -> XmlElement -> String -> Either XmlError (Maybe a)
 lookupMaybeField _tName rec obj key =
         case firstNode key obj of
           Nothing -> Right Nothing
           Just (XmlNode _t _ [v]) -> either Left (Right . Just) (fromXML v)
           _ -> xmlError $ printf "lookupMaybeField: did not match XmlNode with single child when parsing key %s of %s" key rec
 
-unknownFieldFail :: String -> String -> String -> Either XmlError fail
+unknownFieldFail :: XMLic fail => String -> String -> String -> Either XmlError fail
 unknownFieldFail tName rec key =
     xmlError $ printf "unknownFieldFail: When parsing the record %s of type %s the key %s was not present."
                   rec tName key
@@ -547,10 +549,10 @@ encodeSum _opts multiCons _cName exp2
 
 
 -- -------------------------------------------------------------
-noStringFail :: String -> String -> Either XmlError fail
+noStringFail :: XMLic fail => String -> String -> Either XmlError fail
 noStringFail t o = xmlError $ printf "When parsing %s expected XmlNode but got %s." t o
 
-noMatchFail :: String -> String -> Either XmlError fail
+noMatchFail :: XMLic fail => String -> String -> Either XmlError fail
 noMatchFail t o =
     xmlError $ printf "When parsing %s expected an XmlNode but got %s." t o
 

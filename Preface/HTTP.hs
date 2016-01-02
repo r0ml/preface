@@ -1255,7 +1255,7 @@ switchResponse conn allow_retry bdy_sent (Right (cd,rn,hdrs)) rqst =
        r <- fmapE (\ (ftrs,bdy) -> Right (HTTPResponse cd rn (hdrs++ftrs) bdy)) $
              maybe (maybe (hopefulTransfer (httpReadLine conn) [])
                (\ x -> readsOne (linearTransfer (httpReadBlock conn))
-                   (return$responseParseError "unrecognized content-length value" x) x) cl)
+                   (return $ responseParseError "unrecognized content-length value" x) x) cl)
            (ifChunked (chunkedTransfer (httpReadLine conn) (httpReadBlock conn))
                       (uglyDeathTransfer "sendHTTP"))
                    tc
@@ -1292,7 +1292,7 @@ s_receiveHTTP conn = getRequestHead >>= either (return . Left) processRequest
         maybe 
           (maybe (return (Right ([], strEmpty))) -- hopefulTransfer ""
              (\ x -> readsOne (linearTransfer (httpReadBlock conn))
-              (return$responseParseError "unrecognized Content-Length value" x) x) cl)
+              (return $ responseParseError "unrecognized Content-Length value" x) x) cl)
           (ifChunked (chunkedTransfer (httpReadLine conn) (httpReadBlock conn))
                 (uglyDeathTransfer "receiveHTTP"))
               tc

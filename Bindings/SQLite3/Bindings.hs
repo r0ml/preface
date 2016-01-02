@@ -100,7 +100,7 @@ module Bindings.SQLite3.Bindings (
     c_sqlite3_free,
 
     -- * Extensions
-    c_sqlite3_enable_load_extension,
+    -- c_sqlite3_enable_load_extension,
 
     -- * Write-Ahead Log Commit Hook
     c_sqlite3_wal_hook,
@@ -129,23 +129,21 @@ import Preface.Imports
 
 import Bindings.SQLite3.Types
 
-import Foreign
-import Foreign.C
 
 
 -- | <http://www.sqlite.org/c3ref/open.html>
 --
 -- This sets the @'Ptr CDatabase'@ even on failure.
 foreign import ccall "sqlite3_open"
-    c_sqlite3_open :: CString -> Ptr (Ptr CDatabase) -> IO CError
+    c_sqlite3_open :: CString -> Ptr (Ptr CDatabase) -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/close.html>
 foreign import ccall "sqlite3_close"
-    c_sqlite3_close :: Ptr CDatabase -> IO CError
+    c_sqlite3_close :: Ptr CDatabase -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/errcode.html>
 foreign import ccall "sqlite3_errcode"
-    c_sqlite3_errcode :: Ptr CDatabase -> IO CError
+    c_sqlite3_errcode :: Ptr CDatabase -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/errcode.html>
 foreign import ccall "sqlite3_errmsg"
@@ -170,7 +168,7 @@ foreign import ccall unsafe "sqlite3_get_autocommit"
 
 -- | <https://www.sqlite.org/c3ref/enable_shared_cache.html>
 foreign import ccall unsafe "sqlite3_enable_shared_cache"
-    c_sqlite3_enable_shared_cache :: CInt -> IO CError
+    c_sqlite3_enable_shared_cache :: CInt -> IO CInt
 
 
 foreign import ccall "sqlite3_exec"
@@ -180,7 +178,7 @@ foreign import ccall "sqlite3_exec"
         -> FunPtr (CExecCallback a) -- ^ Optional callback function called for each row
         -> Ptr a                    -- ^ Context passed to the callback
         -> Ptr CString              -- ^ OUT: Error message string
-        -> IO CError
+        -> IO CInt
 
 type CExecCallback a
      = Ptr a
@@ -228,7 +226,7 @@ foreign import ccall "sqlite3_prepare_v2"
                                 --   NUL-terminated string.
         -> Ptr (Ptr CStatement) -- ^ OUT: Statement handle.  This must not be null.
         -> Ptr CString          -- ^ OUT: Pointer to unused portion of zSql
-        -> IO CError
+        -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/db_handle.html>
 foreign import ccall unsafe "sqlite3_db_handle"
@@ -236,27 +234,27 @@ foreign import ccall unsafe "sqlite3_db_handle"
 
 -- | <http://www.sqlite.org/c3ref/step.html>
 foreign import ccall "sqlite3_step"
-    c_sqlite3_step :: Ptr CStatement -> IO CError
+    c_sqlite3_step :: Ptr CStatement -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/reset.html>
 --
 -- /Warning:/ If the most recent 'c_sqlite3_step' call failed,
 -- this will return the corresponding error code.
 foreign import ccall "sqlite3_reset"
-    c_sqlite3_reset :: Ptr CStatement -> IO CError
+    c_sqlite3_reset :: Ptr CStatement -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/finalize.html>
 --
 -- /Warning:/ If the most recent 'c_sqlite3_step' call failed,
 -- this will return the corresponding error code.
 foreign import ccall "sqlite3_finalize"
-    c_sqlite3_finalize :: Ptr CStatement -> IO CError
+    c_sqlite3_finalize :: Ptr CStatement -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/clear_bindings.html>
 --
 -- A look at the source reveals that this function always returns @SQLITE_OK@.
 foreign import ccall unsafe "sqlite3_clear_bindings"
-    c_sqlite3_clear_bindings :: Ptr CStatement -> IO CError
+    c_sqlite3_clear_bindings :: Ptr CStatement -> IO CInt
 
 -- | <http://www.sqlite.org/c3ref/sql.html>
 foreign import ccall unsafe "sqlite3_sql"
@@ -297,11 +295,11 @@ foreign import ccall unsafe "sqlite3_bind_blob"
                             --   will bind a null value, rather than an empty blob.
         -> CNumBytes        -- ^ Length, in bytes.  This must not be negative.
         -> Ptr CDestructor
-        -> IO CError
+        -> IO CInt
 
 foreign import ccall unsafe "sqlite3_bind_zeroblob"
     c_sqlite3_bind_zeroblob
-        :: Ptr CStatement -> CParamIndex -> CInt -> IO CError
+        :: Ptr CStatement -> CParamIndex -> CInt -> IO CInt
 
 foreign import ccall unsafe "sqlite3_bind_text"
     c_sqlite3_bind_text
@@ -312,20 +310,20 @@ foreign import ccall unsafe "sqlite3_bind_text"
         -> CNumBytes        -- ^ Length, in bytes.  If this is negative,
                             --   the value is treated as a NUL-terminated string.
         -> Ptr CDestructor
-        -> IO CError
+        -> IO CInt
 
 foreign import ccall unsafe "sqlite3_bind_double"
-    c_sqlite3_bind_double   :: Ptr CStatement -> CParamIndex -> Double -> IO CError
+    c_sqlite3_bind_double   :: Ptr CStatement -> CParamIndex -> Double -> IO CInt
 
 foreign import ccall unsafe "sqlite3_bind_int64"
-    c_sqlite3_bind_int64    :: Ptr CStatement -> CParamIndex -> Int64 -> IO CError
+    c_sqlite3_bind_int64    :: Ptr CStatement -> CParamIndex -> Int64 -> IO CInt
 
 foreign import ccall unsafe "sqlite3_bind_null"
-    c_sqlite3_bind_null     :: Ptr CStatement -> CParamIndex -> IO CError
+    c_sqlite3_bind_null     :: Ptr CStatement -> CParamIndex -> IO CInt
 
 
 foreign import ccall unsafe "sqlite3_column_type"
-    c_sqlite3_column_type   :: Ptr CStatement -> CColumnIndex -> IO CColumnType
+    c_sqlite3_column_type   :: Ptr CStatement -> CColumnIndex -> IO CInt -- CColumnType
 
 foreign import ccall unsafe "sqlite3_column_bytes"
     c_sqlite3_column_bytes  :: Ptr CStatement -> CColumnIndex -> IO CNumBytes
@@ -369,7 +367,7 @@ foreign import ccall "sqlite3_create_function_v2"
         -> FunPtr CFunc
         -> FunPtr CFuncFinal
         -> FunPtr (CFuncDestroy a)
-        -> IO CError
+        -> IO CInt
 
 type CFunc          = Ptr CContext -> CArgCount -> Ptr (Ptr CValue) -> IO ()
 
@@ -400,7 +398,7 @@ foreign import ccall unsafe "sqlite3_aggregate_context"
 
 
 foreign import ccall unsafe "sqlite3_value_type"
-    c_sqlite3_value_type   :: Ptr CValue -> IO CColumnType
+    c_sqlite3_value_type   :: Ptr CValue -> IO CInt -- CColumnType
 
 foreign import ccall unsafe "sqlite3_value_bytes"
     c_sqlite3_value_bytes  :: Ptr CValue -> IO CNumBytes
@@ -452,7 +450,7 @@ foreign import ccall "sqlite3_create_collation_v2"
         -> Ptr a           -- ^ User data
         -> FunPtr (CCompare a)
         -> FunPtr (CFuncDestroy a)
-        -> IO CError
+        -> IO CInt
 
 type CCompare a = Ptr a -> CNumBytes -> CString -> CNumBytes -> CString -> IO CInt
 
@@ -466,15 +464,15 @@ foreign import ccall "sqlite3_free"
 
 
 -- | <http://sqlite.org/c3ref/enable_load_extension.html>
-foreign import ccall "sqlite3_enable_load_extension"
-    c_sqlite3_enable_load_extension :: Ptr CDatabase -> Bool -> IO CError
+-- foreign import ccall "sqlite3_enable_load_extension"
+--     c_sqlite3_enable_load_extension :: Ptr CDatabase -> Bool -> IO CInt
 
 
 -- | <https://www.sqlite.org/c3ref/wal_hook.html>
 foreign import ccall unsafe "sqlite3_wal_hook"
     c_sqlite3_wal_hook :: Ptr CDatabase -> FunPtr CWalHook -> Ptr a -> IO (Ptr ())
 
-type CWalHook = Ptr () -> Ptr CDatabase -> CString -> CInt -> IO CError
+type CWalHook = Ptr () -> Ptr CDatabase -> CString -> CInt -> IO CInt
 
 foreign import ccall "wrapper"
     mkCWalHook :: CWalHook -> IO (FunPtr CWalHook)
@@ -490,15 +488,15 @@ foreign import ccall "sqlite3_blob_open"
         -> Int64           -- ^ Row ROWID
         -> CInt            -- ^ Flags
         -> Ptr (Ptr CBlob) -- ^ OUT: Blob handle, will be NULL on error
-        -> IO CError
+        -> IO CInt
 
 -- | <https://www.sqlite.org/c3ref/blob_close.html>
 foreign import ccall "sqlite3_blob_close"
-    c_sqlite3_blob_close :: Ptr CBlob -> IO CError
+    c_sqlite3_blob_close :: Ptr CBlob -> IO CInt
 
 -- | <https://www.sqlite.org/c3ref/blob_reopen.html>
 foreign import ccall "sqlite3_blob_reopen"
-    c_sqlite3_blob_reopen :: Ptr CBlob -> Int64 -> IO CError
+    c_sqlite3_blob_reopen :: Ptr CBlob -> Int64 -> IO CInt
 
 -- | <https://www.sqlite.org/c3ref/blob_bytes.html>
 foreign import ccall unsafe "sqlite3_blob_bytes"
@@ -506,11 +504,11 @@ foreign import ccall unsafe "sqlite3_blob_bytes"
 
 -- | <https://www.sqlite.org/c3ref/blob_read.html>
 foreign import ccall "sqlite3_blob_read"
-    c_sqlite3_blob_read :: Ptr CBlob -> Ptr a -> CInt -> CInt -> IO CError
+    c_sqlite3_blob_read :: Ptr CBlob -> Ptr a -> CInt -> CInt -> IO CInt
 
 -- | <https://www.sqlite.org/c3ref/blob_write.html>
 foreign import ccall "sqlite3_blob_write"
-    c_sqlite3_blob_write :: Ptr CBlob -> Ptr a -> CInt -> CInt -> IO CError
+    c_sqlite3_blob_write :: Ptr CBlob -> Ptr a -> CInt -> CInt -> IO CInt
 
 
 foreign import ccall "sqlite3_backup_init"
@@ -522,13 +520,16 @@ foreign import ccall "sqlite3_backup_init"
         -> IO (Ptr CBackup)
 
 foreign import ccall "sqlite3_backup_finish"
-    c_sqlite3_backup_finish :: Ptr CBackup -> IO CError
+    c_sqlite3_backup_finish :: Ptr CBackup -> IO CInt
 
 foreign import ccall "sqlite3_backup_step"
-    c_sqlite3_backup_step :: Ptr CBackup -> CInt -> IO CError
+    c_sqlite3_backup_step :: Ptr CBackup -> CInt -> IO CInt
 
 foreign import ccall unsafe "sqlite3_backup_remaining"
     c_sqlite3_backup_remaining :: Ptr CBackup -> IO CInt
 
 foreign import ccall unsafe "sqlite3_backup_pagecount"
     c_sqlite3_backup_pagecount :: Ptr CBackup -> IO CInt
+
+
+

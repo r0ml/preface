@@ -58,7 +58,7 @@ module Bindings.SQLite3.Direct (
     columnBlob,
 
     -- * control loading of extensions
-    setLoadExtensionEnabled,
+    -- setLoadExtensionEnabled,
 
     -- * Result statistics
     lastInsertRowId,
@@ -113,7 +113,7 @@ module Bindings.SQLite3.Direct (
     -- * Types
     Database(..),
     Statement(..),
-    ColumnType(..),
+    SQLColumnType(..),
     FuncContext(..),
     FuncArgs(..),
     Blob(..),
@@ -122,7 +122,7 @@ module Bindings.SQLite3.Direct (
     -- ** Results and errors
     StepResult(..),
     BackupStepResult(..),
-    Error(..),
+    SQLiteError(..),
 
     -- ** Special types
     Utf8(..),
@@ -136,6 +136,8 @@ module Bindings.SQLite3.Direct (
 import Preface.Imports hiding (packCStringLen)
 
 import Bindings.SQLite3.Bindings
+
+import Preface.FFITemplates
 
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Unsafe     as BSU
@@ -209,33 +211,33 @@ wrapNullablePtr :: (Ptr a -> b) -> Ptr a -> Maybe b
 wrapNullablePtr f ptr | ptr == nullPtr = Nothing
                       | otherwise      = Just (f ptr)
 
-type Result a = Either Error a
+type Result a = Either SQLiteError a
 
 -- Convert a 'CError' to a 'Result', in the common case where
 -- SQLITE_OK signals success and anything else signals an error.
 --
 -- Note that SQLITE_OK == 0.
-toResult :: a -> CError -> Result a
-toResult a (CError 0) = Right a
-toResult _ code       = Left $ decodeError code
+toResult :: a -> CInt -> Result a
+toResult a 0 = Right a
+toResult _ code       = Left $ cToEnum code
 
 -- Only perform the action if the 'CError' is SQLITE_OK.
-toResultM :: Monad m => m a -> CError -> m (Result a)
-toResultM m (CError 0) = m >>= return . Right
-toResultM _ code       = return $ Left $ decodeError code
+toResultM :: Monad m => m a -> CInt -> m (Result a)
+toResultM m 0 = m >>= return . Right
+toResultM _ code       = return $ Left $ cToEnum code
 
-toStepResult :: CError -> Result StepResult
+toStepResult :: CInt -> Result StepResult
 toStepResult code =
-    case decodeError code of
-        ErrorRow  -> Right Row
-        ErrorDone -> Right Done
+    case cToEnum code of
+        SQLiteErrorRow  -> Right Row
+        SQLiteErrorDone -> Right Done
         err       -> Left err
 
-toBackupStepResult :: CError -> Result BackupStepResult
+toBackupStepResult :: CInt -> Result BackupStepResult
 toBackupStepResult code =
-    case decodeError code of
-        ErrorOK   -> Right BackupOK
-        ErrorDone -> Right BackupDone
+    case cToEnum code of
+        SQLiteErrorOK   -> Right BackupOK
+        SQLiteErrorDone -> Right BackupDone
         err       -> Left err
 
 -- | The context in which a custom SQL function is executed.
@@ -259,7 +261,7 @@ data Backup = Backup Database (Ptr CBackup)
 ------------------------------------------------------------------------
 
 -- | <http://www.sqlite.org/c3ref/open.html>
-open :: Utf8 -> IO (Either (Error, Utf8) Database)
+open :: Utf8 -> IO (Either (SQLiteError, Utf8) Database)
 open (Utf8 path) =
     BS.useAsCString path $ \path' ->
     alloca $ \database -> do
@@ -278,7 +280,7 @@ open (Utf8 path) =
                     else return $ Right db
 
 -- | <http://www.sqlite.org/c3ref/close.html>
-close :: Database -> IO (Either Error ())
+close :: Database -> IO (Either SQLiteError ())
 close (Database db) =
     toResult () <$> c_sqlite3_close db
 
@@ -296,16 +298,16 @@ interrupt (Database db) =
     c_sqlite3_interrupt db
 
 -- | <http://www.sqlite.org/c3ref/errcode.html>
-errcode :: Database -> IO Error
+errcode :: Database -> IO SQLiteError
 errcode (Database db) =
-    decodeError <$> c_sqlite3_errcode db
+    cToEnum <$> c_sqlite3_errcode db
 
 -- | <http://www.sqlite.org/c3ref/errcode.html>
 errmsg :: Database -> IO Utf8
 errmsg (Database db) =
     c_sqlite3_errmsg db >>= packUtf8 (Utf8 BS.empty) id
 
-exec :: Database -> Utf8 -> IO (Either (Error, Utf8) ())
+exec :: Database -> Utf8 -> IO (Either (SQLiteError, Utf8) ())
 exec (Database db) (Utf8 sql) =
     BS.useAsCString sql $ \sql' ->
     alloca $ \msgPtrOut -> do
@@ -322,7 +324,7 @@ exec (Database db) (Utf8 sql) =
 --
 -- If the callback throws an exception, it will be rethrown by
 -- 'execWithCallback'.
-execWithCallback :: Database -> Utf8 -> ExecCallback -> IO (Either (Error, Utf8) ())
+execWithCallback :: Database -> Utf8 -> ExecCallback -> IO (Either (SQLiteError, Utf8) ())
 execWithCallback (Database db) (Utf8 sql) cb = do
     abortReason <- newIORef Nothing :: IO (IORef (Maybe SomeException))
     cbCache <- newIORef Nothing :: IO (IORef (Maybe ([Maybe Utf8] -> IO ())))
@@ -366,10 +368,10 @@ execWithCallback (Database db) (Utf8 sql) cb = do
                 return $ Left (err, msg)
         rc <- c_sqlite3_exec db sql' pExecCallback nullPtr msgPtrOut
         case toResult () rc of
-            Left ErrorAbort -> do
+            Left SQLiteErrorAbort -> do
                 m <- readIORef abortReason
                 case m of
-                    Nothing -> returnError ErrorAbort
+                    Nothing -> returnError SQLiteErrorAbort
                     Just ex -> throwIO ex
             Left err -> returnError err
             Right () -> return $ Right ()
@@ -428,7 +430,7 @@ getAutoCommit (Database db) =
 -- | <https://www.sqlite.org/c3ref/enable_shared_cache.html>
 --
 -- Enable or disable shared cache for all future connections.
-setSharedCacheEnabled :: Bool -> IO (Either Error ())
+setSharedCacheEnabled :: Bool -> IO (Either SQLiteError ())
 setSharedCacheEnabled val =
     toResult () <$> c_sqlite3_enable_shared_cache
         (if val then 1 else 0)
@@ -438,7 +440,7 @@ setSharedCacheEnabled val =
 --
 -- If the query contains no SQL statements, this returns
 -- @'Right' 'Nothing'@.
-prepare :: Database -> Utf8 -> IO (Either Error (Maybe Statement))
+prepare :: Database -> Utf8 -> IO (Either SQLiteError (Maybe Statement))
 prepare (Database db) (Utf8 sql) =
     BS.useAsCString sql $ \sql' ->
         alloca $ \statement ->
@@ -454,7 +456,7 @@ getStatementDatabase (Statement stmt) = do
         else return (Database db)
 
 -- | <http://www.sqlite.org/c3ref/step.html>
-step :: Statement -> IO (Either Error StepResult)
+step :: Statement -> IO (Either SQLiteError StepResult)
 step (Statement stmt) =
     toStepResult <$> c_sqlite3_step stmt
 
@@ -467,7 +469,7 @@ step (Statement stmt) =
 --
 --  * This does not reset the bindings on a prepared statement.
 --    Use 'clearBindings' to do that.
-reset :: Statement -> IO (Either Error ())
+reset :: Statement -> IO (Either SQLiteError ())
 reset (Statement stmt) =
     toResult () <$> c_sqlite3_reset stmt
 
@@ -475,7 +477,7 @@ reset (Statement stmt) =
 --
 -- /Warning:/ If the most recent 'step' call failed,
 -- this will return the corresponding error.
-finalize :: Statement -> IO (Either Error ())
+finalize :: Statement -> IO (Either SQLiteError ())
 finalize (Statement stmt) =
     toResult () <$> c_sqlite3_finalize stmt
 
@@ -529,38 +531,38 @@ columnName (Statement stmt) idx =
     c_sqlite3_column_name stmt (toFFI idx) >>=
         packUtf8 Nothing Just
 
-bindInt64 :: Statement -> ParamIndex -> Int64 -> IO (Either Error ())
+bindInt64 :: Statement -> ParamIndex -> Int64 -> IO (Either SQLiteError ())
 bindInt64 (Statement stmt) idx value =
     toResult () <$> c_sqlite3_bind_int64 stmt (toFFI idx) value
 
-bindDouble :: Statement -> ParamIndex -> Double -> IO (Either Error ())
+bindDouble :: Statement -> ParamIndex -> Double -> IO (Either SQLiteError ())
 bindDouble (Statement stmt) idx value =
     toResult () <$> c_sqlite3_bind_double stmt (toFFI idx) value
 
-bindText :: Statement -> ParamIndex -> Utf8 -> IO (Either Error ())
+bindText :: Statement -> ParamIndex -> Utf8 -> IO (Either SQLiteError ())
 bindText (Statement stmt) idx (Utf8 value) =
     unsafeUseAsCStringLenNoNull value $ \ptr len ->
         toResult () <$>
             c_sqlite3_bind_text stmt (toFFI idx) ptr len c_SQLITE_TRANSIENT
 
-bindBlob :: Statement -> ParamIndex -> ByteString -> IO (Either Error ())
+bindBlob :: Statement -> ParamIndex -> ByteString -> IO (Either SQLiteError ())
 bindBlob (Statement stmt) idx value =
     unsafeUseAsCStringLenNoNull value $ \ptr len ->
         toResult () <$>
             c_sqlite3_bind_blob stmt (toFFI idx) ptr len c_SQLITE_TRANSIENT
 
-bindZeroBlob :: Statement -> ParamIndex -> Int -> IO (Either Error ())
+bindZeroBlob :: Statement -> ParamIndex -> Int -> IO (Either SQLiteError ())
 bindZeroBlob (Statement stmt) idx len =
     toResult () <$>
         c_sqlite3_bind_zeroblob stmt (toFFI idx) (fromIntegral len)
 
-bindNull :: Statement -> ParamIndex -> IO (Either Error ())
+bindNull :: Statement -> ParamIndex -> IO (Either SQLiteError ())
 bindNull (Statement stmt) idx =
     toResult () <$> c_sqlite3_bind_null stmt (toFFI idx)
 
-columnType :: Statement -> ColumnIndex -> IO ColumnType
+columnType :: Statement -> ColumnIndex -> IO SQLColumnType
 columnType (Statement stmt) idx =
-    decodeColumnType <$> c_sqlite3_column_type stmt (toFFI idx)
+    cToEnum <$> c_sqlite3_column_type stmt (toFFI idx)
 
 columnInt64 :: Statement -> ColumnIndex -> IO Int64
 columnInt64 (Statement stmt) idx =
@@ -636,7 +638,7 @@ createFunction
     -> Bool           -- ^ Is the function deterministic?
     -> (FuncContext -> FuncArgs -> IO ())
                       -- ^ Implementation of the function.
-    -> IO (Either Error ())
+    -> IO (Either SQLiteError ())
 createFunction (Database db) (Utf8 name) nArgs isDet fun = mask_ $ do
     funPtr <- mkCFunc fun'
     u <- newStablePtr $ CFuncPtrs funPtr nullFunPtr nullFunPtr
@@ -663,7 +665,7 @@ createAggregate
                       -- ^ Called after all rows have been processed.
                       --   Can be used to construct the returned value
                       --   from the aggregate state.
-    -> IO (Either Error ())
+    -> IO (Either SQLiteError ())
 createAggregate (Database db) (Utf8 name) nArgs initSt xStep xFinal = mask_ $ do
     stepPtr <- mkCFunc xStep'
     finalPtr <- mkCFuncFinal xFinal'
@@ -716,7 +718,7 @@ catchAsResultError ctx action = E.catch action $ \exn -> do
         c_sqlite3_result_error ctx ptr (fromIntegral len)
 
 -- | Delete an SQL function (scalar or aggregate).
-deleteFunction :: Database -> Utf8 -> Maybe ArgCount -> IO (Either Error ())
+deleteFunction :: Database -> Utf8 -> Maybe ArgCount -> IO (Either SQLiteError ())
 deleteFunction (Database db) (Utf8 name) nArgs =
     BS.useAsCString name $ \namePtr ->
         toResult () <$>
@@ -732,9 +734,9 @@ maybeArgCount Nothing = -1
 funcArgCount :: FuncArgs -> ArgCount
 funcArgCount (FuncArgs nArgs _) = fromIntegral nArgs
 
-funcArgType :: FuncArgs -> ArgIndex -> IO ColumnType
+funcArgType :: FuncArgs -> ArgIndex -> IO SQLColumnType
 funcArgType =
-    extractFuncArg NullColumn (fmap decodeColumnType . c_sqlite3_value_type)
+    extractFuncArg SQLColumnTypeNull (fmap cToEnum . c_sqlite3_value_type)
 
 funcArgInt64 :: FuncArgs -> ArgIndex -> IO Int64
 funcArgInt64 = extractFuncArg 0 c_sqlite3_value_int64
@@ -817,7 +819,7 @@ createCollation
     :: Database
     -> Utf8                       -- ^ Name of the collation.
     -> (Utf8 -> Utf8 -> Ordering) -- ^ Comparison function.
-    -> IO (Either Error ())
+    -> IO (Either SQLiteError ())
 createCollation (Database db) (Utf8 name) cmp = mask_ $ do
     cmpPtr <- mkCCompare cmp'
     let u = castFunPtrToPtr cmpPtr
@@ -827,7 +829,7 @@ createCollation (Database db) (Utf8 name) cmp = mask_ $ do
                 db namePtr c_SQLITE_UTF8 u cmpPtr destroyCComparePtr
             -- sqlite does not call the destructor for us in case of an
             -- error
-            unless (r == CError 0) $
+            unless (r == 0) $
                 destroyCCompare $ castFunPtrToPtr cmpPtr
             return r
   where
@@ -839,7 +841,7 @@ createCollation (Database db) (Utf8 name) cmp = mask_ $ do
     exnHandler (_ :: SomeException) = return (-1)
 
 -- | Delete a collation.
-deleteCollation :: Database -> Utf8 -> IO (Either Error ())
+deleteCollation :: Database -> Utf8 -> IO (Either SQLiteError ())
 deleteCollation (Database db) (Utf8 name) =
     BS.useAsCString name $ \namePtr ->
         toResult () <$> do
@@ -849,9 +851,11 @@ deleteCollation (Database db) (Utf8 name) =
 -- | <http://www.sqlite.org/c3ref/enable_load_extension.html>
 --
 -- Enable or disable extension loading.
-setLoadExtensionEnabled :: Database -> Bool -> IO (Either Error ())
+{-
+setLoadExtensionEnabled :: Database -> Bool -> IO (Either SQLiteError ())
 setLoadExtensionEnabled (Database db) enabled = do
     toResult () <$> c_sqlite3_enable_load_extension db enabled
+-}
 
 
 -- | <https://www.sqlite.org/c3ref/blob_open.html>
@@ -864,7 +868,7 @@ blobOpen
     -> Utf8   -- ^ The column name.
     -> Int64  -- ^ The @ROWID@ of the row.
     -> Bool   -- ^ Open the blob for read-write.
-    -> IO (Either Error Blob)
+    -> IO (Either SQLiteError Blob)
 blobOpen (Database db) (Utf8 zDb) (Utf8 zTable) (Utf8 zColumn) rowid rw =
     BS.useAsCString zDb $ \ptrDb ->
     BS.useAsCString zTable $ \ptrTable ->
@@ -876,12 +880,12 @@ blobOpen (Database db) (Utf8 zDb) (Utf8 zTable) (Utf8 zColumn) rowid rw =
     flags = if rw then 1 else 0
 
 -- | <https://www.sqlite.org/c3ref/blob_close.html>
-blobClose :: Blob -> IO (Either Error ())
+blobClose :: Blob -> IO (Either SQLiteError ())
 blobClose (Blob _ blob) =
     toResult () <$> c_sqlite3_blob_close blob
 
 -- | <https://www.sqlite.org/c3ref/blob_reopen.html>
-blobReopen :: Blob -> Int64 -> IO (Either Error ())
+blobReopen :: Blob -> Int64 -> IO (Either SQLiteError ())
 blobReopen (Blob _ blob) rowid =
     toResult () <$> c_sqlite3_blob_reopen blob rowid
 
@@ -895,7 +899,7 @@ blobRead
     :: Blob
     -> Int -- ^ Number of bytes to read.
     -> Int -- ^ Offset within the blob.
-    -> IO (Either Error ByteString)
+    -> IO (Either SQLiteError ByteString)
 blobRead blob len offset =
     -- we do not use allocaBytes here because it deallocates its buffer
     -- which would necessitate copying it
@@ -911,7 +915,7 @@ blobRead blob len offset =
                 bs <- BSU.unsafePackCStringFinalizer buf len (free buf)
                 return (Right bs)
 
-blobReadBuf :: Blob -> Ptr a -> Int -> Int -> IO (Either Error ())
+blobReadBuf :: Blob -> Ptr a -> Int -> Int -> IO (Either SQLiteError ())
 blobReadBuf (Blob _ blob) buf len offset =
     toResult () <$>
         c_sqlite3_blob_read blob buf (fromIntegral len) (fromIntegral offset)
@@ -921,7 +925,7 @@ blobWrite
     :: Blob
     -> ByteString
     -> Int -- ^ Offset within the blob.
-    -> IO (Either Error ())
+    -> IO (Either SQLiteError ())
 blobWrite (Blob _ blob) bs offset =
     BSU.unsafeUseAsCStringLen bs $ \(buf, len) ->
         toResult () <$>
@@ -933,7 +937,7 @@ backupInit
     -> Utf8      -- ^ Destination database name
     -> Database  -- ^ Source database handle
     -> Utf8      -- ^ Source database name
-    -> IO (Either Error Backup)
+    -> IO (Either SQLiteError Backup)
 backupInit (Database dstDb) (Utf8 dstName) (Database srcDb) (Utf8 srcName) =
     BS.useAsCString dstName $ \dstName' ->
     BS.useAsCString srcName $ \srcName' -> do
@@ -942,12 +946,12 @@ backupInit (Database dstDb) (Utf8 dstName) (Database srcDb) (Utf8 srcName) =
             then Left <$> errcode (Database dstDb)
             else return (Right (Backup (Database dstDb) r))
 
-backupFinish :: Backup -> IO (Either Error ())
+backupFinish :: Backup -> IO (Either SQLiteError ())
 backupFinish (Backup _ backup) =
     toResult () <$>
         c_sqlite3_backup_finish backup
 
-backupStep :: Backup -> Int -> IO (Either Error BackupStepResult)
+backupStep :: Backup -> Int -> IO (Either SQLiteError BackupStepResult)
 backupStep (Backup _ backup) pages =
     toBackupStepResult <$>
         c_sqlite3_backup_step backup (fromIntegral pages)

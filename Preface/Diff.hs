@@ -27,10 +27,10 @@ data DL = DL {poi :: !Int, poj :: !Int, path::[WhichInput]} deriving (Show, Eq)
 
 instance Ord DL where x <= y = if poi x == poi y then  poj x > poj y else poi x <= poi y
 
-canDiag :: (IArray UArray a) => (a -> a -> Bool) -> [a] -> [a] -> Int -> Int -> Int -> Int -> Bool
+canDiag :: forall a . (IArray UArray a) => (a -> a -> Bool) -> [a] -> [a] -> Int -> Int -> Int -> Int -> Bool
 canDiag eq as bs lena lenb = 
-    let arAs = listArray (0, lena - 1) as :: UArray Int _ 
-        arBs = listArray (0, lenb - 1) bs :: UArray Int _
+    let arAs = listArray (0, lena - 1) as :: UArray Int a 
+        arBs = listArray (0, lenb - 1) bs :: UArray Int a
      in  \ i j -> (( i < lena && j < lenb ) && ((arAs A.! i) `eq` (arBs A.! j)))
 
 dstep :: (Int -> Int -> Bool) -> [DL] -> [DL]
@@ -158,7 +158,7 @@ bgColor :: Int
 bgColor = 15 
 
 instance Show (DiffOperation Char) where
-  show (Deletion ls lc rs) = concat [asString peach, asString $ setExtendedBackgroundColor bgColor, lc, asString treset]
+  show (Deletion ls lc rs) = concat [asString peach, asString $ setExtendedBackgroundColor bgColor, lc, asString treset :: String] 
   show (Addition rs rc ls) = asString $ strConcat[ asString azure, asString $ setExtendedBackgroundColor bgColor, rc, asString treset]
   show (Change ls lc rs rc) =
     asString $ strConcat [ asString $ setExtendedBackgroundColor bgColor, asString $  setColor dullBlack, "{", asString peach, lc, asString azure, asString rc, asString $ setColor dullBlack, "}", asString treset ]

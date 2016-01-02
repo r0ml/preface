@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface, QuasiQuotes #-}
--- {-# OPTIONS_GHC -ddump-splices #-}
+{-# OPTIONS_GHC -ddump-splices #-}
 
 module Bindings.Zlib (
         Zlib, deflater, inflater, zPut, zGet, zDone
@@ -12,7 +12,7 @@ where
 
 import Preface.Imports
 import Data.ByteString (empty)
-import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates (enum)
 import Preface.FFITemplates2 (storable)
 import Preface.Stringy
 
@@ -91,9 +91,9 @@ zInit wb lev bs = do
     zsx <- mallocForeignPtrBytes n
     let ii = if nflater then (\zs x -> c_inflateInit2_ zs (fromIntegral wb) x (fromIntegral n))
              else (\zs x -> c_deflateInit2_ zs (fromIntegral (fromJust lev))
-                            (fromIntegral (fromEnum DEFLATED))
+                            (fromIntegral (fromEnum ZConstantDEFLATED))
                             (fromIntegral wb) (fromIntegral (8::Int)) -- memLevel  8 is the default
-                            (fromIntegral $ fromEnum DEFAULT_STRATEGY )
+                            (fromIntegral $ fromEnum ZStrategyDEFAULT )
                             x (fromIntegral n))
     res <- withForeignPtr zsx $ (\zs -> poke zs zStreamNew >> withCString vers (ii zs) )
     let sd = if nflater then c_inflateSetDictionary else c_deflateSetDictionary
@@ -104,14 +104,12 @@ zInit wb lev bs = do
     fb <- setOutBuff zsx
     return (ZMem zsx fb)
   
-[enumInt|ZConstant
-  NO_FLUSH 0 PARTIAL_FLUSH 1 SYNC_FLUSH 2 FULL_FLUSH 3 FINISH 4 BLOCK 5 DEFLATED 8 |]
+[enum|ZConstant NO_FLUSH PARTIAL_FLUSH SYNC_FLUSH FULL_FLUSH FINISH BLOCK DEFLATED 8 |]
 
-[enumInt|ZStrategy
-  FILTERED 1 HUFFMAN_ONLY 2 RLE 3 FIXED 4 DEFAULT_STRATEGY 0|]
+[enum|ZStrategy DEFAULT FILTERED HUFFMAN_ONLY RLE FIXED|]
 
-[enumInt|ZError
-  Z_OK 0 Z_STREAM_END 1 Z_NEED_DICT 2 Z_ERRNO -1 Z_STREAM_ERROR -2 Z_DATA_ERROR -3
+[enum|ZError Z_OK Z_STREAM_END Z_NEED_DICT 
+  Z_ERRNO -1 Z_STREAM_ERROR -2 Z_DATA_ERROR -3
   Z_MEM_ERROR -4 Z_BUF_ERROR -5 Z_VERSION_ERROR -6|]
 
 data ZlibException = ZlibException ZError deriving (Show, Typeable)
@@ -147,7 +145,7 @@ feed f (ZMem zsx zbuff) bs bool chan = do
       innerl zstr
   where innerl zstr = do zoz <- peek zstr
                          let obuff = zStream_next_out zoz
-                         res <- f zstr (fromIntegral (fromEnum (if bool then FINISH else NO_FLUSH)))
+                         res <- f zstr (fromIntegral (fromEnum (if bool then ZConstantFINISH else ZConstantNO_FLUSH)))
                          if (res /= 0 && res /= 1 && res /= zBufError)
                          then do
                                  writeChan chan (Left (ZlibException (toEnum (fromEnum res))))

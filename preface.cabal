@@ -55,7 +55,6 @@ Library
             , Bindings.Curl.CurlSSL, Bindings.Curl.CurlPost
             , Bindings.Posix
             , Bindings.Python
-            , Bindings.Util
             , Bindings.TLS
             , Bindings.Vfs
             , Bindings.Msg, Bindings.Syslog
@@ -204,4 +203,14 @@ Executable testWatch
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded 
   Main-is: TestWatch.hs
+
+Test-Suite testSqlite
+  type: exitcode-stdio-1.0
+  Default-Language: Haskell2010
+  default-extensions: NoImplicitPrelude
+  Build-depends: preface, text, base, bytestring, HUnit
+  hs-source-dirs: test
+  Ghc-Options: -Wall -threaded 
+  Main-is: TestSQLite3.hs
+
 

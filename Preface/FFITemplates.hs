@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Preface.FFITemplates (
-    enum , enumInt , enumI, toMask, toCMask, bitsToList
+    enum , {- enumInt , enumI, -} toMask, toCMask, bitsToList, cToEnum
     , orList
 ) where
  
@@ -13,7 +13,16 @@ enum :: QuasiQuoter
 enum =  QuasiQuoter { quoteExp = undefined, quotePat = undefined
                     , quoteDec = qd, quoteType = undefined } where
   qd s = let (hm : tm) = words (deComma (stripComments s))
-          in genEnumI hm (zip tm [0..])
+             nmvs = enump tm 0
+          in genEnumI hm nmvs
+         where enump ws n = if null ws then []
+                  else let (a:as) = ws
+                        in if null as then [(a,n)]
+                           else let (b:bs) = as
+                                 in if isDigit (head b) || (head b == '-') then
+                                       let bb = read b
+                                        in (a,bb):enump bs (bb+1)
+                                    else (a,n):enump as (n+1)
 
 enumInt :: QuasiQuoter
 enumInt = enumI read
@@ -21,8 +30,8 @@ enumInt = enumI read
 enumI :: (String -> Int) -> QuasiQuoter
 enumI f =  QuasiQuoter { quoteExp = undefined, quotePat = undefined
                        , quoteDec = qd, quoteType = undefined } where
-  qd s = let m = words (deComma (stripComments s))
-          in genEnumI (head m) (zip (stride 2 (tail m)) (map f (stride 2 (drop 2 m))))
+  qd s = let (m1:ms) = words (deComma (stripComments s))
+          in genEnumI m1 (zip (stride 2 ms) (map f (stride 2 (drop 1 ms))))
 
 -- | Given the name of a type, and an array of name/value pairs, construct an
 -- Enum type which maps the names (as constructors) to the values (as the toEnum)
@@ -34,11 +43,12 @@ genEnumI name vals = do
     fe <- instanceD (cxt []) (appT (conT ''Enum) (conT nam))
             [fd "fromEnum" genClause, fd "toEnum" genClause2]
     return [dd, fe]
-  where dv = map (\(n,_) -> normalC (mkName n) []) vals
+  where valsx = map (\(k,v) -> (name++k,v)) vals
+        dv = map (\(n,_) -> normalC (mkName n) []) valsx
         nam = mkName name
         genClause (k,v) = clause [conP (mkName k) []] (normalB [|v|]) []
         genClause2 (k,v) = clause [litP (integerL (fromIntegral v))] (normalB  (conE (mkName k))) []
-        fd x y = funD (mkName x) $ map y vals
+        fd x y = funD (mkName x) $ map y valsx
 
 {- 
 -- | Create an Enum using the supplied array of strings as the constructors 
@@ -62,4 +72,7 @@ bitsToList x = btl x 0
   where btl x n = {- trace ("btl "++ show x++" "++ show n) $ -} if x == 0 then []
             else if testBit x n then (toEnum (shiftL 1 n)) : btl (clearBit x n) (n+1)
                      else btl x (n+1)
+
+cToEnum :: Enum a => CInt -> a
+cToEnum = toEnum . fromEnum
 

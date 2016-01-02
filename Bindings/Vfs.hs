@@ -23,7 +23,7 @@ module Bindings.Vfs (
   , MountFlag(..)
 ) where
 
-import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates (enum)
 import Preface.FFITemplates2 (storable)
 import Preface.Imports
 
@@ -88,7 +88,7 @@ statVFS path =
                   <*> (peekCString ((#ptr struct statfs,f_mntfromname) e :: CString))
  -}                 
 
-[enumInt|MountFlag
+[enum|MountFlag
 MNT_RDONLY      0x00000001      /* read only filesystem */
 MNT_SYNCHRONOUS 0x00000002      /* file system written synchronously */
 MNT_NOEXEC      0x00000004      /* can't exec from filesystem */

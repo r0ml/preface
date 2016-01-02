@@ -1459,11 +1459,11 @@ applyCon :: Name -> [Name] -> Q [Pred]
 applyCon con typeNames = return (map apply typeNames)
   where apply t =
 
-#if MIN_VERSION_template_haskell(2,10,0)
+-- #if MIN_VERSION_template_haskell(2,10,0)
           AppT (ConT con) (VarT t)
-#else
-          ClassP con [VarT t]
-#endif
+-- #else
+--           ClassP con [VarT t]
+-- #endif
 
 
 

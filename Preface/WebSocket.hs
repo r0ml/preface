@@ -8,7 +8,7 @@ import Preface.Binary
 import Preface.Misc
 import Preface.SecureHash
 import Bindings.Zlib -- (ZData, feed, flush, initInflate)
-import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates (enum)
 
 default (Int)
 
@@ -30,10 +30,7 @@ encodeFrame fmask ft f = strCat [pack [byte0, byte1], len , fmask,
         | otherwise      = (127, putWord64be $ fromIntegral len')
     byte1 = fromIntegral (maskflag .|. lenflag)
 
-[enumInt|FrameType
-  ContinuationFrame 0 TextFrame 1 BinaryFrame 2
-  CloseFrame 8 PingFrame 9 PongFrame 10
-  |]
+[enum|FrameType Continuation Text Binary Close 8 Ping Pong |]
 
 type Mask = ByteString
 
@@ -183,15 +180,15 @@ getWS sock hdx = do
     return $ WebSocket sock wchan chan -- envx
 
 mkCloseFrame :: WSFrame
-mkCloseFrame = Frame False (False, False, False) CloseFrame zilde
+mkCloseFrame = Frame False (False, False, False) FrameTypeClose zilde
 
 writeMsg :: ByteString -> Chan Message -> Socket -> IO ()
 writeMsg msk x k = do
   buf <- readChan x
   case buf of
     Close -> sClose k
-    Binary bs -> let ef = encodeFrame msk BinaryFrame bs in sendAll k ef
-    Text strx -> let ef = encodeFrame msk TextFrame (asByteString strx)
+    Binary bs -> let ef = encodeFrame msk FrameTypeBinary bs in sendAll k ef
+    Text strx -> let ef = encodeFrame msk FrameTypeText (asByteString strx)
                   in traceShow ("sendAll", ef) sendAll k ef
 
 readMsgs :: Socket -> Chan WSFrame -> ByteString -> Zlib -> IO ()
@@ -303,9 +300,9 @@ runServer port g h runRecv = do
       fr <- readChan (wsRecv chanWs)
       let Frame _ _ bt bs = fr 
        in case bt of 
-          CloseFrame -> sendMessage chanWs Close
-          TextFrame -> runRecv (WebSocketTextMessage (asString bs)) chanWs
-          BinaryFrame -> runRecv (WebSocketBinaryMessage bs) chanWs
+          FrameTypeClose -> sendMessage chanWs Close
+          FrameTypeText -> runRecv (WebSocketTextMessage (asString bs)) chanWs
+          FrameTypeBinary -> runRecv (WebSocketBinaryMessage bs) chanWs
           _ -> error "other kind of frame"
     srel y a = do
       atomicModifyIORef' y (\x -> (filter (/= a) x, () ) )

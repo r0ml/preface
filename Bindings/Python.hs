@@ -65,11 +65,15 @@ foreign import ccall unsafe "Python.h PyString_FromStringAndSize"
 foreign import ccall unsafe "Python.h PyString_AsStringAndSize"
   pyString_AsStringAndSize :: RawPyObject -> Ptr CString -> Ptr PySSizeT -> IO PyInt
 
+{-
 foreign import capi unsafe "Python.h PyUnicode_AsUTF8String"
   pyUnicode_AsUTF8String :: RawPyObject -> IO RawPyObject
+-}
 
+{-
 foreign import capi unsafe "Python.h PyUnicode_FromStringAndSize"
   pyUnicode_FromStringAndSize :: CString -> PySSizeT -> IO RawPyObject
+-}
 
 foreign import ccall unsafe "Python.h PyTuple_New"
   pyTuple_New :: PySSizeT -> IO RawPyObject
@@ -104,8 +108,8 @@ foreign import ccall unsafe "Python.h PyErr_PrintEx"
 foreign import ccall unsafe "Python.h PyErr_Occurred"
   pyErr_Occurred :: IO RawPyObject
 
-foreign import capi unsafe "Python.h Py_InitModule3"
-  py_InitModule :: CString -> Ptr () -> CString -> IO RawPyObject
+foreign import ccall unsafe "Python.h Py_InitModule4_64"
+  py_InitModule :: CString -> Ptr () -> CString -> CString -> CInt -> IO RawPyObject
 
 foreign import ccall unsafe "Python.h PyFloat_AsDouble"
   pyFloat_AsDouble :: RawPyObject -> IO CDouble
@@ -166,7 +170,7 @@ initModule nam md doc =
   withCAString nam $ \namx ->
     withCAString doc $ \docx -> do
       pxx <- newArray0 PyMethodDefEndMarker md
-      px <- py_InitModule namx (castPtr pxx) docx
+      px <- py_InitModule namx (castPtr pxx) docx nullPtr 1013
       toPyObjectChecked px
 
 type PyCFunction = RawPyObject -> RawPyObject -> IO RawPyObject
@@ -300,11 +304,12 @@ instance Pythonic ByteString where
       buffer <- peek s_buffer_ptr
       len <- peek s_len_ptr
       packCStringLen (buffer, fromIntegral len)
-
+{-
 instance Pythonic String where
   toPy s = useAsCStringLen (asByteString s) $ \(buffer, len) ->
     pyUnicode_FromStringAndSize buffer (fromIntegral len) >>= toPyObjectChecked
   fromPy o = do
     s <- withPyObject o pyUnicode_AsUTF8String >>= toPyObjectChecked
     fromPy s
+-}
 

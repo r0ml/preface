@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Bindings.SQLite3 (
@@ -111,7 +110,7 @@ module Bindings.SQLite3 (
     Statement,
     SQLData(..),
     SQLError(..),
-    ColumnType(..),
+    SQLColumnType(..),
     FuncContext,
     FuncArgs,
     Blob,
@@ -120,7 +119,7 @@ module Bindings.SQLite3 (
     -- ** Results and errors
     StepResult(..),
     BackupStepResult(..),
-    Error(..),
+    SQLiteError(..),
 
     -- ** Special integers
     ParamIndex(..),
@@ -128,15 +127,30 @@ module Bindings.SQLite3 (
     ColumnCount,
     ArgCount(..),
     ArgIndex,
+
+    Direct.setTrace
+    , Direct.statementSql
+    , Direct.getAutoCommit
+    , directFinalize
+    , directStep
+    , directClose
+    , directExec
+    , directReset
+    , Direct.bindParameterIndex
+    , directBindInt64
+    , directBindText
+    , directColumnText
+    , Direct.totalChanges
+    , Utf8(..)
 ) where
 
 import Bindings.SQLite3.Direct
     ( Database
     , Statement
-    , ColumnType(..)
+    , SQLColumnType(..)
     , StepResult(..)
     , BackupStepResult(..)
-    , Error(..)
+    , SQLiteError(..)
     , ParamIndex(..)
     , ColumnIndex(..)
     , ColumnCount
@@ -195,6 +209,15 @@ import Data.Text.Encoding.Error (UnicodeException(..), lenientDecode)
 import Data.Typeable
 import Foreign.Ptr          (Ptr)
 
+directStep = Direct.step
+directFinalize = Direct.finalize
+directClose = Direct.close
+directExec = Direct.exec
+directBindInt64 = Direct.bindInt64
+directBindText = Direct.bindText
+directColumnText = Direct.columnText
+directReset = Direct.reset
+
 data SQLData
     = SQLInteger    !Int64
     | SQLFloat      !Double
@@ -207,7 +230,7 @@ data SQLData
 --
 -- direct-sqlite may throw other types of exceptions if you misuse the API.
 data SQLError = SQLError
-    { sqlError          :: !Error
+    { sqlError          :: !SQLiteError
         -- ^ Error code returned by API call
     , sqlErrorDetails   :: Text
         -- ^ Text describing the error
@@ -265,7 +288,7 @@ renderDetailSource src = case src of
     DetailMessage msg ->
         return msg
 
-throwSQLError :: DetailSource -> Text -> Error -> IO a
+throwSQLError :: DetailSource -> Text -> SQLiteError -> IO a
 throwSQLError detailSource context error = do
     Utf8 details <- renderDetailSource detailSource
     throwIO SQLError
@@ -274,10 +297,10 @@ throwSQLError detailSource context error = do
         , sqlErrorContext = context
         }
 
-checkError :: DetailSource -> Text -> Either Error a -> IO a
+checkError :: DetailSource -> Text -> Either SQLiteError a -> IO a
 checkError ds fn = either (throwSQLError ds fn) return
 
-checkErrorMsg :: Text -> Either (Error, Utf8) a -> IO a
+checkErrorMsg :: Text -> Either (SQLiteError, Utf8) a -> IO a
 checkErrorMsg fn result = case result of
     Left (err, msg) -> throwSQLError (DetailMessage msg) fn err
     Right a         -> return a
@@ -304,7 +327,6 @@ close db =
 -- It works by running the callback in a forked thread.  If interrupted,
 -- it uses 'interrupt' to try to stop the operation.
 interruptibly :: Database -> IO a -> IO a
-#if MIN_VERSION_base(4,3,0)
 interruptibly db io
   | rtsSupportsBoundThreads =
       mask $ \restore -> do
@@ -337,9 +359,6 @@ interruptibly db io
   where
     try' :: IO a -> IO (Either SomeException a)
     try' = try
-#else
-interruptibly _db io = io
-#endif
 
 -- | Execute zero or more SQL statements delimited by semicolons.
 exec :: Database -> Text -> IO ()
@@ -487,7 +506,7 @@ columnName stmt idx = do
   where
     desc = "Database.SQLite3.columnName: Invalid UTF-8"
     outOfMemory = SQLError
-        { sqlError        = ErrorNoMemory
+        { sqlError        = SQLiteErrorNoMemory
         , sqlErrorDetails = "out of memory (sqlite3_column_name returned NULL)"
         , sqlErrorContext = "column name"
         }
@@ -607,20 +626,20 @@ columns statement = do
     count <- columnCount statement
     mapM (column statement) [0..count-1]
 
-typedColumn :: ColumnType -> Statement -> ColumnIndex -> IO SQLData
+typedColumn :: SQLColumnType -> Statement -> ColumnIndex -> IO SQLData
 typedColumn theType statement idx = case theType of
-    IntegerColumn -> SQLInteger <$> columnInt64  statement idx
-    FloatColumn   -> SQLFloat   <$> columnDouble statement idx
-    TextColumn    -> SQLText    <$> columnText   statement idx
-    BlobColumn    -> SQLBlob    <$> columnBlob   statement idx
-    NullColumn    -> return SQLNull
+    SQLColumnTypeInteger -> SQLInteger <$> columnInt64  statement idx
+    SQLColumnTypeFloat   -> SQLFloat   <$> columnDouble statement idx
+    SQLColumnTypeText    -> SQLText    <$> columnText   statement idx
+    SQLColumnTypeBlob    -> SQLBlob    <$> columnBlob   statement idx
+    SQLColumnTypeNull    -> return SQLNull
 
 -- |
 -- This avoids extra API calls using the list of column types.
 -- If passed types do not correspond to the actual types, the values will be
 -- converted according to the rules at <http://www.sqlite.org/c3ref/column_blob.html>.
 -- If the list contains more items that number of columns, the result is undefined.
-typedColumns :: Statement -> [Maybe ColumnType] -> IO [SQLData]
+typedColumns :: Statement -> [Maybe SQLColumnType] -> IO [SQLData]
 typedColumns statement = zipWithM f [0..] where
     f idx theType = case theType of
         Nothing -> column statement idx

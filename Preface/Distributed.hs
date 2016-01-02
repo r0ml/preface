@@ -54,7 +54,8 @@ recvTask c s = do
              m2 <- recvData j (n - lm)
              return $ strCat [msg, m2]
 
-data (Serializable a, Serializable b) => RpcConnection a b = RpcConnection (ThreadId, Chan a) (ThreadId, Chan b)
+data RpcConnection a b = RpcConnection (ThreadId, Chan a) (ThreadId, Chan b)
+
 rpcTo :: (Serializable a, Serializable b) => String -> Int -> IO (RpcConnection a b)
 rpcTo host port = do
    qChan <- newChan

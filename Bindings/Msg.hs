@@ -4,7 +4,7 @@ module Bindings.Msg
 where
 
 import Preface.Imports
-import Preface.FFITemplates (enumInt)
+import Preface.FFITemplates (enum)
 import Preface.FFITemplates2 (storable)
 
 foreign import ccall unsafe "sys/msg.h msgget" c_msgget :: CUInt -> CInt -> IO CInt
@@ -15,26 +15,15 @@ foreign import ccall unsafe "sys/ipc.h ftok" c_ftok :: CString -> CInt -> IO CIn
 
 data Msgq = Msgq Int deriving (Eq, Show)
 
-[enumInt|IPC_Control
-  IPC_RMID 0
-  IPC_SET  1
-  IPC_STAT 2
-|]
-
-[enumInt|IPC_Flags
-  IPC_R      0x0100
-  IPC_W      0x0080
-  IPC_M      0x1000
-  IPC_CREAT  0x0200
-  IPC_EXCL   0x0400
-  IPC_NOWAIT 0x0800
-|]
+[enum|IPC_Control RMID SET STAT |]
+ 
+[enum|IPC_Flags R 0x0100 W 0x0080 M 0x1000 CREAT 0x0200 EXCL 0x0400 NOWAIT 0x0800 |]
 
 msgget :: String -> IO (Either Errno Msgq)
 msgget ks = do
   k <- withCString ks $ \sn -> do c_ftok sn (toEnum 33)
   if k < 0 then Left <$> getErrno 
-           else do kr <- fromIntegral <$> c_msgget (fromIntegral k) (fromIntegral (fromEnum IPC_CREAT .|. 0x1B0))
+           else do kr <- fromIntegral <$> c_msgget (fromIntegral k) (fromIntegral (fromEnum IPC_FlagsCREAT .|. 0x1B0))
                    if kr < 0 then Left <$> getErrno
                              else return . Right . Msgq $ kr
 
@@ -46,14 +35,14 @@ msgsnd (Msgq q) typ bs = do
   k <- withForeignPtr fpx $ \sn -> withForeignPtr fp $ \sn2 -> do 
       copyBytes (plusPtr sn zxl) (plusPtr sn2 off) len
       poke sn (toEnum typ :: CInt)
-      c_msgsnd (toEnum q) sn (toEnum (zxl+len)) (ff IPC_NOWAIT)
+      c_msgsnd (toEnum q) sn (toEnum (zxl+len)) (ff IPC_FlagsNOWAIT)
   if k < 0 then Left <$> getErrno else return (Right ())
   
 msgrcv :: Msgq -> Int -> IO (Either Errno ByteString)
 msgrcv (Msgq q) typ = do
   let siz = 800
   fpx <- mallocForeignPtrBytes siz -- this is the max size
-  k <- withForeignPtr fpx $ \sn -> c_msgrcv (toEnum q) sn (toEnum siz) (toEnum typ) (ff IPC_NOWAIT)
+  k <- withForeignPtr fpx $ \sn -> c_msgrcv (toEnum q) sn (toEnum siz) (toEnum typ) (ff IPC_FlagsNOWAIT)
   if k < 0 then Left <$> getErrno else return $ Right (fromForeignPtr (castForeignPtr fpx) 0 (fromIntegral k))
 
 [storable|IpcPerm
@@ -116,12 +105,12 @@ instance Storable MsqidDs where
 
 ipcStat :: Msgq -> IO (Either Errno MsqidDs)
 ipcStat (Msgq q) = alloca $ \p -> do 
-    e <- c_msgctl (toEnum q) (ff IPC_STAT) p
+    e <- c_msgctl (toEnum q) (ff IPC_ControlSTAT) p
     if e < 0 then Left <$> getErrno else Right <$> peek p
 
 ipcRm :: Msgq -> IO (Either Errno MsqidDs)
 ipcRm (Msgq q) = alloca $ \p -> do 
-    e <- c_msgctl (toEnum q) (ff IPC_RMID) p
+    e <- c_msgctl (toEnum q) (ff IPC_ControlRMID) p
     if e < 0 then Left <$> getErrno else Right <$> peek p
 
 

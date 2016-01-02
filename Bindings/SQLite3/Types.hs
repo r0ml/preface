@@ -2,6 +2,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 module Bindings.SQLite3.Types (
     -- * Objects
     -- | <http://www.sqlite.org/c3ref/objlist.html>
@@ -15,16 +17,8 @@ module Bindings.SQLite3.Types (
     -- * Enumerations
 
     -- ** Error
-    CError(..),
-    decodeError,
-    encodeError,
-    Error(..),
-
-    -- ** ColumnType
-    CColumnType(..),
-    decodeColumnType,
-    encodeColumnType,
-    ColumnType(..),
+    SQLiteError(..),
+    SQLColumnType(..),
 
     -- * Indices
     ParamIndex(..),
@@ -52,11 +46,12 @@ module Bindings.SQLite3.Types (
     FFIType(..),
 ) where
 
-#include "sqlite3.h"
+-- #include "sqlite3.h"
 
 import Preface.Imports
 import Foreign.C.Types
 import Foreign.Ptr
+import Preface.FFITemplates
 
 -- Result code documentation copied from <http://www.sqlite.org/c3ref/c_abort.html>
 
@@ -90,13 +85,6 @@ data Error = ErrorOK                     -- ^ Successful result
            | ErrorRow                    -- ^ @sqlite3_step()@ has another row ready
            | ErrorDone                   -- ^ @sqlite3_step()@ has finished executing
              deriving (Eq, Show)
-
-data ColumnType = IntegerColumn
-                | FloatColumn
-                | TextColumn
-                | BlobColumn
-                | NullColumn
-                  deriving (Eq, Show)
 
 -- | <http://www.sqlite.org/c3ref/sqlite3.html>
 --
@@ -202,7 +190,7 @@ c_SQLITE_TRANSIENT :: Ptr CDestructor
 c_SQLITE_TRANSIENT = intPtrToPtr (-1)
 
 c_SQLITE_UTF8 :: CInt
-c_SQLITE_UTF8 = #{const SQLITE_UTF8}
+c_SQLITE_UTF8 = 1 -- #{const SQLITE_UTF8}
 
 
 -- | Number of arguments of a user defined SQL function.
@@ -215,7 +203,7 @@ instance Show ArgCount where
 
 instance Bounded ArgCount where
     minBound = ArgCount 0
-    maxBound = ArgCount (#{const SQLITE_LIMIT_FUNCTION_ARG})
+    maxBound = ArgCount 6 -- (#{const SQLITE_LIMIT_FUNCTION_ARG})
 
 -- | Index of an argument to a custom function. Indices start from 0.
 type ArgIndex = ArgCount
@@ -229,116 +217,20 @@ instance Show CArgCount where
 
 instance Bounded CArgCount where
     minBound = CArgCount (-1)
-    maxBound = CArgCount #{const SQLITE_LIMIT_FUNCTION_ARG}
+    maxBound = CArgCount 6 -- #{const SQLITE_LIMIT_FUNCTION_ARG}
 
 -- | Tells SQLite3 that the defined custom SQL function is deterministic.
 c_SQLITE_DETERMINISTIC :: CInt
-c_SQLITE_DETERMINISTIC = #{const SQLITE_DETERMINISTIC}
+c_SQLITE_DETERMINISTIC = 0x800 -- #{const SQLITE_DETERMINISTIC}
 
+[enum|SQLiteError OK Error Internal Permission
+    Abort Busy Locked NoMemory ReadOnly Interrupt 
+    IO Corrupt NotFound Full CantOpen Protocol
+    Empty Schema TooBig Constraint Mismatch
+    Misuse NoLargeFileSupport Authorization Format
+    Range NotADatabase Notice Warning Row 100 Done |]
 
--- | <http://www.sqlite.org/c3ref/c_abort.html>
-newtype CError = CError CInt
-    deriving (Eq, Show)
-
--- | Note that this is a partial function.  If the error code is invalid, or
--- perhaps introduced in a newer version of SQLite but this library has not
--- been updated to support it, the result is undefined.
---
--- To be clear, if 'decodeError' fails, it is /undefined behavior/, not an
--- exception you can handle.
---
--- Therefore, do not use direct-sqlite with a different version of SQLite than
--- the one bundled (currently, 3.7.13).  If you do, ensure that 'decodeError'
--- and 'decodeColumnType' are still exhaustive.
-decodeError :: CError -> Error
-decodeError (CError n) = case n of
-    #{const SQLITE_OK}         -> ErrorOK
-    #{const SQLITE_ERROR}      -> ErrorError
-    #{const SQLITE_INTERNAL}   -> ErrorInternal
-    #{const SQLITE_PERM}       -> ErrorPermission
-    #{const SQLITE_ABORT}      -> ErrorAbort
-    #{const SQLITE_BUSY}       -> ErrorBusy
-    #{const SQLITE_LOCKED}     -> ErrorLocked
-    #{const SQLITE_NOMEM}      -> ErrorNoMemory
-    #{const SQLITE_READONLY}   -> ErrorReadOnly
-    #{const SQLITE_INTERRUPT}  -> ErrorInterrupt
-    #{const SQLITE_IOERR}      -> ErrorIO
-    #{const SQLITE_CORRUPT}    -> ErrorCorrupt
-    #{const SQLITE_NOTFOUND}   -> ErrorNotFound
-    #{const SQLITE_FULL}       -> ErrorFull
-    #{const SQLITE_CANTOPEN}   -> ErrorCan'tOpen
-    #{const SQLITE_PROTOCOL}   -> ErrorProtocol
-    #{const SQLITE_EMPTY}      -> ErrorEmpty
-    #{const SQLITE_SCHEMA}     -> ErrorSchema
-    #{const SQLITE_TOOBIG}     -> ErrorTooBig
-    #{const SQLITE_CONSTRAINT} -> ErrorConstraint
-    #{const SQLITE_MISMATCH}   -> ErrorMismatch
-    #{const SQLITE_MISUSE}     -> ErrorMisuse
-    #{const SQLITE_NOLFS}      -> ErrorNoLargeFileSupport
-    #{const SQLITE_AUTH}       -> ErrorAuthorization
-    #{const SQLITE_FORMAT}     -> ErrorFormat
-    #{const SQLITE_RANGE}      -> ErrorRange
-    #{const SQLITE_NOTADB}     -> ErrorNotADatabase
-    #{const SQLITE_ROW}        -> ErrorRow
-    #{const SQLITE_DONE}       -> ErrorDone
-    _                          -> error $ "decodeError " ++ show n
-
-encodeError :: Error -> CError
-encodeError err = CError $ case err of
-    ErrorOK                 -> #const SQLITE_OK
-    ErrorError              -> #const SQLITE_ERROR
-    ErrorInternal           -> #const SQLITE_INTERNAL
-    ErrorPermission         -> #const SQLITE_PERM
-    ErrorAbort              -> #const SQLITE_ABORT
-    ErrorBusy               -> #const SQLITE_BUSY
-    ErrorLocked             -> #const SQLITE_LOCKED
-    ErrorNoMemory           -> #const SQLITE_NOMEM
-    ErrorReadOnly           -> #const SQLITE_READONLY
-    ErrorInterrupt          -> #const SQLITE_INTERRUPT
-    ErrorIO                 -> #const SQLITE_IOERR
-    ErrorCorrupt            -> #const SQLITE_CORRUPT
-    ErrorNotFound           -> #const SQLITE_NOTFOUND
-    ErrorFull               -> #const SQLITE_FULL
-    ErrorCan'tOpen          -> #const SQLITE_CANTOPEN
-    ErrorProtocol           -> #const SQLITE_PROTOCOL
-    ErrorEmpty              -> #const SQLITE_EMPTY
-    ErrorSchema             -> #const SQLITE_SCHEMA
-    ErrorTooBig             -> #const SQLITE_TOOBIG
-    ErrorConstraint         -> #const SQLITE_CONSTRAINT
-    ErrorMismatch           -> #const SQLITE_MISMATCH
-    ErrorMisuse             -> #const SQLITE_MISUSE
-    ErrorNoLargeFileSupport -> #const SQLITE_NOLFS
-    ErrorAuthorization      -> #const SQLITE_AUTH
-    ErrorFormat             -> #const SQLITE_FORMAT
-    ErrorRange              -> #const SQLITE_RANGE
-    ErrorNotADatabase       -> #const SQLITE_NOTADB
-    ErrorRow                -> #const SQLITE_ROW
-    ErrorDone               -> #const SQLITE_DONE
-
-
--- | <http://www.sqlite.org/c3ref/c_blob.html>
-newtype CColumnType = CColumnType CInt
-    deriving (Eq, Show)
-
--- | Note that this is a partial function.
--- See 'decodeError' for more information.
-decodeColumnType :: CColumnType -> ColumnType
-decodeColumnType (CColumnType n) = case n of
-    #{const SQLITE_INTEGER} -> IntegerColumn
-    #{const SQLITE_FLOAT}   -> FloatColumn
-    #{const SQLITE_TEXT}    -> TextColumn
-    #{const SQLITE_BLOB}    -> BlobColumn
-    #{const SQLITE_NULL}    -> NullColumn
-    _                       -> error $ "decodeColumnType " ++ show n
-
-encodeColumnType :: ColumnType -> CColumnType
-encodeColumnType t = CColumnType $ case t of
-    IntegerColumn -> #const SQLITE_INTEGER
-    FloatColumn   -> #const SQLITE_FLOAT
-    TextColumn    -> #const SQLITE_TEXT
-    BlobColumn    -> #const SQLITE_BLOB
-    NullColumn    -> #const SQLITE_NULL
-
+[enum|SQLColumnType Integer 1 Float Text Blob Null |]
 ------------------------------------------------------------------------
 -- Conversion to and from FFI types
 
@@ -357,14 +249,6 @@ instance FFIType ParamIndex CParamIndex where
 instance FFIType ColumnIndex CColumnIndex where
     toFFI (ColumnIndex n) = CColumnIndex (fromIntegral n)
     fromFFI (CColumnIndex n) = ColumnIndex (fromIntegral n)
-
-instance FFIType Error CError where
-    toFFI = encodeError
-    fromFFI = decodeError
-
-instance FFIType ColumnType CColumnType where
-    toFFI = encodeColumnType
-    fromFFI = decodeColumnType
 
 instance FFIType ArgCount CArgCount where
     toFFI (ArgCount n)  = CArgCount (fromIntegral n)
