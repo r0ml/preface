@@ -54,6 +54,9 @@ import Control.Concurrent as X (ThreadId, myThreadId, forkIO, forkFinally, forkI
                                       tryTakeMVar, tryPutMVar, isEmptyMVar, withMVar, withMVarMasked,
                                       modifyMVar_, modifyMVar, modifyMVarMasked_, modifyMVarMasked,
                                       tryReadMVar, mkWeakMVar)
+
+import Control.Arrow as X ( (&&&), (***), first, second )
+
 import Control.Concurrent.STM as X (TChan, atomically,
      writeTChan, readTChan, newTChanIO, newTChan)
 
@@ -85,12 +88,12 @@ import Control.Monad.ST as X ( ST, runST, fixST, stToIO, RealWorld )
 
 import Data.Array.IArray as X (Array, Ix(..), IArray(..), listArray, bounds, array, elems)
 import Data.Array.Unboxed as X (UArray)
-import Data.Binary as X (Binary)
+import Data.Binary as X (Binary, encodeFile, decodeFile)
 
 import Data.Bits as X (Bits(..), (.&.), shiftR, shiftL, (.|.), complement, xor, rotateR, rotateL,
                        testBit, setBit, finiteBitSize)
 import Data.ByteString as X (ByteString, useAsCString, packCString, packCStringLen)
-import Data.ByteString.Internal as X (toForeignPtr, fromForeignPtr, mallocByteString)
+import Data.ByteString.Internal as X (toForeignPtr, fromForeignPtr, mallocByteString, memcpy)
 import Data.ByteString.Unsafe as X (unsafeUseAsCStringLen)
 
 import Data.Char as X (chr, ord, toLower, isDigit, isAlpha, isAscii
@@ -98,18 +101,53 @@ import Data.Char as X (chr, ord, toLower, isDigit, isAlpha, isAscii
                        , isUpper, isLower, toUpper, toLower, isAlphaNum
                        , isSymbol, isPunctuation, intToDigit, digitToInt)
 import Data.Either as X (isLeft, isRight, lefts, rights, partitionEithers)
+
+{-import Data.Foldable as X (Foldable(
+    fold
+  , foldMap, foldr, foldr', foldl, foldl', foldr1, foldl1
+  {-, toList -} , null, elem, maximum, minimum, sum ,product
+  ))
+-}
 import Data.Function as X (on)
 import Data.Int as X (Int8, Int16, Int32, Int64)
 import Data.IORef as X (IORef , newIORef, readIORef, writeIORef, 
-    atomicWriteIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
+    atomicWriteIORef, atomicModifyIORef, atomicModifyIORef', modifyIORef, modifyIORef', mkWeakIORef)
 import Data.Ord as X (comparing)
-import Data.List as X (sort, sortBy, nub, inits, tails, unfoldr, foldl' 
-                      , find, transpose, zip4, intersect, partition
-                      , isPrefixOf, isSuffixOf, isInfixOf, (\\)
-                      , stripPrefix, intersperse, elemIndex, group, groupBy )
-import Data.Map as X (Map, assocs, findWithDefault, keys)
-import Data.Maybe as X (listToMaybe, isJust, fromMaybe, isNothing, fromJust,
-                        mapMaybe, catMaybes)
+import Data.List as X (
+  isSubsequenceOf, (\\)
+  {- , all, and, any -}
+  {- ,break ,concat, concatMap, cycle -}
+  , delete, deleteBy, deleteFirstsBy
+  {-, drop, dropWhile  -}
+  , dropWhileEnd, elemIndex, elemIndices
+  {-, filter -}, find, findIndex, findIndices
+  , foldl'
+  , genericDrop, genericIndex, genericLength, genericReplicate
+  , genericSplitAt, genericTake
+  , group, groupBy
+  {-, head -} , inits, insert, insertBy
+  {-, intercalate -}, intersect, intersectBy, intersperse
+  , isInfixOf, isPrefixOf, isSuffixOf
+  {- , iterate, last, lines, lookup -}
+  , mapAccumL, mapAccumR
+  , maximumBy, minimumBy, {- notElem, -} nub, nubBy
+  {- , or -} , partition, permutations
+  {-, repeat, replicate, reverse, scanl1, scanr, scanr1 -}
+  , sort, sortBy, sortOn, {- span, splitAt, -} stripPrefix
+  , subsequences, {- tail, -} tails
+  {-, take, takeWhile -}, transpose, uncons, unfoldr
+  {-, union -} , unionBy {-, unlines, unwords -}
+  {-, unzip, unzip3 -}, unzip4, unzip5, unzip6, unzip7
+  {-, zip, zip3 -}, zip4, zip5, zip6, zip7
+  {-, zipWith3 -}, zipWith4, zipWith5, zipWith6, zipWith7
+  )
+import Data.Map as X (Map, assocs, findWithDefault, keys
+                     , toAscList, fromAscList, toDescList
+                     , foldrWithKey, foldlWithKey )
+import Data.Maybe as X (catMaybes, fromJust, fromMaybe
+           , isJust, isNothing, listToMaybe
+           , mapMaybe, maybeToList )
+
 import Data.Set as X (Set, union, member)
 import Data.String as X (IsString, fromString)
 import Data.Text as X (Text)
@@ -146,6 +184,7 @@ import GHC.Generics as X hiding (Arity, Fixity)
 import GHC.Exts as X (sortWith, groupWith, IsList(..) )
 import GHC.IO.Exception as X (IOException(..), IOErrorType(..) )
 import GHC.IO.Handle as X (hDuplicate)
+import GHC.Conc as X (numCapabilities)
 
 import Language.Haskell.TH as X hiding (Arity, Fixity)
 import Language.Haskell.TH.Quote as X
@@ -163,22 +202,55 @@ import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExis
                        , getPermissions, Permissions(..)
                        , getTemporaryDirectory
                        , setCurrentDirectory )
-import System.FilePath as X (addExtension, (</>), replaceExtension, takeDirectory
-                        , takeBaseName, takeExtension
-                        , dropFileName, takeFileName, joinPath
-                        , splitPath, splitExtension, splitDirectories, splitSearchPath
-                        , isPathSeparator, isSearchPathSeparator
-                        , normalise, isAbsolute, isValid
-                        , addTrailingPathSeparator, hasTrailingPathSeparator
-                        , dropTrailingPathSeparator )
+import System.FilePath as X (
+                          (-<.>), (<.>), (</>)
+                        , addExtension, addTrailingPathSeparator
+                        , dropDrive, dropExtension, dropExtensions
+                        , dropFileName, dropTrailingPathSeparator
+                        , equalFilePath, extSeparator
+                        , getSearchPath
+                        , hasDrive, hasExtension, hasTrailingPathSeparator
+                        , isAbsolute, isDrive, isExtSeparator
+                        , isPathSeparator, isRelative, isSearchPathSeparator
+                        , isValid, joinDrive, joinPath
+                        , makeRelative, makeValid, normalise
+                        , pathSeparators
+                        , replaceBaseName, replaceDirectory, replaceExtension
+                        , replaceFileName
+                        , searchPathSeparator, splitDirectories, splitDrive
+                        , splitExtension, splitExtensions, splitFileName
+                        , splitPath, splitSearchPath
+                        , takeBaseName, takeDirectory, takeDrive
+                        , takeExtension, takeExtensions, takeFileName
+                        )
 -- import System.Locale as X (TimeLocale, defaultTimeLocale)
 import System.CPUTime as X (getCPUTime)
-import System.IO as X (Handle, hClose, hFlush, hPutStrLn, hPutStr, hGetLine
-        , hGetContents
-        , hGetBuf, hGetChar, hSetBuffering, BufferMode(..)
-        , openFile, withFile, withBinaryFile, IOMode(..), stdin, stderr, stdout
-        , hSeek, SeekMode(..), hFileSize
-        , openBinaryFile )
+import System.IO as X (
+        {-  appendFile -}
+        {- , getChar, getContents, getLine -}
+          hPrint, hReady
+        {- , interact -}
+        , localeEncoding
+        , openBinaryTempFile, openBinaryTempFileWithDefaultPermissions
+        , openTempFile, openTempFileWithDefaultPermissions
+        {- , print, putChar, putStr, putStrLn -}
+        {- , readFile, readIO, readLn -}
+        , withBinaryFile, withFile {- , writeFile -}
+        , BufferMode(..) {- , FilePath -}
+        , Handle, IOMode(..), NewlineMode(..), SeekMode(..)
+        , hClose, hFileSize, hFlush, hGetBuf, hGetBufNonBlocking
+        , hGetBuffering, hGetChar, hGetContents, hGetEcho
+        , hGetEncoding, hGetLine, hGetPosn, hIsClosed, hIsEOF
+        , hIsOpen, hIsReadable, hIsSeekable, hIsTerminalDevice
+        , hIsWritable, hLookAhead, hPutBuf, hPutBufNonBlocking
+        , hPutChar, hPutStr, hPutStrLn, hSeek, hSetBinaryMode
+        , hSetBuffering, hSetEcho, hSetEncoding, hSetFileSize
+        , hSetNewlineMode, hSetPosn, hShow, hTell, hWaitForInput
+        , isEOF
+        , nativeNewline, nativeNewlineMode, noNewlineTranslation
+        , openBinaryFile, openFile, stderr, stdin, stdout
+        , universalNewlineMode
+        )
 import System.IO.Error as X ( isEOFError, ioeGetErrorType
                             , isAlreadyExistsError )
 import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO, unsafeInterleaveIO)
@@ -198,7 +270,8 @@ import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus
 import System.Posix.Signals as X (installHandler, sigTERM, sigINT)
 import System.Posix.Types as X (Fd(..), FileMode )
 
-import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(..), StdGen)
+-- do not export RandomGen.split -- split means something else
+import System.Random as X (newStdGen, mkStdGen, Random(..), RandomGen(next, genRange), StdGen)
 
 import System.Timeout as X (timeout)
 

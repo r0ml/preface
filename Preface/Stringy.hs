@@ -119,6 +119,8 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     -- | Drop the first n characters which test True on the given function
     strDropWhile :: ( (Char_y a) -> Bool) -> a -> a
 
+    strFoldl :: ( b -> (Char_y a) -> b ) -> b -> a -> b
+
     -- | Take the first n elements of a Stringy.  If n is greater than the length of the Stringy,
     -- only take the n elements.
     strTake :: Integral b => b -> a -> a
@@ -203,6 +205,7 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     -- endsWith :: a -> a -> Bool
     -- endsWith = flip strSuffixOf
 
+    strInfixOf :: a -> a -> Bool
         
 
     strElemIndex :: (Char_y a) -> a -> Maybe Int 
@@ -275,6 +278,8 @@ instance Stringy T.Text where
   strDropWhile = T.dropWhile
   strTakeWhile = T.takeWhile
 
+  strFoldl = T.foldl
+
   strUntil x y = let (a,b) = T.break x y in if strNull b then Nothing else Just (a,strTail b)
   strUntilStr x y = let (a,b) = T.breakOn x y in if strNull b then Nothing else Just (a,strDrop (strLen a) b)
   
@@ -301,6 +306,7 @@ instance Stringy T.Text where
   
   strPrefixOf = T.isPrefixOf
   strSuffixOf = T.isSuffixOf
+  strInfixOf = T.isInfixOf
 
   strElemIndex a b = fmap fromIntegral (T.findIndex (==a) b)
 
@@ -344,6 +350,8 @@ instance Stringy TL.Text where
   strDropWhile = TL.dropWhile
   strTakeWhile = TL.takeWhile
 
+  strFoldl = TL.foldl
+
   strUntil x y = let (a,b) = TL.break x y in if strNull b then Nothing else Just (a, strTail b)
   strUntilStr x y = let (a,b) = TL.breakOn x y in if strNull b then Nothing else Just (a, strDrop (strLen x) b)
   
@@ -371,6 +379,7 @@ instance Stringy TL.Text where
   
   strPrefixOf = TL.isPrefixOf
   strSuffixOf = TL.isSuffixOf
+  strInfixOf = TL.isInfixOf
 
   strElemIndex a b = let c = TL.length ( fst (TL.span (/=a) b)) in if c == TL.length b then Nothing else Just (fromIntegral c)
 
@@ -432,6 +441,9 @@ instance Stringy B.ByteString where
   strLen = fromIntegral . B.length
   strDropWhile = B.dropWhile
   strTakeWhile = B.takeWhile
+
+  strFoldl = B.foldl
+
   strUntil f x = let (a,b) = B.break f x in if strNull b then Nothing else Just (a,strTail b)
   strUntilStr f x = let (a,b) = B.breakSubstring f x in if strNull b then Nothing else Just (a, strDrop (strLen a) b)
  
@@ -458,6 +470,7 @@ instance Stringy B.ByteString where
   
   strPrefixOf = B.isPrefixOf
   strSuffixOf = B.isSuffixOf
+  strInfixOf = B.isInfixOf
 
   strElemIndex a b = B.elemIndex a b
 
@@ -542,6 +555,7 @@ instance Stringy L.ByteString where
   
   strPrefixOf = L.isPrefixOf
   strSuffixOf = L.isSuffixOf
+  strInfixOf = L.isInfixOf
 
   strElemIndex a b = L.elemIndex a b
 
@@ -599,6 +613,9 @@ instance Stringy [Char] where
   strLen = fromIntegral . length
   strDropWhile = dropWhile
   strTakeWhile = takeWhile
+
+  strFoldl = foldl
+
   strUntil x y = let (a,b) = break x y in if null b then Nothing else Just (a, strTail b)
   strUntilStr pat src = search 0 src
     where search n s
@@ -636,7 +653,8 @@ instance Stringy [Char] where
   
   strPrefixOf = DL.isPrefixOf
   strSuffixOf = DL.isSuffixOf
-  
+  strInfixOf = DL.isInfixOf
+ 
   strElemIndex a b = DL.elemIndex a b
 
   strReverse = reverse

@@ -65,15 +65,11 @@ foreign import ccall unsafe "Python.h PyString_FromStringAndSize"
 foreign import ccall unsafe "Python.h PyString_AsStringAndSize"
   pyString_AsStringAndSize :: RawPyObject -> Ptr CString -> Ptr PySSizeT -> IO PyInt
 
-{-
-foreign import capi unsafe "Python.h PyUnicode_AsUTF8String"
+foreign import ccall unsafe "Python.h PyUnicodeUCS2_AsUTF8String"
   pyUnicode_AsUTF8String :: RawPyObject -> IO RawPyObject
--}
 
-{-
-foreign import capi unsafe "Python.h PyUnicode_FromStringAndSize"
+foreign import ccall unsafe "Python.h PyUnicodeUCS2_FromStringAndSize"
   pyUnicode_FromStringAndSize :: CString -> PySSizeT -> IO RawPyObject
--}
 
 foreign import ccall unsafe "Python.h PyTuple_New"
   pyTuple_New :: PySSizeT -> IO RawPyObject
@@ -304,12 +300,11 @@ instance Pythonic ByteString where
       buffer <- peek s_buffer_ptr
       len <- peek s_len_ptr
       packCStringLen (buffer, fromIntegral len)
-{-
+
 instance Pythonic String where
   toPy s = useAsCStringLen (asByteString s) $ \(buffer, len) ->
     pyUnicode_FromStringAndSize buffer (fromIntegral len) >>= toPyObjectChecked
   fromPy o = do
     s <- withPyObject o pyUnicode_AsUTF8String >>= toPyObjectChecked
     fromPy s
--}
 

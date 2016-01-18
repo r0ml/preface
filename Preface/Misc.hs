@@ -13,7 +13,9 @@ import Network.BSD as X (getProtocolNumber)
 import System.Posix.Signals as P (Handler(..))
 
 import qualified Network.Socket.ByteString as S (send, recv)
-import qualified Data.Map as M (Map, insert, lookup, fromList, alter)
+import qualified Data.Map as M (Map, insert, lookup, fromList, alter
+                               , empty, map, insertWith
+                               , elems, keys)
 import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
 import qualified Data.Binary as DB (encode, decode)
@@ -24,6 +26,8 @@ import qualified Data.ByteString.Lazy as BL
 
 -- putState :: (Monad m, State.MonadState s m) => s -> m ()
 -- putState = State.put
+
+import qualified System.Random as Rand
 
 type CBool = CChar
 
@@ -43,9 +47,16 @@ cond' x y t = if t then x else y
 fflip :: (c -> a -> b -> d) -> a -> b -> c -> d
 fflip f a b c = f c a b
 
+{-
 -- | Apply f to the second element of a tuple
 second :: (b->c) -> (a,b) -> (a,c)
 second f (a,b) = (a,f b)
+
+-- | Apply f to the first element of a tuple
+first :: (a->c) -> (a,b) -> (c,b)
+first f (a,b) = (f a, b)
+-}
+
 
 prepend :: [a] -> [a] -> [a]
 prepend = (++)
@@ -85,6 +96,21 @@ mapFromList = M.fromList
 mapAlter :: Ord k => (Maybe a -> Maybe a) -> k -> Map k a -> Map k a
 mapAlter = M.alter
 
+mapEmpty :: Map k a
+mapEmpty = M.empty
+
+mapMap :: (a -> b) -> Map k a -> Map k b
+mapMap = M.map
+
+mapInsertWith :: Ord k0 => (a -> a -> a) -> k0 -> a -> Map k0 a -> Map k0 a
+mapInsertWith = M.insertWith
+
+mapElems :: Map k a -> [a]
+mapElems = M.elems
+
+mapKeys :: Map k a -> [k]
+mapKeys = M.keys
+
 newConcurrentForeignPtr :: Ptr a -> IO () -> IO (ForeignPtr a)
 newConcurrentForeignPtr = Concurrent.newForeignPtr
 
@@ -98,4 +124,40 @@ binaryEncode = BL.toStrict . DB.encode
 binaryDecode :: Binary a => ByteString -> a
 binaryDecode = DB.decode . BL.fromStrict
 
+findM :: Monad m => (a -> m Bool) -> [a] -> m (Maybe a)
+findM _ [] = return Nothing
+findM p (x:xs) = do
+    v <- p x
+    if v then return $ Just x else findM p xs
+
+partitionM :: Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
+partitionM _ [] = return ([], [])
+partitionM f (x:xs) = do
+    res <- f x
+    (as,bs) <- partitionM f xs
+    return ([x | res]++as, [x | not res]++bs)
+
+split :: Eq a => a -> [a] -> [[a]]
+split x [] = []
+split x xs = if null b then [a] else a : split x (tail b)
+               where (a,b) = break (== x) xs
+
+groupOn :: Eq a => (b -> a) -> [b] -> [[b]]
+groupOn f = groupBy ((==) `on` f)
+
+nubOn :: Eq a => (b -> a) -> [b] -> [b]
+nubOn f = nubBy ((==) `on` f)
+
+merge ::  (Ord a) => [a] -> [a] -> [a]
+merge = mergeBy compare
+
+-- | Merge two sorted lists using into a single, sorted whole,
+-- allowing the programmer to specify the comparison function.
+mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
+mergeBy _ [] ys = ys
+mergeBy _ xs [] = xs
+mergeBy f (ax@(x:xs)) (ay@(y:ys)) 
+        -- Ordering derives Eq, Ord, so the comparison below is valid.
+    | f x y /= GT = x : mergeBy f xs ay
+    | otherwise = y : mergeBy f ax ys
 

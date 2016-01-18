@@ -12,8 +12,7 @@ where
 
 import Preface.Imports
 import Data.ByteString (empty)
-import Preface.FFITemplates (enum)
-import Preface.FFITemplates2 (storable)
+import Preface.FFITemplates (enum, storable)
 import Preface.Stringy
 
 [storable|ZStream

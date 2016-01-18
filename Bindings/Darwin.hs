@@ -28,7 +28,7 @@ module Bindings.Darwin (
 import Preface.Imports
 import Preface.Pipes
 import Preface.Misc
-import Preface.FFITemplates2
+import Preface.FFITemplates
 
 data ObjcArg = forall a . Argumentative a => MkObjcArg a
 
@@ -681,7 +681,7 @@ nsBundleLoad x = do
       w = objc_Sel "bundleWithPath:"
       f = \y -> objc_msgSendOO u w =<< (nsString (y ++ x ++ ".framework"))
       p = ["/System/Library/Frameworks/", "/Library/Frameworks/"]
-  b <- first (nullPtr /= ) (map f p)
+  b <- runUntil (nullPtr /= ) (map f p)
   case b of
      Nothing -> return False
      Just bb -> objc_msgSendV bb (objc_Sel "load") >> return True

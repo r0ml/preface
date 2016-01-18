@@ -244,6 +244,7 @@ import Preface.Imports
 import Preface.Stringy
 import Preface.Misc
 import Preface.SecureHash (md5, stringDigest)
+import Preface.ParseUtils
 
 import qualified Data.Array.IArray as A ((!))
 
@@ -891,7 +892,7 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
                                   else (Nothing, s)
 
    cookie :: String -> (Maybe HttpCookie, String)
-   cookie s = let (c, s2) = sequenceOf [word, spc, satisfy (=='='), spc, cvalue] s
+   cookie s = let (c, s2) = sequenceOf [word, spc, enString . satisfy (=='='), spc, cvalue] s
                   (d, s3) = cdetail s2
                in case c of 
                     Nothing -> (Nothing,s3)
@@ -908,7 +909,7 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
                   else (Just $ mkCookie (fromJust name) val1 (fromJust args), s6)
 -}   
    spc :: String -> (Maybe String, String)
-   spc = catManyOf (satisfy isSpace)
+   spc = manyOf (satisfy isSpace)
 
    cvalue :: String -> (Maybe String, String)
    cvalue s = let (a,b) = quotedstring s
@@ -921,8 +922,8 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
                   case a of 
                     Nothing -> ([], b)
                     Just aa -> let (c,d) = cdetail b in ((aa:c), d)
-       where cdx s = let (j,s2) = sequenceOf [spc, satisfy (==';'), spc, word, spc, 
-                                       oneOf [ lastOf . sequenceOf [satisfy (=='='), spc, cvalue ]
+       where cdx s = let (j,s2) = sequenceOf [spc, enString . satisfy (==';'), spc, word, spc, 
+                                       oneOf [ lastOf . sequenceOf [enString . satisfy (=='='), spc, cvalue ]
                                              , \x -> (Just "",x) ]] s
                       in case j of 
                            Nothing -> (Nothing, s2)
@@ -1071,7 +1072,7 @@ headerToChallenge baseURI (HttpHeader _ str) =
         (_,_) -> Nothing
     where
         challenge :: String -> (Maybe (String,[(String,String)]), String)
-        challenge s = let (a,b) = sequenceOf [wordAuth, catManyOf (satisfy isSpace)] s
+        challenge s = let (a,b) = sequenceOf [wordAuth, manyOf (satisfy isSpace)] s
                           (j,k) = cprops b
                        in case a of 
                              Nothing -> (Nothing, s)
@@ -1081,10 +1082,10 @@ headerToChallenge baseURI (HttpHeader _ str) =
 
         cprops = sepBy cprop comma
 
-        comma s = let (a,b) = sequenceOf [catManyOf (satisfy isSpace),  satisfy (==','), catManyOf (satisfy isSpace)] s
+        comma s = let (a,b) = sequenceOf [manyOf (satisfy isSpace), enString . satisfy (==','), manyOf (satisfy isSpace)] s
                    in (maybe Nothing (const (Just ",")) a, b)
 
-        cprop s = let (a,b) = sequenceOf [wordAuth, satisfy (=='='), quotedstringAuth] s
+        cprop s = let (a,b) = sequenceOf [wordAuth, enString . satisfy (=='='), quotedstringAuth] s
                    in case a of
                         Nothing -> (Nothing, s)
                         Just [d,e,f] -> (Just (map toLower d, f), b)
@@ -1132,12 +1133,12 @@ headerToChallenge baseURI (HttpHeader _ str) =
             _          -> Nothing
 
 wordAuth, quotedstringAuth :: String -> (Maybe String, String)
-quotedstringAuth s = let (a,b) = sequenceOf [satisfy (=='"'), catManyOf (satisfy ('"' /=)), satisfy (=='"')] s
+quotedstringAuth s = let (a,b) = sequenceOf [enString . satisfy (=='"'), manyOf (satisfy ('"' /=)), enString . satisfy (=='"')] s
                 in case a of 
                      Nothing -> (Nothing, s)
                      Just [d,e,f] -> (Just e, b)
 
-wordAuth s = let (a,b) = catManyOf (satisfy (\x -> isAlphaNum x || x=='_' || x=='.' || x=='-' || x==':')) s
+wordAuth s = let (a,b) = manyOf (satisfy (\x -> isAlphaNum x || x=='_' || x=='.' || x=='-' || x==':')) s
           in case a of
                Nothing -> (Nothing, s)
                Just aa -> if length aa > 0 then (Just aa, b) else (Nothing, s)
@@ -2196,81 +2197,6 @@ encode64 = enc . char3_int4 . (map (chr .fromIntegral))
 decode64 :: String -> [Octet]
 decode64 = (map (fromIntegral . ord)) . int4_char3 . dcd
 
--- Parse Utils
---
-jfy :: (a,t) -> (Maybe a, t)
-jfy (a,b) = (Just a,b)
-
-lastOf :: (Maybe [a], s) -> (Maybe a, s)
-lastOf (a,s) = case a of
-                  Nothing -> (Nothing,s)
-                  Just b -> ( Just (last b), s)
-
-oneOf :: [s->(Maybe t,s)] -> s -> (Maybe t, s)
-oneOf (f:fl) s = let (a,b) = f s in case a of { Nothing -> oneOf fl s; Just _ -> (a,b) }
-oneOf [] s = (Nothing, s)
-
-sequenceOf :: [s -> (Maybe a, s)] -> s -> (Maybe [a], s)
-sequenceOf (f:fl) s  = let (a,b) = f s in case a of { Nothing -> (Nothing, s);
-              Just aa -> let (c,d) = sequenceOf fl b in case c of { Nothing -> (Nothing ,b);
-                 Just cc -> (Just (aa:cc), d) } }
-sequenceOf [] s = (Just [], s)
-
-catOf :: [s -> (Maybe [a], s)] -> s -> (Maybe [a], s)
-catOf f s = let (a,b) = sequenceOf f s in (maybe Nothing (Just . concat) a, b)
-
-satisfy :: (Char -> Bool) -> String -> (Maybe String, String)
-satisfy f sa@(c:s) = if f c then (Just [c], s) else (Nothing, sa)
-satisfy _ "" = (Nothing, "")
-
-stringOf :: String -> String -> (Maybe String, String)
-stringOf (c:p) s = if null s || c /= head s then (Nothing, s)
-                   else let (a,b) = stringOf p (tail s)
-                         in case a of {Nothing -> (Nothing, s); Just aa -> (Just (c:aa), b) }
-stringOf "" s = (Just "", s)
-
-manyOf :: (s -> (Maybe a, s)) -> s -> (Maybe [a], s)
-manyOf f s = let (a,b) = f s
-              in case a of 
-                   Nothing -> (Just [], b)
-                   Just aa -> let (Just c, d) = manyOf f b in (Just (aa:c), d)
-
-sepBy :: (s -> (Maybe a, s)) -> (s -> (Maybe b, s)) -> s -> (Maybe [a], s)
-sepBy f g s = let (a,s2) = f s
-               in case a of 
-                    Nothing -> (Nothing, s)
-                    Just aa -> let (c,s3) = g s2
-                                in case c of
-                                     Nothing -> (Just [aa], s2)
-                                     Just _ -> let (j,s4) = sepBy f g s3
-                                                 in case j of
-                                                      Nothing -> (Just [aa], s2)
-                                                      Just jj -> (Just (aa:jj), s4)
-
-catManyOf :: (String -> (Maybe String, String)) -> String -> (Maybe String, String)
-catManyOf f s = let (a,b) = manyOf f s in (maybe (Just "") (Just . concat) a, b)
-
-popWhile :: (Char -> Bool) -> String -> (String, String)
-popWhile f = break (not . f)
-
-countMinMax :: Int -> Int -> (String -> (Maybe a, String)) -> String -> (Maybe [a], String)
-countMinMax n x f s = let (a,s2) = f s
-                       in case a of 
-                            Just aa -> 
-                                if x > 0
-                                   then let (b, s3) = countMinMax (n-1) (x-1) f s2
-                                         in case b of
-                                              Nothing -> (Nothing, s)
-                                              Just bb -> (Just (aa:bb), s3)
-                                   else (Just [aa], s2)
-                            Nothing -> if n <= 0 then (Just [], s)
-                                       else (Nothing, s)
-                          
-concOf :: ((Maybe [String]), s) -> (Maybe String, s)
-concOf (Nothing, s) = (Nothing, s)
-concOf (Just a, s) = (Just (concat a), s)
-
-
 -----------------------------------------------------------------
 ------------------ TCP Connections ------------------------------
 -----------------------------------------------------------------
@@ -2859,17 +2785,17 @@ uauthority s = let (uu,s2) = userinfo s
 
 --  RFC3986, section 3.2.1
 userinfo :: String -> (Maybe String, String)
-userinfo = catOf [ catManyOf (uchar ";:&=+$,"), satisfy (=='@') ]
+userinfo = catOf [ catManyOf (uchar ";:&=+$,"), enString . satisfy (=='@') ]
 
 --  RFC3986, section 3.2.2
 host :: String -> (Maybe String, String)
 host = oneOf [ipLiteral, ipv4address, regName]
 
 ipLiteral :: String -> (Maybe String, String)
-ipLiteral = catOf [satisfy (=='['), oneOf [ipv6address, ipvFuture], satisfy (==']') ]
+ipLiteral = catOf [enString . satisfy (=='['), oneOf [ipv6address, ipvFuture], enString . satisfy (==']') ]
 
 ipvFuture :: String -> (Maybe String, String)
-ipvFuture = catOf [ satisfy (=='v'), satisfy isHexDigit, satisfy (=='.'), jfy . popWhile isIpvFutureChar ]
+ipvFuture = catOf [ enString . satisfy (=='v'), enString . satisfy isHexDigit, enString . satisfy (=='.'), jfy . popWhile isIpvFutureChar ]
 
 isIpvFutureChar :: Char -> Bool
 isIpvFutureChar c = isUnreserved c || isSubDelims c || (c==';')
@@ -2895,7 +2821,7 @@ ls32 =  oneOf [lss, ipv4address]
   where lss = catOf [h4c, h4]
 
 h4c :: String -> (Maybe String, String)
-h4c s = let (a1, s1) = catOf [h4, satisfy (==':')] s
+h4c s = let (a1, s1) = catOf [h4, enString . satisfy (==':')] s
             (d, s3) = satisfy (==':') s1
          in case a1 of
                Nothing -> (Nothing, s)
@@ -2904,7 +2830,7 @@ h4c s = let (a1, s1) = catOf [h4, satisfy (==':')] s
                               Just _ -> (Nothing, s)
 
 h4 :: String -> (Maybe String, String)
-h4 = concOf . countMinMax 1 4 (satisfy isHexDigit)
+h4 = concOf . countMinMax 1 4 (enString . satisfy isHexDigit)
 
 ipv4address :: String -> (Maybe String, String)
 ipv4address s = let (a,b) = catOf [decOctet, dot, decOctet, dot, decOctet, dot, decOctet] s
@@ -2912,10 +2838,10 @@ ipv4address s = let (a,b) = catOf [decOctet, dot, decOctet, dot, decOctet, dot, 
                  in case c of 
                       Nothing -> (a, b)
                       Just cc -> (Nothing, s)
-  where dot = satisfy (=='.')
+  where dot = enString . satisfy (=='.')
 
 decOctet :: String -> (Maybe String, String)
-decOctet s = let (a1, s1) = concOf (countMinMax 1 3 (satisfy isDigit) s)
+decOctet s = let (a1, s1) = concOf (countMinMax 1 3 (enString . satisfy isDigit) s)
               in case a1 of 
                    Nothing -> (Nothing, s)
                    Just a11 -> if (read a11 :: Integer) > 255 then (Nothing, s) else (a1, s1)
@@ -2935,7 +2861,7 @@ nameChar s = let (a,b) = escaped s
 
 --  RFC3986, section 3.2.3
 port :: String -> (Maybe String, String)
-port = catOf [ satisfy (== ':'), catManyOf (satisfy isDigit) ]
+port = catOf [ enString . satisfy (== ':'), manyOf (satisfy isDigit) ]
 
 --
 --  RFC3986, section 3.3

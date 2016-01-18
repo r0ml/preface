@@ -7,7 +7,7 @@ module Bindings.CoreFoundation
 where
 
 import Preface.Imports
-import Preface.FFITemplates2
+import Preface.FFITemplates
 import Preface.Misc 
 
 -- --------------------------------------------------------

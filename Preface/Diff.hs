@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -----------------------------------------------------------------------------
 -- This is an implementation of the O(ND) diff algorithm as described here

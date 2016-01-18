@@ -33,12 +33,12 @@ Library
 
   Exposed-modules: Preface
 
-  Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc, Preface.Math
+  Other-Modules: Preface.Stringy, Preface.Byter, Preface.Misc
+            , Preface.ParseUtils, Preface.Math
             , Preface.Symbols, Preface.SecureHash, Preface.Runner
             , Preface.SCGI, Preface.WebSocket
             , Preface.Testing
-            , Preface.QuasiQuotes, Preface.FFITemplates, Preface.FFITemplates2
-            , Preface.FFITemplates3
+            , Preface.QuasiQuotes, Preface.FFITemplates
             , Preface.IOQuotes
             , Preface.StrUtils, Preface.Binary, Preface.Arrayed
             , Preface.Timings, Preface.Imports, Preface.Pipes
@@ -47,6 +47,7 @@ Library
             , Preface.ASN1, Preface.Tar, Preface.HTTP, Preface.Distributed
             , Preface.Watch
             , Preface.Sequential
+            , Preface.HFlags
             , Bindings.CoreFoundation
             , Bindings.Objc
             , Bindings.Darwin

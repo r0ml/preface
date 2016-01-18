@@ -23,8 +23,7 @@ module Bindings.Vfs (
   , MountFlag(..)
 ) where
 
-import Preface.FFITemplates (enum)
-import Preface.FFITemplates2 (storable)
+import Preface.FFITemplates (enum, storable)
 import Preface.Imports
 
 foreign import ccall unsafe "sys/statvfs.h statvfs" c_statvfs :: CString -> Ptr StatVFS -> IO CInt
