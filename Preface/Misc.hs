@@ -14,7 +14,7 @@ import System.Posix.Signals as P (Handler(..))
 
 import qualified Network.Socket.ByteString as S (send, recv)
 import qualified Data.Map as M (Map, insert, lookup, fromList, alter
-                               , empty, map, insertWith
+                               , empty, map, size, insertWith
                                , elems, keys)
 import qualified Foreign.Concurrent as Concurrent (newForeignPtr)
 
@@ -28,6 +28,8 @@ import qualified Data.ByteString.Lazy as BL
 -- putState = State.put
 
 import qualified System.Random as Rand
+
+import qualified System.Process
 
 type CBool = CChar
 
@@ -99,6 +101,9 @@ mapAlter = M.alter
 mapEmpty :: Map k a
 mapEmpty = M.empty
 
+mapSize :: Map k a -> Int
+mapSize = M.size
+
 mapMap :: (a -> b) -> Map k a -> Map k b
 mapMap = M.map
 
@@ -160,4 +165,7 @@ mergeBy f (ax@(x:xs)) (ay@(y:ys))
         -- Ordering derives Eq, Ord, so the comparison below is valid.
     | f x y /= GT = x : mergeBy f xs ay
     | otherwise = y : mergeBy f ax ys
+
+systemShell :: String -> System.Process.CreateProcess
+systemShell = System.Process.shell
 

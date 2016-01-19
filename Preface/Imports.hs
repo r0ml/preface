@@ -258,10 +258,11 @@ import System.IO.Unsafe as X (unsafePerformIO, unsafeDupablePerformIO, unsafeInt
 import System.Environment as X (getArgs, getEnvironment, lookupEnv, setEnv, getEnv, getProgName)
 import System.Exit as X (ExitCode(..), exitSuccess, exitFailure, exitWith )
 
-import System.Process as X (StdStream(..), proc, createProcess, waitForProcess,
+import System.Process as X (StdStream(..), proc, createProcess, waitForProcess
+  , readCreateProcess
   -- Does this work
-  readProcessWithExitCode, runInteractiveProcess, terminateProcess,
-  CreateProcess(..), ProcessHandle, rawSystem )
+  , readProcessWithExitCode, runInteractiveProcess, terminateProcess
+  , CreateProcess(..), ProcessHandle, rawSystem )
 
 import System.Posix as X (getFileStatus, fileSize, getSymbolicLinkStatus
                          , isSymbolicLink, FileOffset
