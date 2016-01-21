@@ -6,7 +6,7 @@
 
 module Bindings.Python (
          -- * Initialization
-         initialize
+         pyInitialize
          -- * Types
        , PyObject(..)
          -- * Errors
@@ -206,9 +206,9 @@ throwCurrentPythonException = do
 -- |@'initialize' signalHandlers@ initializes the interpreter.
 --
 -- When @signalHandlers@ is true, install Python's signal handlers.
-initialize :: Bool -> IO ()
-initialize True = pyInitializeEx 1
-initialize False = pyInitializeEx 0
+pyInitialize :: Bool -> IO ()
+pyInitialize True = pyInitializeEx 1
+pyInitialize False = pyInitializeEx 0
 
 -- |@'importModule' name@ imports the Python module with the given 'name'.
 --

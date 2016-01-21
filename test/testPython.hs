@@ -11,7 +11,7 @@ square _i x = do
    withForeignPtr p $ \q -> return q
 
 main = do
-  initialize False
+  pyInitialize False
   pygments <- importModule "os"
   py_statvfs <- getAttr pygments "statvfs"
   pathObj <- toPy "/"
