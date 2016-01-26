@@ -7,6 +7,7 @@ module Preface.Pipes (
   , (--|)
   , while
   , runUntil 
+  , collectUntil
   ) where
 
 import Preface.Imports
@@ -20,6 +21,15 @@ while f (x:xs) = do { y <- x; if f y then fmap (y:) (while f xs) else return [] 
 runUntil :: (a -> Bool) -> [IO a] -> IO (Maybe a)
 runUntil _f [] = return Nothing
 runUntil f (x:xs) = do { y <- x; if f y then return (Just y) else runUntil f xs }
+
+
+cond :: a -> a -> Bool -> a
+cond x y t = if t then x else y
+
+collectUntil :: (a->Bool) -> IO a -> IO [a]
+collectUntil f g = g >>= 
+   -- \y -> cond (return []) ( (y :) <$> ( collectUntil f g)) (f y)
+   ap (cond (return ([])) . (<$> collectUntil f g) . (:)) f
 
 {-
 untilM :: (a -> Bool) -> [IO a] -> IO [a]

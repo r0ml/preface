@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts, TypeFamilies #-}
 
-module Preface.SCGI ( runSCGI, CGI(..), cgiGetHeaders, cgiGetBody
+module Preface.SCGI ( runSCGI, CGI(..), CGIVars
+    , cgiGetHeaders, cgiGetBody
     , writeResponse, sendResponse, sendRedirect, sendLocalRedirect, doCGI
     , dumpCGI, isCGI, CGIFunction
     
@@ -18,7 +19,7 @@ import Preface.Stringy
 -- the CGI call.  The function will take a list of key/value pairs representing the 
 -- environment variables set by the CGI server, and a CGI instance which provides access
 -- to retrieving the request parameters and response stream.
-type CGIFunction = (CGIVars -> CGI -> IO HTTPHeaders)
+type CGIFunction = CGIVars -> CGI -> IO HTTPHeaders
 
 {- this would be a handler function which limits the number of threads -}
 {-
@@ -65,7 +66,7 @@ netstring nd =
       lens = asString lenx
       len = toInt lens
    in do
-        (res, ndxx) <- ndGet len nd { ndBuf = B.drop 1 rest }
+        (res, ndxx) <- ndGet len nd { ndBuf = rest }
         (_,ndxxx) <- ndGet (1 :: Int) ndxx
         return (res,ndxxx)
 
@@ -96,6 +97,7 @@ getSCGI sock = do
         let vars = headersx ( asString input)
             len = case lookup "CONTENT_LENGTH" vars of { Nothing -> 0; Just x -> toInt x }
         putMVar eenv vars
+        putStrLn ("wrote the mvars, length = "++show len)
         recurse len ndx chan
     hdrs <- newEmptyMVar
     wchan <- newChan
@@ -115,6 +117,7 @@ getSCGI sock = do
         recurse n nnd ch =
               if n <= 0 then writeChan ch B.empty
               else do (b,nnd')<-ndGet (min blksiz n) nnd
+                      print ("recurse writes",b)
                       writeChan ch b
                       recurse (n- blksiz) nnd' ch
         headersx = pairs . splitx
@@ -122,16 +125,20 @@ getSCGI sock = do
         pairs _ = []
         splitx str = case strUntil (== '\NUL') str of
                         Nothing -> [ str ]
-                        Just (token, rest) -> token : splitx (tail rest)
+                        Just (token, rest) -> token : splitx rest
 
 genhdrs :: HTTPHeaders -> ByteString 
 genhdrs hd =  BC.pack $ intercalate "\r\n" $ [ n++": "++v | (n,v) <- hd] ++ ["",""]
 
-sendRedirect :: CGI -> String -> IO ()
-sendRedirect rsp loc = putMVar (cgiRspHeaders rsp) [("Status","302 Found"),("Location",loc)]
+-- sendRedirect :: CGI -> String -> IO ()
+-- sendRedirect rsp loc = putMVar (cgiRspHeaders rsp) [("Status","302 Found"),("Location",loc)]
+sendRedirect :: String -> HTTPHeaders
+sendRedirect loc = [("Status","302 Found"),("Location",loc)]
 
-sendLocalRedirect :: CGI -> String -> IO ()
-sendLocalRedirect rsp loc = putMVar (cgiRspHeaders rsp) [("Status","200 Local Redirect"),("Location",loc)]
+-- sendLocalRedirect :: CGI -> String -> IO ()
+-- sendLocalRedirect rsp loc = putMVar (cgiRspHeaders rsp) [("Status","200 Local Redirect"),("Location",loc)]
+sendLocalRedirect :: String -> HTTPHeaders
+sendLocalRedirect loc = [("Status","200 Local Redirect"),("Location",loc)]
 
 sendResponse :: CGI -> HTTPHeaders -> IO ()
 sendResponse rsp = putMVar (cgiRspHeaders rsp)
@@ -194,7 +201,7 @@ doCGI :: CGIFunction -> IO ()
 doCGI f = do
   a <- getCGI
   b <- cgiGetHeaders a 
-  c <- f b a
+  c <- f b a 
   sendResponse a c
   writeResponse a B.empty
   _ <- takeMVar (cgiWriterVar a)

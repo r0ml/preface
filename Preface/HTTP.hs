@@ -114,7 +114,7 @@ Example use:
        , withAuthority     -- :: Authority -> Request ty -> String
        -}
 
-
+  , unEscapeString
 
   ,  ConnError(..), failWith, fmapE, SResult, httpOpenStream
   , httpClose, httpCloseOnEnd, httpWriteBlock
