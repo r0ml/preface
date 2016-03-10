@@ -22,7 +22,54 @@ module Bindings.Darwin (
 --  , objcGetMethod
   , nsBundleLoad
   , CGPoint(..), CGRect(..)
-  , module Bindings.Darwin
+  , ObjcArg(..)
+  , objcWrapOO
+  , objcWrapO
+  , class_setSuperclass
+  , class_isMetaClass
+  , class_getInstanceSize
+  , class_getInstanceVariable
+  , class_getClassVariable
+  , class_getInstanceMethod
+  , class_getClassMethod
+  , objcGetClassMethod
+  , objcGetInstanceMethod
+  , class_getVersion
+  , class_setVersion
+  , object_getClassName
+  , objcGetClassName
+  , objc_copyClassList
+  , objcGetClassList
+  , objc_getMetaClass
+  , class_getImageName
+  , objcGetImageName
+  , sel_registerName
+  , showSel
+  , objc_msgSend_stret0
+  , objc_msgSend_stret1
+  , objc_msgSend_stret2
+  , objc_msgSend_stret3
+  , objc_msgSend_stret4
+  , objc_msgSendO
+  , objc_msgSendOOO
+  , objc_msgSendI
+  , objc_msgSendC
+  , objc_msgSendOI
+  , objc_msgSendCI
+  , objc_msgSendCO
+  , objc_msgSendVC
+  , objc_msgSendVO
+  , objc_msgSendVOI
+  , objc_msgSendVDD
+  , nsMethodSignatureForSelector
+  , object_getClass
+  , gargTypeOf
+  , nsInvoke
+  , ObjcTypeAnnotation(..)
+  , objcTypeAnnotationChar
+  , objcTypeAnnotation
+  , nsString
+  -- , module Bindings.Darwin
 ) where
 
 import Preface.Imports
@@ -32,6 +79,7 @@ import Preface.FFITemplates
 
 data ObjcArg = forall a . Argumentative a => MkObjcArg a
 
+objcNil :: ObjcId
 objcNil = ObjcId nullPtr
  
 type Objc_Id = Ptr ()
@@ -446,7 +494,18 @@ nsInvoke (ObjcId x) sxi@(ObjcSel sx) [] = do
        ObjcTypec -> doChar
        ObjcTypeC -> doChar 
        ObjcTypeStar -> doObj  
-       ObjcTypeHat a -> undefined
+       ObjcTypeHat _a -> undefined
+       ObjcTypes -> undefined
+       ObjcTypeq -> undefined
+       ObjcTypel -> undefined
+       ObjcTypeL -> undefined
+       ObjcTypeQ -> undefined
+       ObjcTypef -> undefined
+       ObjcTyped -> undefined
+       ObjcTypeB -> undefined
+       ObjcTypeHash -> undefined
+       ObjcTypeStruct _a _b -> undefined
+       ObjcTypeS -> undefined
        ObjcTypeColon -> undefined
        ObjcTypev -> objc_msgSendV x sx >> return zz
   else error ("invalid selector for this object: " ++ show sxi)
@@ -543,8 +602,8 @@ instance Argumentative () where
 instance Storable () where
   sizeOf _ = 8
   alignment _ = 8
-  peek x = return ()
-  poke x y = return ()
+  peek _x = return ()
+  poke _x _y = return ()
 
 instance Argumentative CGPoint where 
   argTypeOf _ = ObjcTypeStruct "CGPoint" "dd"
@@ -655,6 +714,7 @@ instance Argumentative a => Argumentative (Ptr a) where
 data ObjcTypeAnnotation = ObjcTypeConst | ObjcTypeIn | ObjcTypeInOut 
        | ObjcTypeOut | ObjcTypeByCopy | ObjcTypeByRef | ObjcTypeOneWay
        | ObjcTypeUndefined
+objcTypeAnnotationChar :: ObjcTypeAnnotation -> Char
 objcTypeAnnotationChar x = case x of 
   ObjcTypeConst -> 'r'
   ObjcTypeIn -> 'n'
@@ -665,6 +725,7 @@ objcTypeAnnotationChar x = case x of
   ObjcTypeOneWay -> 'V'
   ObjcTypeUndefined -> 'x'
 
+objcTypeAnnotation :: Char -> ObjcTypeAnnotation
 objcTypeAnnotation c = case c of
   'r'-> ObjcTypeConst
   'n'-> ObjcTypeIn

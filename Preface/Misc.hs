@@ -27,8 +27,6 @@ import qualified Data.ByteString.Lazy as BL
 -- putState :: (Monad m, State.MonadState s m) => s -> m ()
 -- putState = State.put
 
-import qualified System.Random as Rand
-
 import qualified System.Process
 
 type CBool = CChar
@@ -62,8 +60,6 @@ first f (a,b) = (f a, b)
 
 prepend :: [a] -> [a] -> [a]
 prepend = (++)
-
-instance Show Errno where show (Errno a) = "Errno " ++ show a
 
 sktRecv :: Socket -> Int -> IO ByteString
 sktRecv = S.recv
@@ -143,7 +139,7 @@ partitionM f (x:xs) = do
     return ([x | res]++as, [x | not res]++bs)
 
 split :: Eq a => a -> [a] -> [[a]]
-split x [] = []
+split _ [] = []
 split x xs = if null b then [a] else a : split x (tail b)
                where (a,b) = break (== x) xs
 
@@ -152,6 +148,29 @@ groupOn f = groupBy ((==) `on` f)
 
 nubOn :: Eq a => (b -> a) -> [b] -> [b]
 nubOn f = nubBy ((==) `on` f)
+
+nubConcatOn :: Eq a => (b -> a) -> (b -> c) -> [b] -> [(a,[c])]
+nubConcatOn f g ls = nco ls []
+  where 
+      nco [] z = z
+      nco (y:ys) xs = 
+          let z = f y
+           in nco ys $ emb z (g y) xs
+
+      emb z y [] = [(z,[y])]
+      emb z y (x:xs) = if z == fst x then (fst x, snd x ++ [y] ) : xs else x : emb z y xs
+
+-- Not exported:
+-- Note that we keep the call to `eq` with arguments in the
+-- same order as in the reference (prelude) implementation,
+-- and that this order is different from how `elem` calls (==).
+-- See #2528, #3280 and #7913.
+-- 'xs' is the list of things we've seen so far,
+-- 'y' is the potential new element
+elem_by :: (a -> a -> Bool) -> a -> [a] -> Bool
+elem_by _  _ []         =  False
+elem_by eq y (x:xs)     =  x `eq` y || elem_by eq y xs
+
 
 merge ::  (Ord a) => [a] -> [a] -> [a]
 merge = mergeBy compare

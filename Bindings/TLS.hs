@@ -57,13 +57,19 @@ ssl_errs = do
 ssl_get_error :: SSL -> CInt -> IO CInt
 ssl_get_error = c_ssl_get_error
 
+ssl_get_peer_certificate :: SSL -> IO X509
 ssl_get_peer_certificate = c_ssl_get_peer_certificate
 
+x509_get_subject_name :: X509 -> IO X509_NAME
 x509_get_subject_name = c_x509_get_subject_name
+
+x509_get_issuer_name :: X509 -> IO X509_NAME
 x509_get_issuer_name = c_x509_get_issuer_name
 
+x509_name_oneline :: X509_NAME -> IO String
 x509_name_oneline x = peekCString =<< c_x509_name_oneline x nullPtr 0
 
+ssl_write :: SSL -> ByteString -> IO CInt
 ssl_write x b = do
   r <- unsafeUseAsCStringLen b (\(p,q) -> c_ssl_write x p (fromIntegral q))
   return r

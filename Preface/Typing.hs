@@ -19,15 +19,15 @@ autotypeLn = (>> putStrLn "") . (>> threadDelay 500000) . autotype
 autotypeDiff :: String -> String -> IO ()
 autotypeDiff x y = let dfo = diff x y in do
   putStr x
-  strPut $ strConcat (take (length x) (cycle [backwardChar]))
+  strPut $ strConcat (take (length x) (cycle [consoleBackwardChar]))
   -- putStr (asString (setColumn 0)) -- only if starting at left
   threadDelay 250000
   mapM_ autotypeDiffx dfo
   threadDelay 500000
   putStrLn ""
   where autotypeDiffx :: DiffOperation Char -> IO ()
-        autotypeDiffx (Deletion n a m) = sequence_ (take (length a) (repeat (strPut deleteChar >> threadDelay 60000)))
-        autotypeDiffx (Addition n a m) = mapM_ ((>>threadDelay 60000) . strPut . insertChar . asByte ) a
-        autotypeDiffx (Change n a m b) = undefined
-        autotypeDiffx (Unchanged n a m b) = sequence_ (take (length a) (repeat (strPut forwardChar >> threadDelay 60000)))
+        autotypeDiffx (Deletion _n a _m) = sequence_ (take (length a) (repeat (strPut consoleDeleteChar >> threadDelay 60000)))
+        autotypeDiffx (Addition _n a _m) = mapM_ ((>>threadDelay 60000) . strPut . consoleInsertChar . asByte ) a
+        autotypeDiffx (Change _n _a _m _b) = undefined
+        autotypeDiffx (Unchanged _n a _m _b) = sequence_ (take (length a) (repeat (strPut consoleForwardChar >> threadDelay 60000)))
 

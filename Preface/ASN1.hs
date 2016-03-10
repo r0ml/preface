@@ -81,30 +81,15 @@ module Preface.ASN1
 import Preface.Imports
 import Preface.SecureHash (stringDigest)
 import qualified Control.Exception as E
-import Control.Arrow (first)
--- import Data.ByteString (ByteString)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 
--- import Data.Word
--- import Data.Maybe (fromJust, fromMaybe)
--- import Data.Typeable
-
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 
--- import Foreign
-
 import qualified Data.ByteString.Unsafe   as B
 import Data.Time (TimeZone)
--- import Data.List (unfoldr)
--- import Data.Char (ord)
--- import Data.Hourglass
--- import Control.Monad
--- import Control.Exception (Exception, throw)
--- import           Numeric (showHex)
--- import Data.String
 import qualified Data.ByteString.Char8 as BC
 
 -- | Basic Encoding Rules (BER)
@@ -141,9 +126,9 @@ decodeEventASN1Repr checkHeader l = loop [] l
                 case checkHeader hdr of
                     Nothing  -> (Start ctype,[h,ConstructionBegin]) : loop (ctype:acc) xs
                     Just err -> E.throw err
-          loop acc (h@(Header hdr@(ASN1Header _ _ False _)):p@(Primitive prim):xs) =
+          loop acc (h@(Header hdr@(ASN1Header _ _ False _)):p@(Primitive primx):xs) =
                 case checkHeader hdr of
-                    Nothing -> case decodePrimitive hdr prim of
+                    Nothing -> case decodePrimitive hdr primx of
                         Left err  -> E.throw err
                         Right obj -> (obj, [h,p]) : loop acc xs
                     Just err -> E.throw err
@@ -514,10 +499,12 @@ failDesc err = Get (\s0 b0 m0 p0 kf _ -> kf s0 b0 m0 p0 ("Failed reading: " ++ e
 -- | An efficient 'get' method for strict ByteStrings. Fails if fewer
 -- than @n@ bytes are left in the input. This function creates a fresh
 -- copy of the underlying bytes.
+{-
 getBytesCopy :: Int -> Get B.ByteString
 getBytesCopy n = do
   bs <- getBytes n
   return $! B.copy bs
+-}
 
 ------------------------------------------------------------------------
 -- Helpers
@@ -580,9 +567,9 @@ bytesOfInt i
 -}
 putVarEncodingIntegral :: (Bits i, Integral i) => i -> ByteString
 putVarEncodingIntegral i = B.reverse $ B.unfoldr genOctets (i,True)
-    where genOctets (x,first)
+    where genOctets (x,isfirst)
             | x > 0     =
-                let out = fromIntegral (x .&. 0x7F) .|. (if first then 0 else 0x80) in
+                let out = fromIntegral (x .&. 0x7F) .|. (if isfirst then 0 else 0x80) in
                 Just (out, (shiftR x 7, False))
             | otherwise = Nothing
 

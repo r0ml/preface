@@ -21,8 +21,8 @@ encode = BL.toStrict . B.encode
 decode :: Serializable a => ByteString -> Either String a
 decode s = let j = (B.decodeOrFail . BL.fromStrict) s
             in case j of
-                  Left (a,b,c) -> Left c
-                  Right (a,b,c) -> if 0 == BL.length a then Right c else Left "extra bytes available"
+                  Left (_a,_b,c) -> Left c
+                  Right (a,_b,c) -> if 0 == BL.length a then Right c else Left "extra bytes available"
 
 sendTask :: Serializable a => Chan a -> Socket -> IO ()
 sendTask c s = do
@@ -80,20 +80,24 @@ rpcOn port f = do
    setSocketOption sock ReuseAddr 1
    bindSocket sock (SockAddrInet (fromIntegral port) iNADDR_ANY)
    sktListen sock 5
-   forkIO $ forever $ do
-      (conn, addr) <- sktAccept sock
+   _ <- forkIO $ forever $ do
+      (conn, _addr) <- sktAccept sock
       p2 <- forkFinally (forever $ sendTask qChan conn) (logerr "rpcOn send" conn)
       p1 <- forkFinally (forever $ recvTask rChan conn) (\x -> logerr "rpcOn recv" conn x >> killThread p2) -- when the reader dies, kill the sender
       let rc = RpcConnection (p2, qChan) (p1, rChan) 
-      forkFinally (f rc) (\_x -> do
-         case _x of {Left e -> traceIO ("rpcOn listening: "++show e) }
+      _ <- forkFinally (f rc) (\_x -> do
+         case _x of 
+            Left e -> traceIO ("rpcOn listening: "++show e)
+            Right _e -> error "distributed: what now ? "
          killThread p1 >> killThread p2 >> sClose conn )
       return ()
    return ()
 
 logerr :: String -> Socket -> (Either SomeException a) -> IO ()
 logerr s c x = do
-  case x of { Left e -> traceIO (s ++ ": " ++ show e) }
+  case x of
+      Left e -> traceIO (s ++ ": " ++ show e)
+      Right _e -> error "logerr right?"
   sClose c
 
 alive :: ThreadId -> IO Bool

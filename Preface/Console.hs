@@ -1,99 +1,118 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Preface.Console where
 
 import Preface.Imports
 import Preface.Stringy
+import Preface.FFITemplates
 
-csi :: Show a => [a] -> ByteString -> ByteString
+csi :: [Int] -> ByteString -> ByteString
 csi args code = strConcat ["\ESC[" ,  intercalate ";" (map (asByteString . show) args), code ]
 
+type ConsoleString = ByteString
 
-peach = setExtendedColor 202
-azure = setExtendedColor  27
+consolePeach :: ConsoleString
+consolePeach = consoleSetExtendedColor 202
 
-treset :: ByteString
+consoleAzure :: ConsoleString
+consoleAzure = consoleSetExtendedColor  27
+
+treset :: ConsoleString
 treset = "\ESC[m" 
 
+charNotEquals :: Char
 charNotEquals = '\x2260'
+
+charCheck :: Char
 charCheck = '\x2714'
+
+charLeftArrow :: Char
 charLeftArrow = '\x2b05'
+
+charRightArrow :: Char
 charRightArrow = '\x279c'
 
-neq = strConcat [setAttr bold , " ", stringleton (asByte charNotEquals)  , " " , treset]
+neq :: ConsoleString
+neq = strConcat [consoleSetAttr ConsoleAttrBold , " ", stringleton (asByte charNotEquals)  , " " , treset]
 
-setAttr x = csi [x] "m"
-bold = 1
-faint = 2
-normal = 22
-italicized = 3
-notItalicized = 23
-underlined = 4
-doubleUnderlined = 21
-notUnderlined = 24
-slowBlink = 5
-fastBlink = 6
-noBlink = 25
-invisible = 8
-visible = 28
-swapFgBg = 7
-unswapFgBg = 27
+consoleSetAttr :: ConsoleAttr -> ConsoleString
+consoleSetAttr x = csi [fromEnum x] "m"
 
-dullBlack = 30
-dullRed = 31
-dullGreen = 32
-dullYellow = 33
-dullBlue = 34
-dullMagenta = 35
-dullCyan = 36
-dullWhite = 37
+[enum|ConsoleAttr 
+   Bold 1 Faint 2 Normal 22 Italicized 3 NotItalicized 23
+   Underlined 4 DoubleUnderlined 21 NotUnderlined 24
+   SlowBlink 5 FastBlink 6 NoBlink 25
+   Invisible 8 Visible 28
+   SwapFgBg 7 UnswapFgBg 27
 
-vividBlack = 40
-vividRed = 41
-vividGreen = 42
-vividYellow = 43
-vividBlue = 44
-vividMagenta = 45
-vividCyan = 46
-vividWhite = 47
+   DullBlack 30 DullRed 31 DullGreen 32 DullYellow 33 DullBlue 34
+   DullMagenta 35 DullCyan 36 DullWhite 37 
 
-hideCursor = "\ESC[?25l"
-showCursor = "\ESC[?25h"
+   VividBlack 40 VividRed 41 VividGreen 42 VividYellow 43 VividBlue 44
+   VividMagenta 45 VividCyan 46 VividWhite 47 
+|]
 
-setTitle t = concat ["\ESC]0;",filter (/= '\007') t,"\007" ]
+consoleHideCursor :: ConsoleString
+consoleHideCursor = "\ESC[?25l"
 
-setColor x = setAttr x
-setBackgroundColor x = setAttr (10+x)
-setExtendedColor x = csi [38,5,x] "m"
-setExtendedBackgroundColor x = csi [48,5,x] "m"
-setRGB r g b = csi [38,2,r,g,b] "m"
-setBackgroundRGB r g b = csi [48,2,r,g,b] "m"
+consoleShowCursor :: ConsoleString
+consoleShowCursor = "\ESC[?25h"
 
-cursorUp n = csi [n] "A"
-cursorDown n = csi [n] "B"
-cursorForward n = csi [n] "C"
-cursorBackward n = csi [n] "D"
+consoleSetTitle :: Stringy a => a -> ConsoleString
+consoleSetTitle t = asByteString $ strConcat ["\ESC]0;",filter (/= '\007') (asString t),"\007" ]
 
-clearScreen = csi [2] "J"
-clearToScreenBeginning = csi [1] "J"
-clearToScreenEnd = csi [0] "J"
+consoleSetColor :: ConsoleAttr -> ConsoleString
+consoleSetColor x = consoleSetAttr x
+consoleSetBackgroundColor :: Int -> ConsoleString
+consoleSetBackgroundColor x = consoleSetAttr (toEnum (10+ fromEnum x))
+consoleSetExtendedColor :: Int -> ConsoleString
+consoleSetExtendedColor x = csi [38,5,x] "m"
+consoleSetExtendedBackgroundColor :: Int -> ConsoleString
+consoleSetExtendedBackgroundColor x = csi [48,5,x] "m"
+consoleSetRGB :: Int -> Int -> Int -> ConsoleString
+consoleSetRGB r g b = csi [38,2,r,g,b] "m"
+consoleSetBackgroundRGB :: Int -> Int -> Int -> ConsoleString
+consoleSetBackgroundRGB r g b = csi [48,2,r,g,b] "m"
 
-clearLine = csi [2] "K"
-clearToLineBeginning = csi [1] "K"
-clearToLineEnd = csi [0] "K"
+consoleCursorUp :: Int -> ConsoleString
+consoleCursorUp n = csi [n] "A"
+consoleCursorDown :: Int -> ConsoleString
+consoleCursorDown n = csi [n] "B"
+consoleCursorForward :: Int -> ConsoleString
+consoleCursorForward n = csi [n] "C"
+consoleCursorBackward :: Int -> ConsoleString
+consoleCursorBackward n = csi [n] "D"
 
-setPosition n m = csi [n+1, m+1] "H"
-setColumn n = csi [n+1] "G"
+consoleClearScreen :: ConsoleString
+consoleClearScreen = csi [2] "J"
+consoleClearToScreenBeginning :: ConsoleString
+consoleClearToScreenBeginning = csi [1] "J"
+consoleClearToScreenEnd :: ConsoleString
+consoleClearToScreenEnd = csi [0] "J"
 
-deleteChar :: ByteString
-deleteChar = csi [1] "P"
+consoleClearLine :: ConsoleString
+consoleClearLine = csi [2] "K"
+consoleClearToLineBeginning :: ConsoleString
+consoleClearToLineBeginning = csi [1] "K"
+consoleClearToLineEnd :: ConsoleString
+consoleClearToLineEnd = csi [0] "K"
 
-insertChar :: Word8 -> ByteString
-insertChar a = strConcat [csi [4] "h", stringleton a]
+consoleSetPosition :: Int -> Int -> ConsoleString
+consoleSetPosition n m = csi [n+1, m+1] "H"
 
-forwardChar :: ByteString
-forwardChar = "\ESC[C"
+consoleSetColumn :: Int -> ConsoleString
+consoleSetColumn n = csi [n+1] "G"
 
-backwardChar :: ByteString
-backwardChar = "\ESC[D"
+consoleDeleteChar :: ConsoleString
+consoleDeleteChar = csi [1] "P"
+
+consoleInsertChar :: Word8 -> ConsoleString
+consoleInsertChar a = strConcat [csi [4] "h", stringleton a]
+
+consoleForwardChar :: ConsoleString
+consoleForwardChar = "\ESC[C"
+
+consoleBackwardChar :: ConsoleString
+consoleBackwardChar = "\ESC[D"
 

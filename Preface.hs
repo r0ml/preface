@@ -43,6 +43,8 @@ import Preface.Diff as X
 import Preface.Console as X
 
 import Preface.ASN1 as X
+import Preface.AWS as X
+
 import Preface.Tar as X
 import Preface.HTTP as X
 import Preface.Watch as X

@@ -33,6 +33,7 @@ objc =  QuasiQuoter { quoteExp = qx, quotePat = undefined
   where qx :: String->ExpQ
         qx x = nsParse x 
 
+parseRcvr :: [Char] -> ExpQ
 parseRcvr s = if isUpper (head s)
                  then [| objcClassObject ( objcClass $(stringE s) ) |]
                  else varE (mkName s)
@@ -64,6 +65,7 @@ parseArg s =
 
 -- parseMoreArgs takes the selector partial, the do statements prefix, and the array of args so far
 -- it returns the updated selector partial, the updated do statements prefix, and the updated array of args so far.
+parseMoreArgs :: ([Char],[StmtQ],[ExpQ]) -> [Char] -> ([Char], [StmtQ], [ExpQ])
 parseMoreArgs accum@(sel, dox, args) s = 
   let s1 = trimL s
    in if null s1 then accum

@@ -117,7 +117,7 @@ getSCGI sock = do
         recurse n nnd ch =
               if n <= 0 then writeChan ch B.empty
               else do (b,nnd')<-ndGet (min blksiz n) nnd
-                      print ("recurse writes",b)
+                      -- print ("recurse writes",b)
                       writeChan ch b
                       recurse (n- blksiz) nnd' ch
         headersx = pairs . splitx

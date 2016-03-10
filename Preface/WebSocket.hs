@@ -165,7 +165,7 @@ readHttpResponse sock lft = do
 
 getWS :: Socket -> ByteString -> IO (WebSocket)
 getWS sock hdx = do
-    let envx = []
+    -- let envx = []
     chan <- newChan 
     inf <- inflater
     _ <- forkIO $ do
@@ -285,7 +285,7 @@ runServer port g h runRecv = do
     sinit y sock = do
       chan <- newChan
       wchan <- newChan :: IO (Chan Message)
-      nio <- newIORef Nothing
+      -- nio <- newIORef Nothing
       let a = WebSocket sock wchan chan -- nio
       atomicModifyIORef' y (\x -> (a : x, ())) -- keep track of the websockets
       _ <- forkIO $ do

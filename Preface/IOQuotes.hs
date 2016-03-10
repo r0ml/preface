@@ -157,14 +157,14 @@ withForkWait async body = do
 -}
 
 cleanupProcess :: (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle) -> IO ()
-cleanupProcess (Just si, Just so, Just se, ph) = do
+cleanupProcess (si, so, se, ph) = do
     terminateProcess ph
     -- Note, it's important that other threads that might be reading/writing
     -- these handles also get killed off, since otherwise they might be holding
     -- the handle lock and prevent us from closing, leading to deadlock.
-    ignoreSigPipe (hClose si)
-    hClose so
-    hClose se
+    maybe (return ()) (ignoreSigPipe . hClose) si
+    maybe (return ()) hClose so
+    maybe (return ()) hClose se
     -- terminateProcess does not guarantee that it terminates the process.
     -- Indeed on Unix it's SIGTERM, which asks nicely but does not guarantee
     -- that it stops.

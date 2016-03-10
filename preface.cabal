@@ -8,6 +8,7 @@ Category:       Prelude
 Maintainer:     me@r0ml.net
 Synopsis:       Utility functions for simplifying common problems
 Build-Type:     Simple
+
 Source-Repository head
   Type:           git
   Location:       git://github.com/r0ml/preface.git
@@ -44,7 +45,8 @@ Library
             , Preface.Timings, Preface.Imports, Preface.Pipes
             , Preface.Xml, Preface.JSONic, Preface.IO
             , Preface.Typing, Preface.Diff, Preface.Console
-            , Preface.ASN1, Preface.Tar, Preface.HTTP, Preface.Distributed
+            , Preface.ASN1, Preface.AWS
+            , Preface.Tar, Preface.HTTP, Preface.Distributed
             , Preface.Watch
             , Preface.Sequential
             , Preface.HFlags
@@ -67,21 +69,19 @@ Library
   -- this fails with pkgconfig because --modversion can't parse the openssl version
   Extra-Libraries: ssl crypto sqlite3
   Extra-Lib-Dirs: /Volumes/Storage/usr-local/Cellar/openssl/1.0.2d_1/lib
-
-  -- Extra-Libraries: python2.7
-  -- Extra-Lib-Dirs: /System/Library/Frameworks/Python.framework/Versions/2.7/lib
+  -- PkgConfig-Depends: openssl >= 1.0.2
 
   Include-Dirs: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/usr/include
 
   Default-Extensions: NoImplicitPrelude
   Hs-Source-Dirs: .
+
 -- IF THE -lcurl IS MISSING, HADDOCK FAILS
   Ghc-options: -Wall 
   -- -static
   PkgConfig-Depends: python
   PkgConfig-Depends: libcurl
   PkgConfig-Depends: zlib
-  -- PkgConfig-Depends: openssl >= 1.0.2
   Default-Language: Haskell2010
 
 -- Test-Suite testXml
@@ -214,4 +214,12 @@ Test-Suite testSqlite
   Ghc-Options: -Wall -threaded 
   Main-is: TestSQLite3.hs
 
+Test-Suite aws-sign4
+  type: exitcode-stdio-1.0
+  main-is: TestAwsSign.hs
+  Default-Language: Haskell2010
+  build-depends: preface, Cabal
+  hs-source-dirs: test
+  Ghc-options: -Wall 
+  Default-Extensions: NoImplicitPrelude
 

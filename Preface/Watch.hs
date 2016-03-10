@@ -103,7 +103,7 @@ fsEventStreamCreate paths latency flags = do
   ff <- mkPathEvent (fsEventStreamCallback callback)
   psx <- cfArrayOfStrings paths
  
-  th <- forkOS $ do
+  _th <- forkOS $ do
     let q = foldr (.|.) 0 (map fromEnum flags)
     esr <- c_FSEventStreamCreate nullPtr ff nullPtr psx since (realToFrac latency) (fromIntegral q)
     dm <- cfStringCreate "kCFRunLoopDefaultMode"
@@ -124,7 +124,7 @@ foreign import ccall "FSEventStreamRelease" c_FSEventStreamRelease :: FSEventStr
 type FSEvent = (String, Int {- [FSEventStreamEventFlag] -} , Int)
 
 fsEventStreamCallback :: Chan [FSEvent] -> FSEventStreamRef -> Ptr () -> CSize -> Ptr CString -> Ptr CUInt -> Ptr CULong -> IO ()
-fsEventStreamCallback chan stream cb cnum paths flags ids = do
+fsEventStreamCallback chan _stream _cb cnum paths flags ids = do
   let num = fromIntegral cnum
   flagl <- peekArray num flags
   idl <- peekArray num ids

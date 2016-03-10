@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface, QuasiQuotes #-}
-{-# OPTIONS_GHC -ddump-splices #-}
+-- {-# OPTIONS_GHC -ddump-splices #-}
 
 module Bindings.Zlib (
         Zlib, deflater, inflater, zPut, zGet, zDone
@@ -94,7 +94,7 @@ zInit wb lev bs = do
                             (fromIntegral wb) (fromIntegral (8::Int)) -- memLevel  8 is the default
                             (fromIntegral $ fromEnum ZStrategyDEFAULT )
                             x (fromIntegral n))
-    res <- withForeignPtr zsx $ (\zs -> poke zs zStreamNew >> withCString vers (ii zs) )
+    _res <- withForeignPtr zsx $ (\zs -> poke zs zStreamNew >> withCString vers (ii zs) )
     let sd = if nflater then c_inflateSetDictionary else c_deflateSetDictionary
     case bs of
          Nothing -> return ()
@@ -136,7 +136,7 @@ type Flater = Ptr ZStream -> CInt -> IO CInt
 
 -- | Feed the given 'ByteString' 
 feed :: Flater -> ZMem -> ByteString -> Bool -> Chan Zresult -> IO ()
-feed f (ZMem zsx zbuff) bs bool chan = do
+feed f (ZMem zsx _zbuff) bs bool chan = do
   withForeignPtr zsx $ \zstr -> do
     unsafeUseAsCStringLen bs $ \(cstr, len) -> do
       zz <- peek zstr
@@ -152,8 +152,8 @@ feed f (ZMem zsx zbuff) bs bool chan = do
                                  let avail = fromIntegral $ zStream_avail_out zy
                                      buff = zStream_next_out zy
                                      siz = defaultChunkSize - avail
-                                     zin = zStream_avail_in zy
-                                     zti = zStream_total_in zy
+                                     _zin = zStream_avail_in zy
+                                     _zti = zStream_total_in zy
                                  rs <- packCStringLen (plusPtr buff (-siz), siz)
                                  let zx = zy { zStream_next_out=obuff, zStream_avail_out = fromIntegral defaultChunkSize }
                                  poke zstr zx

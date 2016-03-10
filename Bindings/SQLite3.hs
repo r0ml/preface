@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Bindings.SQLite3 (
     -- * Connection management
     open,
@@ -193,29 +194,28 @@ import Bindings.SQLite3.Direct
 
 import qualified Bindings.SQLite3.Direct as Direct
 
-import Prelude hiding (error)
+import Preface.Imports hiding (error)
+
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
--- import Control.Applicative  ((<$>))
-import Control.Concurrent
-import Control.Exception
-import Control.Monad        (when, zipWithM, zipWithM_)
-import Data.ByteString      (ByteString)
-import Data.Int             (Int64)
-import Data.Maybe           (fromMaybe)
-import Data.Text            (Text)
 import Data.Text.Encoding   (encodeUtf8, decodeUtf8With)
 import Data.Text.Encoding.Error (UnicodeException(..), lenientDecode)
-import Data.Typeable
-import Foreign.Ptr          (Ptr)
 
+directStep :: Statement -> IO (Either SQLiteError StepResult)
 directStep = Direct.step
+directFinalize :: Statement -> IO (Either SQLiteError ())
 directFinalize = Direct.finalize
+directClose :: Database -> IO (Either SQLiteError ())
 directClose = Direct.close
+directExec :: Database -> Utf8 -> IO (Either (SQLiteError, Utf8) ())
 directExec = Direct.exec
+directBindInt64 :: Statement -> ParamIndex -> Int64 -> IO (Either SQLiteError ())
 directBindInt64 = Direct.bindInt64
+directBindText :: Statement -> ParamIndex -> Utf8 -> IO (Either SQLiteError ())
 directBindText = Direct.bindText
+directColumnText :: Statement -> ColumnIndex -> IO Utf8
 directColumnText = Direct.columnText
+directReset :: Statement -> IO (Either SQLiteError ())
 directReset = Direct.reset
 
 data SQLData

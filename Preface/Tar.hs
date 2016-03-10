@@ -288,10 +288,12 @@ hSeekEntryOffset hnd blockOff =
 -- file is not in fact in the tar format.
 --
 hSeekEndEntryOffset :: Handle -> Maybe TarEntryOffset -> IO TarEntryOffset
-hSeekEndEntryOffset hnd (Just index) = do
-    let offset = index
+hSeekEndEntryOffset hnd (Just ndex) = do
+    let offset = ndex
     hSeekEntryOffset hnd offset
     return offset
+hSeekEndEntryOffset _hnd Nothing = error "not yet implemented"
+
 
 -- | Creates a tar archive from a list of directory or files. Any directories
 -- specified will have their contents included recursively. Paths in the
@@ -497,9 +499,9 @@ tarRead = unfoldr getEntry
 --   size     <- size_;     mtime    <- mtime_;
 --   devmajor <- devmajor_; devminor <- devminor_;
               size = either (const 0 ) id size_ :: FileOffset
-              content = strTake size (strDrop tarBlkSize bs)
+              content = genericStrTake size (strDrop tarBlkSize bs)
               padding = (tarBlkSize - fromIntegral size) `mod` tarBlkSize
-              bs'     = strDrop (size + fromIntegral (tarBlkSize + padding) ) bs
+              bs'     = strDrop (fromIntegral size + (tarBlkSize + padding) ) bs
 
               haserr = isLeft mode || isLeft uid || isLeft gid || isLeft size_
                   || isLeft mtime || isLeft chksum || isLeft devminor
@@ -814,7 +816,7 @@ fromLinkTarget path = adjustDirectory $ joinPath $ splitDirectories path
 --
 tarUnpack :: FilePath -> [TarEntry] -> IO ()
 tarUnpack baseDir entries = do
-  let a = map checkEntrySecurity entries
+  let _a = map checkEntrySecurity entries
   mapM_ unpackEntry entries
 
   where

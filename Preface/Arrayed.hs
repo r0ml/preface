@@ -9,9 +9,9 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LC
 
 class Arrayed a where
-  aDrop :: Integral b => b -> a -> a
-  aTake :: Integral b => b -> a -> a
-  aSplitAt :: Integral b => b -> a -> (a,a)
+  aDrop :: Int -> a -> a
+  aTake :: Int -> a -> a
+  aSplitAt :: Int -> a -> (a,a)
 
 instance Arrayed [a] where
   aDrop = drop . fromIntegral

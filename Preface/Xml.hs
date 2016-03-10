@@ -23,7 +23,7 @@ module Preface.Xml (
 
 import qualified Data.Map as M (lookup)
 import qualified Data.Text as T (pack)
-import Preface.Imports hiding(split)
+import Preface.Imports 
 import Data.Char (isSpace)
 
 data XmlElement = XmlNode XmlTag [XmlAttr] [XmlElement] 
@@ -241,12 +241,22 @@ instance XMLic Bool where
                     _ -> xmlError ("not an XmlText (bool): " ++ show x)
 
 
-instance XMLic String where
+instance {-# OVERLAPPABLE #-} XMLic String where
         toXML = XmlText 
         fromXML x = case x of 
                       XmlText y -> Right y
                       XmlNode _t _a [XmlText c] -> Right c
                       _ -> xmlError ("not an XmlText (string): " ++ show x)
+
+instance {-# OVERLAPS #-} XMLic a => XMLic [a] where
+        toXML = error "toXML for [a] not yet implemented"
+        fromXML x = case x of 
+                        _ -> xmlError ("not an XmlNode of [a]: " ++ show x)
+
+instance XMLic a => XMLic (Maybe a) where
+        toXML = error "toXML for Maybe a not yet implemented"
+        fromXML x = case x of 
+                        _ -> xmlError ("not an XmlNode of Maybe a: " ++ show x)
 
 instance XMLic Double where
       toXML = XmlText . show 

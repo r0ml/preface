@@ -44,6 +44,7 @@ module Preface.HTTP
     exposes:
  -}
          simpleHTTP      -- :: Request -> IO (SResult Response)
+       , s_simpleHTTP
        , simpleHTTP_     -- :: Stream s => s -> Request -> IO (SResult Response)
        , sendHTTP        -- :: Stream s => s -> Request -> IO (SResult Response)
        , sendHTTP_notify -- :: Stream s => s -> Request -> IO () -> IO (SResult Response)
@@ -72,7 +73,7 @@ Example use:
 >               request $ getRequest "http://www.haskell.org/"
 >      return (take 100 (rspBody rsp))
 -}
-       , BrowserState
+       , BrowserState(..)
        
        , request            -- :: Request -> BrowserAction Response
     
@@ -119,14 +120,15 @@ Example use:
   ,  ConnError(..), failWith, fmapE, SResult, httpOpenStream
   , httpClose, httpCloseOnEnd, httpWriteBlock
   , httpReadBlock, httpReadLine, URI(..), URIAuth(..), parseURIReference
-  , sp, readsOne, encode64, crlf, readsOne 
+  , sp, encode64, crlf, readsOne 
 -- maybe not?
    , relativeTo, parseURI
    , HandleStream(..)
    , EndPoint(..)
    , isTCPConnectedTo
    , satisfy, oneOf, sequenceOf, lastOf, catManyOf
-   , encode64, sepBy
+   , sepBy
+   , defaultBrowserState
        ) where
 
 
@@ -480,11 +482,11 @@ Notes:
 -- | Return authorities for a given domain and path.
 -- Assumes "dom" is lower case
 getAuthFor :: String -> String -> BrowserState -> [Authority]
-getAuthFor dom pth b = filter match ( getAuthorities b)
+getAuthFor dom pth b = filter xmatch ( getAuthorities b)
    where
-    match :: Authority -> Bool
-    match au@AuthBasic{}  = matchURI (auSite au)
-    match au@AuthDigest{} = or (map matchURI (auDomain au))
+    xmatch :: Authority -> Bool
+    xmatch au@AuthBasic{}  = matchURI (auSite au)
+    xmatch au@AuthDigest{} = or (map matchURI (auDomain au))
 
     matchURI :: URI -> Bool
     matchURI s = (uriToAuthorityString s == dom) && (uriPath s `isPrefixOf` pth)
@@ -520,17 +522,17 @@ pickChallenge ls = if null ls then Just (ChalBasic "/") else listToMaybe ls
 -- | Retrieve a likely looking authority for a Request.
 anticipateChallenge :: HTTPRequest -> BrowserState -> Maybe Authority
 anticipateChallenge rq b =
-    let uri = rqURI rq in
-       listToMaybe (getAuthFor (uriAuthToString2 $ reqURIAuth rq) (uriPath uri) b)
+    let xuri = rqURI rq in
+       listToMaybe (getAuthFor (uriAuthToString2 $ reqURIAuth rq) (uriPath xuri) b)
 
 -- | Asking the user to respond to a challenge
 challengeToAuthority :: URI -> Challenge -> BrowserState -> IO (Maybe Authority)
-challengeToAuthority uri ch b
+challengeToAuthority xuri ch b
  | not (answerable ch) = return Nothing
  | otherwise = do
       -- prompt user for authority
      let prompt = getAuthorityGen b
-     userdetails <- prompt uri (chRealm ch)
+     userdetails <- prompt xuri (chRealm ch)
      case userdetails of
           Nothing    -> return Nothing
           Just (u,p) -> return (Just $ buildAuth ch u p)
@@ -541,7 +543,7 @@ challengeToAuthority uri ch b
 
   buildAuth :: Challenge -> String -> String -> Authority
   buildAuth (ChalBasic r) u p = 
-       AuthBasic { auSite=uri
+       AuthBasic { auSite=xuri
                  , auRealm=r
                  , auUsername=u
                  , auPassword=p
@@ -643,11 +645,11 @@ request req b = do
 -- counts.
 request' :: ByteString -> RequestState -> HTTPRequest -> BrowserState -> IO (SResult (URI,HTTPResponse))
 request' nullVal rqState rq b = do
-   let uri = rqURI rq
-   failHTTPS uri
+   let xuri = rqURI rq
+   failHTTPS xuri
    let uria = reqURIAuth rq 
      -- add cookies to request
-       cookies = getCookiesFor (uriAuthToString2 uria) (uriPath uri) b
+       cookies = getCookiesFor (uriAuthToString2 uria) (uriPath xuri) b
 {- Not for now:
    (case uriUserInfo uria of
      "" -> id
@@ -672,7 +674,7 @@ request' nullVal rqState rq b = do
          Nothing -> return rq
          Just x  -> return (rq { rqHeaders = (HttpHeader (HeaderName "Authorization") (withAuthority x rq)) : rqHeaders rq } )
    let final_req = if not $ null cookies then rq' { rqHeaders = [cookiesToHeader cookies] ++ rqHeaders rq' } else rq'
-   let def_ua = bsUserAgent b
+   -- let def_ua = bsUserAgent b
    putStrLn ("Sending:\n" ++ show final_req)
    e_rsp <- dorequest (reqURIAuth final_req) final_req b
    let mbMx = bsMaxErrorRetries b
@@ -681,32 +683,32 @@ request' nullVal rqState rq b = do
      | (reqRetries rqState < mbMx) && 
        (v == ErrorReset || v == ErrorClosed) -> do
        --empty connnection pool in case connection has become invalid
-       return $  b { bsConnectionPool=[] }
+       -- return $  b { bsConnectionPool=[] }
        request' nullVal rqState{reqRetries=succ (reqRetries rqState)} rq b
      | otherwise -> 
        return (Left v)
     Right rsp -> do 
      putStrLn $ ("Received:\n" ++ show rsp)
       -- add new cookies to browser state
-     let b0 = handleCookies uri (uriAuthToString2 $ reqURIAuth rq) 
+     let b0 = handleCookies xuri (uriAuthToString2 $ reqURIAuth rq) 
                        (retrieveHeaders (HeaderName "Set-Cookie") (rspHeaders rsp) ) b
      -- Deal with "Connection: close" in response.
-     handleConnectionClose (reqURIAuth rq) (retrieveHeaders (HeaderName "Connection") (rspHeaders rsp)) b0
+     _ <- handleConnectionClose (reqURIAuth rq) (retrieveHeaders (HeaderName "Connection") (rspHeaders rsp)) b0
      case rspCode rsp of
       (4,0,1) -> -- Credentials not sent or refused.
          do
             putStrLn "401 - credentials not supplied or refused; retrying.."
             let hdrs = retrieveHeaders (HeaderName "WWW-Authenticate") (rspHeaders rsp)
-            case pickChallenge (catMaybes $ map (headerToChallenge uri) hdrs) of
+            case pickChallenge (catMaybes $ map (headerToChallenge xuri) hdrs) of
               Nothing -> do
                    putStrLn "no challenge"
-                   return (Right (uri,rsp))   {- do nothing -}
+                   return (Right (xuri,rsp))   {- do nothing -}
               Just x  -> do
-                ca <- challengeToAuthority uri x b
+                ca <- challengeToAuthority xuri x b
                 case ca of
                   Nothing  -> do
                         putStrLn "no auth"
-                        return (Right (uri,rsp)) {- do nothing -}
+                        return (Right (xuri,rsp)) {- do nothing -}
                   Just au' -> do
                     putStrLn "Retrying request with new credentials"
                     request' nullVal
@@ -716,21 +718,21 @@ request' nullVal rqState rq b = do
       (3,0,x) | x `elem` [2,3,1,7]  ->  do
         putStrLn ("30" ++ show x ++  " - redirect")
         case allowRedirect rqState b of 
-           False -> return (Right (uri,rsp))
+           False -> return (Right (xuri,rsp))
            _ -> do
               case retrieveHeaders (HeaderName "Location") (rspHeaders rsp) of
                  [] -> do 
                           traceIO "No Location: header in redirect response"
-                          return (Right (uri,rsp))
+                          return (Right (xuri,rsp))
                  (HttpHeader _ u:_) -> 
                      case parseURIReference u of
                        Nothing -> do
                           traceIO ("Parse of Location: header in a redirect response failed: " ++ u)
-                          return (Right (uri,rsp))
+                          return (Right (xuri,rsp))
                        Just newURI
                          | {-uriScheme newURI_abs /= uriScheme uri && -}(not (supportedScheme newURI_abs)) -> do
                            traceIO ("Unable to handle redirect, unsupported scheme: " ++ show newURI_abs)
-                           return (Right (uri, rsp))
+                           return (Right (xuri, rsp))
                          | otherwise -> do     
                            putStrLn ("Redirecting to " ++ show newURI_abs ++ " ...") 
                      
@@ -745,19 +747,20 @@ request' nullVal rqState rq b = do
                              rqState{ reqDenies     = 0 , reqRedirects  = succ(reqRedirects rqState) , reqStopOnDeny = True }
                              rq2 b
                          where
-                           newURI_abs = uriDefaultTo newURI uri
+                           newURI_abs = uriDefaultTo newURI xuri
 
       (3,0,5) ->
         case retrieveHeaders (HeaderName "Location") (rspHeaders rsp) of
          [] -> do 
            traceIO "No Location header in proxy redirect response."
-           return (Right (uri,rsp))
+           return (Right (xuri,rsp))
          (HttpHeader _ u:_) -> 
            case parseURIReference u of
             Nothing -> do
              traceIO ("Parse of Location header in a proxy redirect response failed: " ++ u)
-             return (Right (uri,rsp))
-            _       -> return (Right (uri,rsp))
+             return (Right (xuri,rsp))
+            _       -> return (Right (xuri,rsp))
+      a -> error ("Unknown handling of HTTP response code " ++ show a)
 
 -- | The internal request handling state machine.
 dorequest :: URIAuth -> HTTPRequest -> BrowserState -> IO (SResult (HTTPResponse))
@@ -770,7 +773,7 @@ dorequest hst rqst b = do
       [] -> do 
         putStrLn ("Creating new connection to " ++ uriAuthToString2 hst)
         c <- httpOpenStream (uriRegName hst) uPort
-        updateConnectionPool c b
+        _ <- updateConnectionPool c b
         dorequest2 c rqst
       (c:_) -> do
         putStrLn ("Recovering connection to " ++ uriAuthToString2 hst)
@@ -791,8 +794,8 @@ updateConnectionPool c b = do
    return $ if maxPoolSize > 0 then b { bsConnectionPool=c:pool' } else b
                              
 cleanConnectionPool :: URIAuth -> BrowserState -> IO BrowserState
-cleanConnectionPool uri b = do
-  let ep = EndPoint (uriRegName uri) (uriAuthPort Nothing uri)
+cleanConnectionPool xuri b = do
+  let ep = EndPoint (uriRegName xuri) (uriAuthPort Nothing xuri)
       pool = bsConnectionPool b
   bad <- mapM (\c -> c `isTCPConnectedTo` ep) pool
   let tmp = zip bad pool
@@ -803,16 +806,16 @@ cleanConnectionPool uri b = do
 
 handleCookies :: URI -> String -> [HttpHeader] -> BrowserState -> BrowserState
 handleCookies _   _              [] b = b -- cut short the silliness.
-handleCookies uri dom cookieHeaders b = foldr (\x y -> addCookie x y) b newCookies
+handleCookies _xuri dom cookieHeaders b = foldr (\x y -> addCookie x y) b newCookies
  where
-  (errs, newCookies) = processCookieHeaders dom cookieHeaders
+  (_errs, newCookies) = processCookieHeaders dom cookieHeaders
 
 handleConnectionClose :: URIAuth -> [HttpHeader]
                       -> BrowserState -> IO BrowserState 
 handleConnectionClose _ [] b = return b
-handleConnectionClose uri headers b = do
+handleConnectionClose xuri headers b = do
   let doClose = any (== "close") $ map headerToConnType headers
-  if doClose then cleanConnectionPool uri b else return b
+  if doClose then cleanConnectionPool xuri b else return b
   where headerToConnType (HttpHeader _ t) = map toLower t
 
 ------------------------------------------------------------------
@@ -874,7 +877,7 @@ processCookieHeaders dom hdrs = foldr (headerToCookies dom) ([],[]) hdrs
 
 -- | @headerToCookies dom hdr acc@ 
 headerToCookies :: String -> HttpHeader -> ([String], [HttpCookie]) -> ([String], [HttpCookie])
-headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCookie) = 
+headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (_accErr, _accCookie) = 
    let (a,b) = cookies val 
     in if not (null b) then (["couldnt parse entire string"], maybe [] id a) 
        else ([], maybe [] id a)
@@ -888,7 +891,7 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
                                            (c,d) = cookies bb in
                                                     case c of 
                                                           Nothing -> (Just [aa], b)
-                                                          Just cc -> (Just (aa : fromJust c), d)
+                                                          Just cc -> (Just (aa : cc), d)
                                   else (Nothing, s)
 
    cookie :: String -> (Maybe HttpCookie, String)
@@ -897,6 +900,7 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
                in case c of 
                     Nothing -> (Nothing,s3)
                     Just [w,_,_,_,v] -> (Just $ mkCookie w v d, s3)
+                    _ -> error "unknown kind of cookie parsing"
 {- (name, s1) = word s
                   (i1, s2) = spaces_l s1
                   (e1:s3) = s2
@@ -918,7 +922,7 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
    
    -- all keys in the result list MUST be in lower case
    cdetail :: String -> ([(String,String)], String)
-   cdetail s = let (a,b) = cdx s in
+   cdetail ss = let (a,b) = cdx ss in
                   case a of 
                     Nothing -> ([], b)
                     Just aa -> let (c,d) = cdetail b in ((aa:c), d)
@@ -928,6 +932,7 @@ headerToCookies dom (HttpHeader (HeaderName "Set-Cookie") val) (accErr, accCooki
                       in case j of 
                            Nothing -> (Nothing, s2)
                            Just [_,_,_,w,_,v] -> (Just (map toLower w, v), s2)
+                           _ -> error "unknown kind of j"
 
    mkCookie :: String -> String -> [(String,String)] -> HttpCookie
    mkCookie nm cval more = 
@@ -1076,9 +1081,10 @@ headerToChallenge baseURI (HttpHeader _ str) =
                           (j,k) = cprops b
                        in case a of 
                              Nothing -> (Nothing, s)
-                             Just [d,e] -> case j of
+                             Just [d,_e] -> case j of
                                               Nothing -> (Nothing, s)
                                               Just jj -> (Just (map toLower d, jj), k)
+                             _ -> error "unknown challenge"
 
         cprops = sepBy cprop comma
 
@@ -1088,7 +1094,8 @@ headerToChallenge baseURI (HttpHeader _ str) =
         cprop s = let (a,b) = sequenceOf [wordAuth, enString . satisfy (=='='), quotedstringAuth] s
                    in case a of
                         Nothing -> (Nothing, s)
-                        Just [d,e,f] -> (Just (map toLower d, f), b)
+                        Just [d,_e,f] -> (Just (map toLower d, f), b)
+                        _ -> error "unknown challenge property"
 
         mkBasic, mkDigest :: [(String,String)] -> Maybe Challenge
 
@@ -1136,7 +1143,8 @@ wordAuth, quotedstringAuth :: String -> (Maybe String, String)
 quotedstringAuth s = let (a,b) = sequenceOf [enString . satisfy (=='"'), manyOf (satisfy ('"' /=)), enString . satisfy (=='"')] s
                 in case a of 
                      Nothing -> (Nothing, s)
-                     Just [d,e,f] -> (Just e, b)
+                     Just [_d,e,_f] -> (Just e, b)
+                     _ -> error "unknown quoted string authority"
 
 wordAuth s = let (a,b) = manyOf (satisfy (\x -> isAlphaNum x || x=='_' || x=='.' || x=='-' || x==':')) s
           in case a of
@@ -1288,8 +1296,8 @@ s_receiveHTTP conn = getRequestHead >>= either (return . Left) processRequest
       fmapE (\es -> parseRequestHead (map asString es))
             (readTillEmpty1 (httpReadLine conn))
 
-   processRequest (rm,uri,hdrs) =
-      fmapE (\ (ftrs,bdy) -> Right (HTTPRequest uri rm (hdrs++ftrs) bdy)) $
+   processRequest (rm,xuri,hdrs) =
+      fmapE (\ (ftrs,bdy) -> Right (HTTPRequest xuri rm (hdrs++ftrs) bdy)) $
         maybe 
           (maybe (return (Right ([], strEmpty))) -- hopefulTransfer ""
              (\ x -> readsOne (linearTransfer (httpReadBlock conn))
@@ -1357,7 +1365,7 @@ pHostPort s =
   -- h <- rfc2732host <++ munch (/=':')
   case strUntil (==':') s of
       Nothing -> (s, Nothing)
-      Just (c,d) -> case str2decimal d of { Left x -> (c, Nothing); Right (e,f) -> (c,Just e) } 
+      Just (c,d) -> case str2decimal d of { Left _x -> (c, Nothing); Right (e,_f) -> (c,Just e) } 
 
 {-
 -- RFC2732 adds support for '[literal-ipv6-address]' in the host part of a URL
@@ -1394,8 +1402,8 @@ uriAuthPort mbURI u =
   default_https = 443
 
 failHTTPS :: Monad m => URI -> m ()
-failHTTPS uri
-  | map toLower (uriScheme uri) == "https:" = fail "https not supported"
+failHTTPS xuri
+  | map toLower (uriScheme xuri) == "https:" = fail "https not supported"
   | otherwise = return ()
 
 -- Fish out the authority from a possibly normalized Request, i.e.,
@@ -1522,10 +1530,10 @@ defaultUserAgent :: String
 defaultUserAgent = "haskell-HTTP/0.3"
 
 defaultGETRequest :: URI -> HTTPRequest 
-defaultGETRequest uri = defaultGETRequest_ uri
+defaultGETRequest xuri = defaultGETRequest_ xuri
 
 defaultGETRequest_ :: URI -> HTTPRequest
-defaultGETRequest_ uri = mkRequest GET uri 
+defaultGETRequest_ xuri = mkRequest GET xuri 
 
 -- | 'mkRequest method uri' constructs a well formed
 -- request for the given HTTP method and URI. It does not
@@ -1533,10 +1541,10 @@ defaultGETRequest_ uri = mkRequest GET uri
 -- Host: header. That is done either explicitly by the user
 -- or when requests are normalized prior to transmission.
 mkRequest :: RequestMethod -> URI -> HTTPRequest
-mkRequest meth uri = req
+mkRequest meth xuri = req
  where
   req = 
-    HTTPRequest { rqURI      = uri
+    HTTPRequest { rqURI      = xuri
             , rqBody     = empty
             , rqHeaders  = [ HttpHeader (HeaderName "Content-Length") "0"
                            , HttpHeader (HeaderName "User-Agent") defaultUserAgent
@@ -1577,13 +1585,13 @@ setRequestBody req (typ, body) = req' { rqBody= asByteString body }
 parseRequestHead :: [String] -> SResult RequestData
 parseRequestHead         [] = Left ErrorClosed
 parseRequestHead (com:hdrs) = do
-  (_version,rqm,uri) <- requestCommand com (words com)
+  (_version,rqm,xuri) <- requestCommand com (words com)
   let hdrs' = parseHeaders hdrs
-  return (rqm,uri, hdrs')
+  return (rqm,xuri, hdrs')
  where
 
-  requestCommand l _yes@(rqm:uri:version) =
-    case (parseURIReference uri, lookup rqm rqMethodMap) of
+  requestCommand l _yes@(rqm:xuri:version) =
+    case (parseURIReference xuri, lookup rqm rqMethodMap) of
      (Just u, Just r) -> return (version,r,u)
      (Just u, Nothing) -> return (version,Custom rqm,u)
      _                -> parse_err l
@@ -1680,6 +1688,7 @@ replacement_character = '\xfffd'
 -- | Encode a single Haskell Char to a list of Word8 values, in UTF8 format.
 --
 -- Shamelessly stolen from utf-8string-0.3.7
+{-
 encodeChar :: Char -> [Word8]
 encodeChar = map fromIntegral . go . ord
  where
@@ -1699,10 +1708,12 @@ encodeChar = map fromIntegral . go . ord
                         , 0x80 + ((oc `shiftR` 6) .&. 0x3f)
                         , 0x80 + oc .&. 0x3f
                         ]
+-}
 
 -- | Decode a UTF8 string packed into a list of Word8 values, directly to String
 --
 -- Shamelessly stolen from utf-8string-0.3.7
+{-
 decodeUtf8 :: [Word8] -> String
 decodeUtf8 [    ] = ""
 decodeUtf8 (c:cs)
@@ -1736,11 +1747,12 @@ decodeUtf8 (c:cs)
                                $ shiftL acc 6 .|. fromEnum (r .&. 0x3f)
 
         aux _ rs     _ = replacement_character : decodeUtf8 rs
-
+-}
 
 -- This function is a bit funny because potentially the input String could contain some actual Unicode
 -- characters (though this shouldn't happen for most use cases), so we have to preserve those characters
 -- while simultaneously decoding any UTF-8 data
+{-
 urlDecode :: String -> String
 urlDecode = go []
   where
@@ -1749,8 +1761,9 @@ urlDecode = go []
     go [] []                       = []
     go [] (h:t)                    = h : go [] t -- h >= 256, so can't be part of any UTF-8 byte sequence
     go bs rest                     = decodeUtf8 (reverse bs) ++ go [] rest
+-}
 
-
+{-
 httpUrlEncode :: String -> String
 httpUrlEncode     [] = []
 httpUrlEncode (ch:t) 
@@ -1770,11 +1783,13 @@ httpUrlEncode (ch:t)
 
        o_0 = fro '0'
        o_A = fro 'A'
+-}
 
 -- Encode form variables, useable in either the
 -- query part of a URI, or the body of a POST request.
 -- I have no source for this information except experience,
 -- this sort of encoding worked fine in CGI programming.
+{-
 urlEncodeVars :: [(String,String)] -> String
 urlEncodeVars ((n,v):t) =
     let (same, diffx) = partition ((==n) . fst) t
@@ -1783,6 +1798,7 @@ urlEncodeVars ((n,v):t) =
        where urlEncodeRest [] = []
              urlEncodeRest diffx = '&' : urlEncodeVars diffx
 urlEncodeVars [] = []
+-}
 
 -- | @getAuth req@ fishes out the authority portion of the URL in a request's @Host@
 -- header.
@@ -1793,12 +1809,13 @@ getAuth r =
     Just x -> return x 
     Nothing -> fail $ "Network.HTTP.Base.getAuth: Error parsing URI authority '" ++ auth ++ "'"
  where 
-  auth = maybe (uriToAuthorityString uri) id (findHeader hdrHost (getHeaders r) )
-  uri  = rqURI r
+  auth = maybe (uriToAuthorityString xuri) id (findHeader hdrHost (getHeaders r) )
+  xuri  = rqURI r
 
 -- | @normalizeBasicAuth opts req@ sets the header @Authorization: Basic...@
 -- if the "user:pass@" part is present in the "http://user:pass@host/path"
 -- of the URI. If Authorization header was present already it is not replaced.
+{-
 normalizeBasicAuth :: HTTPRequest -> HTTPRequest
 normalizeBasicAuth req =
   case getAuth req of
@@ -1812,6 +1829,7 @@ normalizeBasicAuth req =
               stringToOctets = map (fromIntegral . fromEnum) :: String -> [Word8]
         (_, _) -> req
     Nothing ->req
+-}
 
 {-
 -- | @normalizeHostURI forProxy req@ rewrites your request to have it
@@ -1865,8 +1883,10 @@ normalizeHostURI optsx req =
    is a Host header.
 -}
 
+{-
 splitRequestURI :: URI -> ({-authority-}String, URI)
-splitRequestURI uri = (uriToAuthorityString uri, uri{uriScheme="", uriAuthority=Nothing})
+splitRequestURI xuri = (uriToAuthorityString xuri, xuri{uriScheme="", uriAuthority=Nothing})
+-}
 
 -- Looks for a "Connection" header with the value "close".
 -- Returns True when this is found.
@@ -1936,6 +1956,7 @@ chunkedTransferC readL readBlk acc n = do
 uglyDeathTransfer :: String -> IO (SResult ([HttpHeader],a))
 uglyDeathTransfer loc = return (responseParseError loc "Unknown Transfer-Encoding")
 
+isLineTerm :: ByteString -> Bool
 isLineTerm a = a == asByteString "\r\n" || a == asByteString "\n"
 
 -- | Remove leading crlfs then call readTillEmpty2 (not required by RFC)
@@ -1999,6 +2020,7 @@ class HasHeaders x where
 
 -- | @insertHeaderIfMissing hdr val x@ adds the new header only if no previous
 -- header with name @hdr@ exists in @x@.
+{-
 insertHeaderIfMissing :: HasHeaders a => HttpHeader -> a -> a 
 insertHeaderIfMissing hdr@(HttpHeader name _) x = setHeaders x (newHeaders $ getHeaders x)
     where
@@ -2006,6 +2028,7 @@ insertHeaderIfMissing hdr@(HttpHeader name _) x = setHeaders x (newHeaders $ get
             | n == name  = list
             | otherwise  = h : newHeaders rest
         newHeaders [] = [hdr]
+-}
 
 -- | @replaceHeader hdr val o@ replaces the header @hdr@ with the
 -- value @val@, dropping any existing 
@@ -2018,7 +2041,7 @@ retrieveHeaders name x = filter (\(HttpHeader n _) -> n == name) x
 -- | @findHeader hdrNm x@ looks up @hdrNm@ in @x@, returning the first
 -- header that matches, if any.
 findHeader :: HeaderName -> [HttpHeader] -> Maybe String
-findHeader k x = maybe Nothing (\(HttpHeader _ s) -> Just s) $ find (\(HttpHeader n s) -> n == k) x
+findHeader k x = maybe Nothing (\(HttpHeader _ s) -> Just s) $ find (\(HttpHeader n _ss) -> n == k) x
 
 -- | @parseHeaders hdrs@ takes a sequence of strings holding header
 -- information and parses them into a set of headers (preserving their
@@ -2052,9 +2075,11 @@ parseHeaders = catMaybes . map parseHeader . joinExtended
 crlf :: String
 crlf = "\r\n"
 
+{-
 -- | @lf@ is a tolerated line terminator, per RFC 2616 section 19.3.
 lf :: String
 lf = "\n"
+-}
 
 -- | @sp@ lets you save typing one character.
 sp :: String
@@ -2091,6 +2116,7 @@ readsOne f n str =
 
 -- | @dropWhileTail p ls@ chops off trailing elements from @ls@
 -- until @p@ returns @False@.
+{-
 dropWhileTail :: (a -> Bool) -> [a] -> [a]
 dropWhileTail f ls =
  case foldr chop Nothing ls of { Just xs -> xs; Nothing -> [] }
@@ -2099,15 +2125,18 @@ dropWhileTail f ls =
     chop x _
      | f x       = Nothing
      | otherwise = Just [x]
+-}
 
 -- | @chopAtDelim elt ls@ breaks up @ls@ into two at first occurrence
 -- of @elt@; @elt@ is elided too. If @elt@ does not occur, the second
 -- list is empty and the first is equal to @ls@.
+{-
 chopAtDelim :: Eq a => a -> [a] -> ([a],[a])
 chopAtDelim elt xs =
   case break (==elt) xs of
     (_,[])    -> (xs,[])
     (as,_:bs) -> (as,bs)
+-}
 
 encodeArray :: Array Int Char
 encodeArray = array (0,64) (zip [0..63] "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
@@ -2117,6 +2146,7 @@ encodeArray = array (0,64) (zip [0..63] "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm
 -- Hack Alert: In the last entry of the answer, the upper 8 bits encode 
 -- the integer number of 6bit groups encoded in that integer, ie 1, 2, 3.
 -- 0 represents a 4 :(
+{-
 int4_char3 :: [Int] -> [Char]
 int4_char3 (a:b:c:d:t) = 
     let n = (a `shiftL` 18 .|. b `shiftL` 12 .|. c `shiftL` 6 .|. d)
@@ -2135,6 +2165,7 @@ int4_char3 [a,b] =
 
 int4_char3 [_] = error "Network.HTTP.Base64.int4_char3: impossible number of Ints."
 int4_char3 [] = []
+-}
 
 -- Convert triplets of characters to
 -- 4 base64 integers.  The last entries
@@ -2163,9 +2194,11 @@ enc1 :: Int -> Char
 enc1 ch = encodeArray A.! ch
 
 -- | Cut up a string into 72 char lines, each line terminated by CRLF.
+{-
 chop72 :: String -> String
 chop72 str =  let (bgn,end) = splitAt 70 str
               in if null end then bgn else "\r\n" ++ chop72 end
+-}
 
 -- Pads a base64 code to a multiple of 4 characters, using the special
 -- '=' character.
@@ -2179,6 +2212,7 @@ quadruplets []          = []               -- 24bit tail unit
 enc :: [Int] -> [Char]
 enc = quadruplets . map enc1
 
+{-
 dcd :: String -> [Int]
 dcd [] = []
 dcd (h:t)
@@ -2189,14 +2223,16 @@ dcd (h:t)
     | h == '/'  = 63 : dcd t
     | h == '='  = []  -- terminate data stream
     | otherwise = dcd t
+-}
 
 -- Principal encoding and decoding functions.
 encode64 :: [Octet] -> String
 encode64 = enc . char3_int4 . (map (chr .fromIntegral))
 
+{-
 decode64 :: String -> [Octet]
 decode64 = (map (fromIntegral . ord)) . int4_char3 . dcd
-
+-}
 -----------------------------------------------------------------
 ------------------ TCP Connections ------------------------------
 -----------------------------------------------------------------
@@ -2215,12 +2251,19 @@ data Conn a
  | ConnClosed
    deriving(Eq)
 
+httpOpenStream :: String -> Int -> IO HandleStream
 httpOpenStream       = openTCPConnection
+httpReadBlock :: HandleStream -> Int -> IO (SResult ByteString)
 httpReadBlock c n    = readBlockBS c n
+httpReadLine :: HandleStream -> IO (SResult ByteString)
 httpReadLine c       = readLineBS c
+httpWriteBlock :: HandleStream -> ByteString -> IO (SResult())
 httpWriteBlock c str = writeBlockBS c str
+httpClose :: HandleStream -> IO ()
 httpClose c          = closeIt c strNull True
+closeQuick :: HandleStream -> IO ()
 closeQuick c     = closeIt c strNull False
+httpCloseOnEnd :: HandleStream -> Bool -> IO ()
 httpCloseOnEnd c f   = closeEOF c f
 
 {-
@@ -2234,29 +2277,29 @@ openTCPPort uri port = openTCPConnection uri port >>= return.Connection
 -- Add a "persistent" option?  Current persistent is default.
 -- Use "Result" type for synchronous exception reporting?
 openTCPConnection :: String -> Int -> IO HandleStream 
-openTCPConnection uri port = openTCPConnection_ uri port False
+openTCPConnection xuri xport = openTCPConnection_ xuri xport False
 
 openTCPConnection_ :: String -> Int -> Bool -> IO HandleStream
-openTCPConnection_ uri port stashInput = do
+openTCPConnection_ xuri xport stashInput = do
     -- HACK: uri is sometimes obtained by calling Network.URI.uriRegName, and this includes
     -- the surrounding square brackets for an RFC 2732 host like [::1]. It's not clear whether
     -- it should, or whether all call sites should be using something different instead, but
     -- the simplest short-term fix is to strip any surrounding square brackets here.
     -- It shouldn't affect any as this is the only situation they can occur - see RFC 3986.
     let fixedUri =
-         case uri of
+         case xuri of
             '[':(rest@(c:_)) | last rest == ']'
               -> if c == 'v' || c == 'V'
-                     then error $ "Unsupported post-IPv6 address " ++ uri
+                     then error $ "Unsupported post-IPv6 address " ++ xuri
                      else init rest
-            _ -> uri
+            _ -> xuri
 
 
     -- use withSocketsDo here in case the caller hasn't used it, which would make getAddrInfo fail on Windows
     -- although withSocketsDo is supposed to wrap the entire program, in practice it is safe to use it locally
     -- like this as it just does a once-only installation of a shutdown handler to run at program exit,
     -- rather than actually shutting down after the action
-    addrinfos <- withSocketsDo $ getAddrInfo (Just $ defaultHints { addrFamily = AF_UNSPEC, addrSocketType = Stream }) (Just fixedUri) (Just . show $ port)
+    addrinfos <- withSocketsDo $ getAddrInfo (Just $ defaultHints { addrFamily = AF_UNSPEC, addrSocketType = Stream }) (Just fixedUri) (Just . show $ xport)
     case addrinfos of
         [] -> fail "openTCPConnection: getAddrInfo returned no address information"
         (a:_) -> do
@@ -2264,7 +2307,7 @@ openTCPConnection_ uri port stashInput = do
                 onException (do
                             setSocketOption s KeepAlive 1
                             sktConnect s (addrAddress a)
-                            socketConnection_ fixedUri port s stashInput
+                            socketConnection_ fixedUri xport s stashInput
                             ) (sClose s)
 {-
 -- | @socketConnection@, like @openConnection@ but using a pre-existing 'Socket'.
@@ -2275,11 +2318,11 @@ socketConnection hst port sock = socketConnection_ hst port sock False
 -- Internal function used to control the on-demand streaming of input
 -- for /lazy/ streams.
 socketConnection_ :: String -> Int -> Socket -> Bool -> IO HandleStream
-socketConnection_ hst port sock stashInput = do
+socketConnection_ hst xport sock stashInput = do
     h <- socketToHandle sock ReadWriteMode
     mb <- case stashInput of { True -> liftM Just $ strHGetContents h; _ -> return Nothing }
     let conn = MkConn 
-         { connSock     = sock , connHandle   = h , connInput    = mb , connEndPoint = EndPoint hst port , connCloseEOF = False }
+         { connSock     = sock , connHandle   = h , connInput    = mb , connEndPoint = EndPoint hst xport , connCloseEOF = False }
     v <- newMVar conn
     return (HandleStream v)
 
@@ -2335,14 +2378,14 @@ isTCPConnectedTo conn endPoint = do
       | otherwise -> return False
 
 readBlockBS :: HandleStream -> Int -> IO (SResult ByteString)
-readBlockBS ref n = onNonClosedDo ref $ \ conn -> do
+readBlockBS ref n = onNonClosedDo ref $ \ _conn -> do
    x <- bufferGetBlock ref n
    return x
 
 -- This function uses a buffer, at this time the buffer is just 1000 characters.
 -- (however many bytes this is is left for the user to decipher)
 readLineBS :: HandleStream -> IO (SResult ByteString)
-readLineBS ref = onNonClosedDo ref $ \ conn -> do
+readLineBS ref = onNonClosedDo ref $ \ _conn -> do
    x <- bufferReadLine ref
    return x
 
@@ -2350,7 +2393,7 @@ readLineBS ref = onNonClosedDo ref $ \ conn -> do
 -- since in general messages are serialised in their entirety.
 writeBlockBS :: HandleStream -> ByteString -> IO (SResult ())
 writeBlockBS ref b = (onNonClosedDo ref $ \conn -> do
-  x    <- bufferPutBlock (connHandle conn) b
+  _x <- bufferPutBlock (connHandle conn) b
   return (Right strEmpty)) >> return (Right ())
 
 closeIt :: HandleStream -> (ByteString -> Bool) -> Bool -> IO ()
@@ -2358,7 +2401,7 @@ closeIt c p b = do
    closeConnection c (if b
                       then readLineBS c >>= \ x -> case x of { Right xs -> return (p xs); _ -> return True}
                       else return True)
-   conn <- readMVar (getRef c)
+   _conn <- readMVar (getRef c)
    return ()
 
 closeEOF :: HandleStream -> Bool -> IO ()
@@ -2440,9 +2483,11 @@ failMisc x = failWith (ErrorMisc x)
 failWith :: ConnError -> SResult a
 failWith x = Left x
 
+{-
 bindE :: SResult a -> (a -> SResult b) -> SResult b
 bindE (Left e)  _ = Left e
 bindE (Right v) f = f v
+-}
 
 fmapE :: (a -> SResult b) -> IO (SResult a) -> IO (SResult b)
 fmapE f a = do
@@ -2594,8 +2639,10 @@ data URIAuth = URIAuth { uriUserInfo :: String , uriRegName :: String , uriPort 
      deriving (Eq, Ord, Show)
 
 -- |Blank URI
+{-
 nullURI :: URI
 nullURI = URI { uriScheme="", uriAuthority=Nothing, uriPath="", uriQuery="", uriFragment="" }
+-}
 
 instance Show URI where
     showsPrec _ = uriToString 
@@ -2629,15 +2676,19 @@ parseURIAny f uristr = let (a,b) = f uristr in if null b then a else Nothing
 --  Returns 'Nothing' if the string is not a valid relative URI.
 --  (a relative URI with optional fragment identifier).
 --
+{-
 parseRelativeReference :: String -> Maybe URI
 parseRelativeReference = parseURIAny relativeRef
+-}
 
 -- |Parse an absolute URI to a 'URI' value.
 --  Returns 'Nothing' if the string is not a valid absolute URI.
 --  (an absolute URI without a fragment identifier).
 --
+{-
 parseAbsoluteURI :: String -> Maybe URI
 parseAbsoluteURI = parseURIAny absoluteURI
+-}
 
 {- r0ml
 -- |Test if string contains a valid URI
@@ -2696,12 +2747,15 @@ parseAll parser filename uristr = parse newparser filename uristr
 ------------------------------------------------------------
 --  Predicates
 ------------------------------------------------------------
-
+{-
 uriIsAbsolute :: URI -> Bool
 uriIsAbsolute (URI {uriScheme = scheme'}) = scheme' /= ""
+-}
 
+{-
 uriIsRelative :: URI -> Bool
 uriIsRelative = not . uriIsAbsolute
+-}
 
 ------------------------------------------------------------
 --  URI parser body based on Parsec elements and combinators
@@ -2822,10 +2876,10 @@ ls32 =  oneOf [lss, ipv4address]
 
 h4c :: String -> (Maybe String, String)
 h4c s = let (a1, s1) = catOf [h4, enString . satisfy (==':')] s
-            (d, s3) = satisfy (==':') s1
+            (d, _s3) = satisfy (==':') s1
          in case a1 of
                Nothing -> (Nothing, s)
-               Just a11 -> case d of 
+               Just _a11 -> case d of 
                               Nothing -> (a1, s1)
                               Just _ -> (Nothing, s)
 
@@ -2834,10 +2888,10 @@ h4 = concOf . countMinMax 1 4 (enString . satisfy isHexDigit)
 
 ipv4address :: String -> (Maybe String, String)
 ipv4address s = let (a,b) = catOf [decOctet, dot, decOctet, dot, decOctet, dot, decOctet] s
-                    (c,d) = nameChar b
+                    (c,_d) = nameChar b
                  in case c of 
                       Nothing -> (a, b)
-                      Just cc -> (Nothing, s)
+                      Just _cc -> (Nothing, s)
   where dot = enString . satisfy (=='.')
 
 decOctet :: String -> (Maybe String, String)
@@ -2890,6 +2944,7 @@ pathAbEmpty s = let ss = slashSegments s in concOf (jfy ss)
 pathAbs :: String -> (Maybe String, String)
 pathAbs ('/':s) = let (a,b) = pathRootLess s
                    in (Just (maybe "/" ('/':) a), b)
+pathAbs _ = error "impossible absolute path"
 
 pathNoScheme :: String -> PopString
 pathNoScheme s = let (s1, s3) = segmentNzc s
@@ -2905,6 +2960,7 @@ pathRootLess s = let (s1, s2) = segmentNz s
                         Just s3 -> let (s4, s5) = slashSegments s2
                                     in (Just (concat (s3:s4)), s5)
 
+slashSegments :: String -> ([String], String)
 slashSegments s5 = let (a,b) = slashSegment s5
                     in case a of
                           Nothing -> ([], b)
@@ -2931,9 +2987,10 @@ segmentNzx x s = let (r, s2) = uchar x s
                       Nothing -> (Nothing, s2)
                       Just r1 -> let (r2, s3) = segmentNzx x s2
                                   in (Just (maybe r1 (head r1:) r2), s3)
-
+{-
 pchar :: String -> (Maybe String, String)
 pchar = uchar ":@"
+-}
 
 -- helper function for pchar and friends
 uchar :: String -> String -> (Maybe String, String)
@@ -2968,7 +3025,7 @@ uriReference s = let (a,s1) = uri s
 --                 / path-noscheme
 --                 / path-empty
 relativeRef :: String -> (Maybe URI, String)
-relativeRef s = let (us, s2) = uscheme s
+relativeRef s = let (_us, s2) = uscheme s
                     ((ua, up), s3) = relativePart s2
                     (uq, s4) = uquery s3
                     (uf, s5) = ufragment s4
@@ -2999,6 +3056,7 @@ hierPart s =
         else if isJust upl then ((Nothing, fromJust upl), s3)
         else ((Nothing, ""), s)
 
+pathUAb :: [Char] -> (Maybe (Maybe URIAuth, String), [Char])
 pathUAb ('/':'/':s) = let (ua, s1) = uauthority s
                           (up, s2) = pathAbEmpty s1
                        in if isNothing ua then (Nothing, s)
@@ -3009,7 +3067,7 @@ pathUAb s = (Nothing, s)
 
 
 --  RFC3986, section 4.3
-
+{-
 absoluteURI :: String -> (Maybe URI, String)
 absoluteURI s = let (us, s2) = uscheme s
                     ((ua,up), s3) = hierPart s2
@@ -3018,6 +3076,7 @@ absoluteURI s = let (us, s2) = uscheme s
                     else (Just $ URI {
                             uriScheme = fromJust us, uriAuthority = ua,
                             uriPath = up, uriQuery = uq, uriFragment = "" }, s4)
+-}
 
 --  Imports from RFC 2234
 isAlphaChar :: Char -> Bool
@@ -3117,6 +3176,7 @@ escapeURIChar p c
 -- From http://hackage.haskell.org/package/utf8-string
 -- by Eric Mertens, BSD3
 -- Returns [Int] for use with showIntAtBase
+{-
 utf8EncodeChar :: Char -> [Int]
 utf8EncodeChar = map fromIntegral . go . ord
  where
@@ -3136,6 +3196,7 @@ utf8EncodeChar = map fromIntegral . go . ord
                         , 0x80 + ((oc `shiftR` 6) .&. 0x3f)
                         , 0x80 + oc .&. 0x3f
                         ]
+-}
 
 {-
 -- |Can be used to make a string valid for use in a URI.
@@ -3175,7 +3236,6 @@ unEscapeUtf8 c rest
     | c < 0xfe = multi_byte 5 0x1 0x4000000
     | otherwise    = replacement_character : unEscapeString rest
     where
-    replacement_character = '\xfffd'
     multi1 = case unEscapeByte rest of
       Just (c1, ds) | c1 .&. 0xc0 == 0x80 ->
         let d = ((fromEnum c .&. 0x1f) `shiftL` 6) .|.  fromEnum (c1 .&. 0x3f)
@@ -3184,8 +3244,8 @@ unEscapeUtf8 c rest
       _ -> replacement_character : unEscapeString rest
 
     multi_byte :: Int -> Int -> Int -> String
-    multi_byte i mask overlong =
-      aux i rest (unEscapeByte rest) (c .&. mask)
+    multi_byte i xmask overlong =
+      aux i rest (unEscapeByte rest) (c .&. xmask)
       where
         aux 0 rs _ acc
           | overlong <= acc && acc <= 0x10ffff &&
@@ -3212,13 +3272,14 @@ unEscapeUtf8 c rest
 --
 --  Algorithm from RFC3986 [3], section 5.2.2
 --
-
+{-
 nonStrictRelativeTo :: URI -> URI -> URI
 nonStrictRelativeTo ref base = relativeTo ref' base
     where
         ref' = if uriScheme ref == uriScheme base
                then ref { uriScheme="" }
                else ref
+-}
 
 -- | Returns a new 'URI' which represents the value of the first 'URI'
 -- interpreted as relative to the second 'URI'.
@@ -3325,6 +3386,7 @@ splitLast p = (reverse revpath,reverse revname)
 --  (cf. <http://lists.w3.org/Archives/Public/uri/2003Jan/0008.html>
 --       <http://lists.w3.org/Archives/Public/uri/2003Jan/0005.html>)
 --
+{-
 relativeFrom :: URI -> URI -> URI
 relativeFrom uabs base
     | diff uriScheme    uabs base = uabs
@@ -3353,7 +3415,9 @@ relativeFrom uabs base
         removeBodyDotSegments p = removeDotSegments p1 ++ p2
             where
                 (p1,p2) = splitLast p
+-}
 
+{-
 relPathFrom :: String -> String -> String
 relPathFrom []   _    = "/"
 relPathFrom pabs []   = pabs
@@ -3370,10 +3434,12 @@ relPathFrom pabs base =                 -- Construct a relative path segments
         (sb1,rb1) = nextSegment base
         (sa2,ra2) = nextSegment ra1
         (sb2,rb2) = nextSegment rb1
+-}
 
 --  relPathFrom1 strips off trailing names from the supplied paths,
 --  and calls difPathFrom to find the relative path from base to
 --  target
+{-
 relPathFrom1 :: String -> String -> String
 relPathFrom1 pabs base = relName
     where
@@ -3388,19 +3454,20 @@ relPathFrom1 pabs base = relName
                       rp++na
         -- Precede name with some path if it is null or contains a ':'
         protect s = null s || ':' `elem` s
-
+-}
 --  relSegsFrom discards any common leading segments from both paths,
 --  then invokes difSegsFrom to calculate a relative path from the end
 --  of the base path to the end of the target path.
 --  The final name is handled separately, so this deals only with
 --  "directory" segtments.
 --
-relSegsFrom :: String -> String -> String
 {-
+relSegsFrom :: String -> String -> String
 relSegsFrom sabs base
     | traceVal "\nrelSegsFrom\nsabs " sabs $ traceVal "base " base $
       False = error ""
 -}
+{-
 relSegsFrom []   []   = ""      -- paths are identical
 relSegsFrom sabs base =
     if sa1 == sb1
@@ -3409,6 +3476,7 @@ relSegsFrom sabs base =
     where
         (sa1,ra1) = nextSegment sabs
         (sb1,rb1) = nextSegment base
+-}
 
 --  difSegsFrom calculates a path difference from base to target,
 --  not including the final name at the end of the path
@@ -3418,19 +3486,22 @@ relSegsFrom sabs base =
 --  value of sabs is the desired path relative to the beginning of
 --  base.  Thus, when base is empty, the desired path has been found.
 --
-difSegsFrom :: String -> String -> String
 {-
+difSegsFrom :: String -> String -> String
 difSegsFrom sabs base
     | traceVal "\ndifSegsFrom\nsabs " sabs $ traceVal "base " base $
       False = error ""
 -}
+{-
 difSegsFrom sabs ""   = sabs
 difSegsFrom sabs base = difSegsFrom ("../"++sabs) (snd $ nextSegment base)
+-}
 
 ------------------------------------------------------------
 --  Other normalization functions
 ------------------------------------------------------------
 
+{-
 -- |Case normalization; cf. RFC3986 section 6.2.2.1
 --  NOTE:  authority case normalization is not performed
 --
@@ -3443,7 +3514,9 @@ normalizeCase uristr = ncScheme uristr
         ncEscape ('%':h1:h2:cs) = '%':toUpper h1:toUpper h2:ncEscape cs
         ncEscape (c:cs)         = c:ncEscape cs
         ncEscape []             = []
+-}
 
+{-
 -- |Encoding normalization; cf. RFC3986 section 6.2.2.2
 --
 normalizeEscape :: String -> String
@@ -3454,6 +3527,7 @@ normalizeEscape ('%':h1:h2:cs)
         escval = chr (digitToInt h1*16+digitToInt h2)
 normalizeEscape (c:cs)         = c:normalizeEscape cs
 normalizeEscape []             = []
+-}
 
 -- |Path segment normalization; cf. RFC3986 section 6.2.2.3
 --

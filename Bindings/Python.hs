@@ -28,6 +28,7 @@ module Bindings.Python (
        , asTuple
        , asDict
        , fromTuple
+       , pyErr_Clear
 ) where
 
 -- #include <Python.h>
@@ -119,8 +120,7 @@ foreign import ccall unsafe "Python.h PyInt_AsLong"
 foreign import ccall unsafe "Python.h PyInt_FromLong"
   pyInt_FromLong :: CLong -> IO RawPyObject
 
-foreign import ccall unsafe "Python.h PyErr_Clear"
-  pyErr_Clear :: IO ()
+foreign import ccall unsafe "Python.h PyErr_Clear" pyErr_Clear :: IO ()
 
 instance Pythonic Double where
   toPy x = pyFloat_FromDouble (realToFrac x) >>= toPyObjectChecked
@@ -252,11 +252,11 @@ asTuple objects = do
   where
     setItems :: [PyObject] -> PySSizeT -> RawPyObject -> IO ()
     setItems [] _ _ = return ()
-    setItems (x:xs) index tuple = withPyObject x $ \item -> do
+    setItems (x:xs) ndex tuple = withPyObject x $ \item -> do
       pyIncRef item             -- setItem steals the reference!
-      result <- pyTuple_SetItem tuple index item
+      result <- pyTuple_SetItem tuple ndex item
       unless (result == 0) throwCurrentPythonException
-      setItems xs (index + 1) tuple
+      setItems xs (ndex + 1) tuple
 
 fromTuple :: PyObject -> IO [PyObject]
 fromTuple t = withPyObject t $ \tt -> do

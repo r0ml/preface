@@ -61,7 +61,7 @@ type LazyText = TL.Text
 -- default (Integer, Int)
 
 -- | A class for the element of a Stringy
-class (Eq a, Enum a) => Chary a where
+class (Eq a, Ord a, Enum a, Show a) => Chary a where
     asChar :: a -> Char
     asByte :: a -> Word8
     isSpace :: a -> Bool
@@ -85,7 +85,7 @@ instance Chary Word8 where
 type ErrorMessage = String
 
 -- | A class to define generic Strings
-class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where 
+class (IsString a, Show a, Eq a, Ord a, Chary (Char_y a), Arrayed a) => Stringy a where 
     type Char_y a
 
     -- | Concatenation of multiple Stringy's into a single Stringy
@@ -112,8 +112,11 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     -- | the length of the Stringy.  The length of Stringy is limited to an Int
     strLen :: a -> Int
 
+    genericStrDrop :: Integral b => b -> a -> a
+    genericStrDrop = strDrop . fromIntegral
+
     -- | Drop the first n elements of a Stringy
-    strDrop :: Integral b => b -> a -> a
+    strDrop :: Int -> a -> a
     strDrop = aDrop 
 
     -- | Drop the first n characters which test True on the given function
@@ -123,7 +126,11 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
 
     -- | Take the first n elements of a Stringy.  If n is greater than the length of the Stringy,
     -- only take the n elements.
-    strTake :: Integral b => b -> a -> a
+    
+    genericStrTake :: Integral b => b -> a -> a
+    genericStrTake = strTake . fromIntegral     
+
+    strTake :: Int -> a -> a
     strTake = aTake 
 
     -- | Take the first n characters which test True on the given function
@@ -174,7 +181,10 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strHGetLine :: Handle -> IO a
     strHGet :: Handle -> Int -> IO a
     strHPut :: Handle -> a -> IO ()
-    nth :: Integral b => a -> b -> (Char_y a)
+    
+    nth :: a-> Int -> (Char_y a)
+    genericNth :: Integral b => a -> b -> (Char_y a)
+    genericNth x y = nth x (fromIntegral y)
 
     asByteString :: a -> ByteString
     asString :: a -> String
@@ -236,8 +246,7 @@ class (IsString a, Eq a, Chary (Char_y a), Arrayed a) => Stringy a where
     strReadFile :: FilePath -> IO a
     strWriteFile :: FilePath -> a -> IO ()
 
-    stringy :: a -> a
-    stringy = id
+    stringy :: Stringy b => b -> a
 --    strReads :: Read a => ReadS a
 
     str2decimal :: (Read c, Integral c) => a -> Either ErrorMessage (c, a)
@@ -327,6 +336,7 @@ instance Stringy T.Text where
   intercalate = T.intercalate
   strReadFile = T.readFile
   strWriteFile = T.writeFile
+  stringy = asText
   
   str2decimal = T.decimal
   signed = T.signed
@@ -400,6 +410,8 @@ instance Stringy TL.Text where
   intercalate = TL.intercalate
   strReadFile = TL.readFile 
   strWriteFile = TL.writeFile
+  
+  stringy = asLazyText
   
   -- str2decimal x = T.decimal TL.toStrict
   -- signed = T.signed . TL.toStrict 
@@ -492,6 +504,8 @@ instance Stringy B.ByteString where
   intercalate = B.intercalate
   strReadFile = B.readFile
   strWriteFile = B.writeFile
+  
+  stringy = asByteString
 
   str2decimal a = case str2decimal (asText a) of 
       Left x -> Left x
@@ -580,6 +594,8 @@ instance Stringy L.ByteString where
   intercalate = L.intercalate
   strReadFile = L.readFile
   strWriteFile = L.writeFile
+  
+  stringy = asLazyByteString
   
   str2decimal a = case str2decimal (asText a) of 
       Left x -> Left x
@@ -676,6 +692,8 @@ instance Stringy [Char] where
   strReadFile = readFile
   strWriteFile = writeFile
 
+  stringy = asString
+
   str2decimal x = if (null a) then Left "Parsing Error" else Right (head a)
         where a = reads x
   str2double x = if (null a) then Left "Parsing Error" else Right (head a)
@@ -730,23 +748,26 @@ base16 a = let d = strHead a
             in if strNull a then [] else b : c : base16 (strTail a)
 
 -- | Percent-encoding for URLs.
-urlEncode' :: String -> B.ByteString -> String
-urlEncode' exch s = strConcat $ map  (encodeChar . fromEnum) (asString s)
+urlEncode' :: Stringy a => a -> B.ByteString -> B.ByteString
+urlEncode' exch s = strConcat $ map  encodeChar (unpack s)
     where
+      encodeChar :: Word8 -> ByteString
       encodeChar ch 
-        | ch >= 65 && ch <= 90  = [C.chr ch]
-        | ch >= 97 && ch <= 122 = [C.chr ch]
-        | ch >= 48 && ch <= 57  = [C.chr ch]
-        | elem (C.chr ch) exch = [C.chr ch]
-        | otherwise = let (a, b) = ch `divMod` 16 in '%' : hex a : hex b : []
-      hex i = C.chr $ if i < 10 then 48 + i else 65 + i - 10 
+        | ch >= 65 && ch <= 90  = stringleton ch
+        | ch >= 97 && ch <= 122 = stringleton ch
+        | ch >= 48 && ch <= 57  = stringleton ch
+        | strInfixOf (stringleton (fromChar (asChar ch))) exch = stringleton ch
+        | ch == fromChar '+' = asByteString "%20"
+        -- -- | ch == fromChar '&' = asByteString "%40"
+        | otherwise = let (a, b) = ch `divMod` 16 in pack [fromIntegral (ord '%') , hex a, hex b]
+      hex i = if i < 10 then 48 + i else 65 + i - 10 
 
 urlEncode
-    :: (Stringy a) => Bool -- ^ Whether input is in query string. True: Query string, False: Path element
-    -> a
-    -> String 
-urlEncode True  = urlEncode' "-_.~" . asByteString
-urlEncode False = urlEncode' ":@&=+$," . asByteString 
+    :: Bool -- ^ Whether input is in query string. True: Query string, False: Path element
+    -> ByteString 
+    -> ByteString
+urlEncode True  = urlEncode' {- (strConcat ["-_.~", ":@&=+$"]) -} "-_.~"
+urlEncode False = urlEncode' ":@&=+$,"  
 
 
 randomString :: Int -> [Char] -> IO String

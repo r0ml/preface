@@ -96,9 +96,8 @@ module Preface.HFlags (
 -- ?--no* for bools?
 -- --help should show the current value if it's different than the default value, so user can test command line args
 
-import Preface.Imports
+import Preface.Imports hiding (moduleName)
 
-import Data.Maybe
 -- This is intentionally lazy, so dependent defaults are only
 -- evaluated if they are needed.  (The user hasn't specified the
 -- option in the command line or via environment variables.)

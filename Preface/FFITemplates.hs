@@ -75,7 +75,7 @@ toCMask :: Enum a => [a] -> CUInt
 toCMask = foldr (\x y -> y .|.  (shiftL 1 (fromEnum x))) 0
 
 bitsToList :: Enum a => CUInt -> [a]
-bitsToList x = btl x 0
+bitsToList xx = btl xx 0
   where btl x n = {- trace ("btl "++ show x++" "++ show n) $ -} if x == 0 then []
             else if testBit x n then (toEnum (shiftL 1 n)) : btl (clearBit x n) (n+1)
                      else btl x (n+1)
