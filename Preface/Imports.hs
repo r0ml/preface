@@ -172,11 +172,15 @@ import Foreign.C.Types as X (CInt(..), CUInt(..), CChar(..), CUShort(..)
           , CUChar(..)
           , CTime(..), CSize(..) )
 import Foreign.C.String as X (CString, CStringLen, withCString, peekCString, peekCStringLen)
+import Data.ByteString as X (packCString)
 import Foreign.Concurrent as X (addForeignPtrFinalizer)
-import Foreign.Marshal as X (alloca, allocaBytes, allocaBytesAligned, mallocArray, allocaArray, fromBool,copyBytes, free)
+import Foreign.Marshal as X (alloca, allocaBytes, allocaBytesAligned, mallocArray
+                            , allocaArray, fromBool,copyBytes, free
+                            , advancePtr)
 import Foreign.Marshal.Utils as X (new, with)
 import Foreign.Marshal.Array as X (peekArray, pokeArray, withArray, newArray0, newArray)
-import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, castFunPtr, nullPtr, castFunPtrToPtr)
+import Foreign.Ptr as X (Ptr, FunPtr, plusPtr, castPtr, castFunPtr, nullPtr
+                        , castPtrToFunPtr, castFunPtrToPtr)
 import Foreign.ForeignPtr as X (withForeignPtr, mallocForeignPtr, mallocForeignPtrBytes, castForeignPtr, newForeignPtr, newForeignPtr_, ForeignPtr)
 import Foreign.Storable as X (Storable(..), peek, poke)
 
@@ -193,6 +197,8 @@ import Language.Haskell.TH.Syntax as X hiding(Infix)
 import Numeric as X (readHex, readSigned, readDec, readFloat
                     , showHex, showOct, readOct
                     , showIntAtBase )
+
+import System.Console.GetOpt as X
 
 import System.Directory as X (canonicalizePath, doesDirectoryExist, doesFileExist
                        , getDirectoryContents, getAppUserDataDirectory

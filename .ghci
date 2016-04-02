@@ -1,3 +1,7 @@
 
 :set -XQuasiQuotes
 
+:set -threaded
+
+:set -i/Users/r0ml/Haskell:.
+

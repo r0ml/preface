@@ -21,7 +21,8 @@ Library
                  , directory, filepath
                  , template-haskell
                  , time, unix
-                 , network, process
+                 , network
+                 , process
                  , random
                  , text
                  , stm
@@ -49,7 +50,7 @@ Library
             , Preface.Tar, Preface.HTTP, Preface.Distributed
             , Preface.Watch
             , Preface.Sequential
-            , Preface.HFlags
+            -- , Preface.HFlags
             , Bindings.CoreFoundation
             , Bindings.Objc
             , Bindings.Darwin
@@ -64,6 +65,7 @@ Library
             , Bindings.SQLite3, Bindings.SQLite3.Direct, Bindings.SQLite3.Types
             , Bindings.SQLite3.Bindings
             , Bindings.Zlib
+            , Bindings.JavaBridge
 
 
   -- this fails with pkgconfig because --modversion can't parse the openssl version
@@ -83,6 +85,12 @@ Library
   PkgConfig-Depends: libcurl
   PkgConfig-Depends: zlib
   Default-Language: Haskell2010
+ 
+  -- C-Sources: cbits/more.c 
+  Include-Dirs: /Library/Java/JavaVirtualMachines/jdk1.8.0_45.jdk/Contents/Home/include
+  Extra-Lib-Dirs: /usr/local/lib
+  Extra-Libraries: jli 
+  -- jvm  
 
 -- Test-Suite testXml
 -- type: detailed-0.9
@@ -205,14 +213,22 @@ Executable testWatch
   Ghc-Options: -Wall -threaded 
   Main-is: TestWatch.hs
 
-Test-Suite testSqlite
-  type: exitcode-stdio-1.0
+Executable testJava
   Default-Language: Haskell2010
   default-extensions: NoImplicitPrelude
-  Build-depends: preface, text, base, bytestring, HUnit
+  Build-depends: preface
   hs-source-dirs: test
   Ghc-Options: -Wall -threaded 
-  Main-is: TestSQLite3.hs
+  Main-is: TestJava.hs
+
+-- Test-Suite testSqlite
+--  type: exitcode-stdio-1.0
+--  Default-Language: Haskell2010
+--  default-extensions: NoImplicitPrelude
+--  Build-depends: preface, text, base, bytestring
+--  hs-source-dirs: test
+--  Ghc-Options: -Wall -threaded 
+--  Main-is: TestSQLite3.hs
 
 Test-Suite aws-sign4
   type: exitcode-stdio-1.0
@@ -223,3 +239,11 @@ Test-Suite aws-sign4
   Ghc-options: -Wall 
   Default-Extensions: NoImplicitPrelude
 
+Executable flagTest 
+  Default-Language: Haskell2010
+  build-depends: preface
+  default-extensions: NoImplicitPrelude
+  Ghc-options: -Wall -threaded
+  hs-source-dirs: examples
+  main-is: SimpleExample2.hs
+  

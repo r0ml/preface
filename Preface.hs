@@ -29,7 +29,7 @@ import Preface.IOQuotes as X
 import Preface.StrUtils as X
 import Preface.Symbols as X
 import Preface.SecureHash as X
-import Preface.HFlags as X
+-- import Preface.HFlags as X
 
 import Preface.Timings as X
 
@@ -58,6 +58,8 @@ import Bindings.Posix as X
 import Bindings.Python as X
 import Bindings.TLS as X
 import Bindings.Zlib as X
+
+import Bindings.JavaBridge as X
 
 import Bindings.SQLite3 as X
 

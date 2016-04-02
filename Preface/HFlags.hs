@@ -1,40 +1,11 @@
--- Copyright 2012 Google Inc. All Rights Reserved.
--- Copyright 2013 and onwards, Gergely Risko
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---     http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
---
--- Authors: Mihaly Barasz <klao@google.com>, Gergely Risko <gergely@risko.hu>
 
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE MultiWayIf #-}
 
 -- |
--- Module: HFlags
--- License: Apache 2.0
---
--- The @HFlags@ library supports easy definition of command line flags,
--- reimplementing the ideas from Google's @gflags@
--- (<http://code.google.com/p/gflags>).
---
--- Command line flags can be declared in any file at the toplevel,
--- using 'defineFlag'.  At runtime, the actual values are assigned to
--- the toplevel @flags_name@ constants.  Those can be used purely
--- throughout the program.
---
 -- At the beginning of the @main@ function, @$'initHFlags' \"program
 -- description\"@ has to be called to initialize the flags.  All flags
 -- will be initialized that are transitively reachable via imports
@@ -44,75 +15,62 @@
 -- <http://github.com/errge/hflags/blob/master/examples/ImportExample.hs>
 -- and <http://github.com/errge/hflags/tree/master/examples/package>.
 --
--- A simple example (more in the
--- <http://github.com/errge/hflags/tree/master/examples> directory):
---
--- > #!/usr/bin/env runhaskell
--- >
--- > {-# LANGUAGE TemplateHaskell #-}
--- >
--- > import HFlags
--- >
--- > defineFlag "name" "Indiana Jones" "Who to greet."
--- > defineFlag "r:repeat" (3 + 4 :: Int) "Number of times to repeat the message."
--- >
--- > main = do s <- $initHFlags "Simple program v0.1"
--- >           sequence_ $ replicate flags_repeat greet
--- >           putStrLn $ "Your additional arguments were: " ++ show s
--- >           putStrLn $ "Which is the same as: " ++ show HFlags.arguments
--- >   where
--- >     greet = putStrLn $ "Hello " ++ flags_name ++ ", very nice to meet you!"
---
 -- At 'initHFlags' time, the library also tries to gather flags out of
 -- environment variables.  @HFLAGS_verbose=True@ is equivalent to
 -- specifying @--verbose=True@ on the command line.  This environment
 -- feature only works with long options and the user has to specify a
 -- value even for @Bool@s.
 --
--- /Since version 0.2, you mustn't put the initHFlags in a parentheses with the program description.  Just/ @$initHFlags@, /it's cleaner./
-
 
 module Preface.HFlags (
-  -- * Definition of flags
   defineCustomFlag,
-  defineEQFlag,
   FlagType(..),
-  -- * Initialization of flags at runtime
   initHFlags,
-  initHFlagsDependentDefaults,
-  -- * For easy access to arguments, after initHFlags has been called
-  arguments,
-  undefinedOptions,
-  -- * For debugging, shouldn't be used in production code
   Flag(..),
-  MakeThisOrphan(..),
-  globalHFlags,
-  globalArguments,
-  globalUndefinedOptions
+  globalFlags,
+  dFlag,
   ) where
 
--- TODOs:
--- duplicate checking for short options: it's tricky, we need to encode info in the HFlag_... data name
--- ?--no* for bools?
--- --help should show the current value if it's different than the default value, so user can test command line args
-
 import Preface.Imports hiding (moduleName)
-
--- This is intentionally lazy, so dependent defaults are only
--- evaluated if they are needed.  (The user hasn't specified the
--- option in the command line or via environment variables.)
-import qualified Data.Map.Lazy as Map
-import qualified Data.Text
-import System.Console.GetOpt
+import Preface.Stringy
+import Preface.Misc
+import Preface.StrUtils (deComma, stripComments)
 
 
--- | This is a temporary hack to force visibility of flags inside
--- libraries, by making the module that defines the flag orphan.  For
--- usage example, check out
--- <http://github.com/errge/hflags/blob/master/examples/package/Tup.hs>.
--- A proper fix is already proposed for GHC 7.8, see
--- <http://ghc.haskell.org/trac/ghc/ticket/7867>.
-data MakeThisOrphan = MakeThisOrphan
+{-
+runQ [d| data CmdOptions = CmdOptions { opt_name :: String, opt_repeat :: !Int } deriving Show; defaultOptions = CmdOptions { opt_name = "abc", opt_repeat = 7} |]
+
+[DataD [] CmdOptions_1 [] [RecC CmdOptions_2 [(opt_name_3,NotStrict,ConT GHC.Base.String),(opt_repeat_4,IsStrict,ConT GHC.Types.Int)]] [GHC.Show.Show],ValD (VarP defaultOptions_0) (NormalB (RecConE CmdOptions_2 [(opt_name_3,LitE (StringL "abc")),(opt_repeat_4,LitE (IntegerL 7))])) []]
+
+
+
+runQ [d| data CmdOptions = CmdOptions { opt_name :: String, opt_repeat :: !Int } deriving Show; defaultOptions = CmdOptions { opt_name = "abc", opt_repeat = 7}; options :: [OptDescr (CmdOptions -> CmdOptions)]; options = [ Option [] ["name"] (ReqArg (\d opts -> opts { opt_name = d }) "NAME") "Who to greet.",Option [] ["repeat"] (ReqArg (\d opts -> opts { opt_repeat = read d }) "REPEATS") "Number of times to repeat the message" ] |]
+[DataD [] CmdOptions_7 [] [RecC CmdOptions_8 [(opt_name_9,NotStrict,ConT GHC.Base.String),(opt_repeat_10,IsStrict,ConT GHC.Types.Int)]] [GHC.Show.Show],ValD (VarP defaultOptions_6) (NormalB (RecConE CmdOptions_8 [(opt_name_9,LitE (StringL "abc")),(opt_repeat_10,LitE (IntegerL 7))])) [],SigD options_5 (AppT ListT (AppT (ConT System.Console.GetOpt.OptDescr) (AppT (AppT ArrowT (ConT CmdOptions_7)) (ConT CmdOptions_7)))),ValD (VarP options_5) (NormalB (ListE [AppE (AppE (AppE (AppE (ConE System.Console.GetOpt.Option) (ListE [])) (ListE [LitE (StringL "name")])) (AppE (AppE (ConE System.Console.GetOpt.ReqArg) (LamE [VarP d_11,VarP opts_12] (RecUpdE (VarE opts_12) [(opt_name_9,VarE d_11)]))) (LitE (StringL "NAME")))) (LitE (StringL "Who to greet.")),AppE (AppE (AppE (AppE (ConE System.Console.GetOpt.Option) (ListE [])) (ListE [LitE (StringL "repeat")])) (AppE (AppE (ConE System.Console.GetOpt.ReqArg) (LamE [VarP d_13,VarP opts_14] (RecUpdE (VarE opts_14) [(opt_repeat_10,AppE (VarE Text.Read.read) (VarE d_13))]))) (LitE (StringL "REPEATS")))) (LitE (StringL "Number of times to repeat the message"))])) []]
+
+
+-}
+
+dFlag :: QuasiQuoter
+dFlag = QuasiQuoter { quoteExp = undefined, quotePat = undefined, quoteDec = qd, quoteType = undefined }
+  where {-
+        qd s = let tmx = map trim $ lines (stripComments s)
+                   tmz = mapM genFlag tmx 
+                in sequence $ tmz
+        -}
+        qd s = let tmx = filter (not . strNull) $ map trim $ lines (stripComments s)
+                   tmz = map genFlag tmx 
+                in [dataD [] (mkName "CmdOptions") [] [recC (mkName "CmdOptions")
+                      (genFields tmx)] ['Show],
+                    valD (varP (mkName "defaultOptions") (normalB (recConE (mkName "CmdOptions") (genDefaults tmx) ))) []  ]
+
+        genFlag :: String -> Q Stmt
+        genFlag l = let (a,b) = strBrk (isSpace) l
+                        c = strDrop 1 b
+                        n = mkName ("flag__"++a)
+                        val = c 
+        --             in ( sigD n (conT (mkName "String"))
+        --                ,  valD (varP n) (normalB (litE (stringL val))) [] )
+                     in bindS (varP n) (litE (stringL val))
 
 -- | Data type for storing every property of a flag.
 data FlagData = FlagData
@@ -138,30 +96,23 @@ instance Show FlagData where
 class Flag a where
   getFlagData :: a -> FlagData
 
--- | The most flexible way of defining a flag.  For an example see
--- <http://github.com/errge/hflags/blob/master/examples/ComplexExample.hs>.
--- For most things 'defineFlag' should be enough instead.
---
+-- |
 -- The parameters:
 --
 --   * name of the flag (@l:long@ syntax if you want to have the short option @l@ for this flag),
---
 --   * expression quoted and type signed default value,
---
 --   * help string identifying the type of the argument (e.g. INTLIST),
---
 --   * read function, expression quoted,
---
 --   * show function, expression quoted,
---
 --   * help string for the flag.
 defineCustomFlag :: String -> ExpQ -> String -> ExpQ -> ExpQ -> String -> Q [Dec]
 defineCustomFlag name' defQ argHelp readQ showQ description =
-  do (name, short) <- if | length name' == 0 -> fail "Flag's without names are not supported."
-                         | length name' == 1 -> return (name', Just $ head name')
-                         | length name' == 2 -> return (name', Nothing)
-                         | name' !! 1 == ':' -> return (drop 2 name', Just $ head name')
-                         | otherwise -> return (name', Nothing)
+  do (name, short) <-
+                      return $ if length name' == 0 then (name', Nothing)
+                      else if length name' == 1 then (name', Just $ head name')
+                      else if length name' == 2 then (name', Nothing)
+                      else if name' !! 1 == ':' then (drop 2 name', Just $ head name')
+                      else (name', Nothing)
      defE <- defQ
      flagType <- case defE of
        SigE _ flagType -> return $ return flagType
@@ -195,34 +146,11 @@ defineCustomFlag name' defQ argHelp readQ showQ description =
      flagDec <- funD accessorName [clause [] (normalB $ appE readQ [| lookupFlag name moduleName |]) []]
      return [dataDec, instanceDec, flagPragmaDec, flagSig, flagDec]
 
--- | This just forwards to 'defineCustomFlag' with @[| read |]@ and
--- @[| show |]@.  Useful for flags where the type is not an instance
--- of 'FlagType'.  For examples, see
--- <http://github.com/errge/hflags/blob/master/examples/ComplexExample.hs>.
---
--- The parameters:
---
---   * name of the flag (@l:long@ syntax if you want to have the short option @l@ for this flag),
---
---   * expression quoted and type signed default value,
---
---   * help string identifying the type of the argument (e.g. INTLIST),
---
---   * help string for the flag.
-defineEQFlag :: String -> ExpQ -> String -> String -> Q [Dec]
-defineEQFlag name defQ argHelp description =
- defineCustomFlag name defQ argHelp [| read |] [| show |] description
-
 -- | Class of types for which the easy 'defineFlag' syntax is supported.
 class FlagType t where
   -- | The @defineFlag@ function defines a new flag.
-  --
-  -- The parameters:
-  --
   --   * name of the flag (@l:long@ syntax if you want to have the short option @l@ for this flag),,
-  --
   --   * default value,
-  --
   --   * help string for the flag.
   defineFlag :: String -> t -> String -> Q [Dec]
 
@@ -255,83 +183,41 @@ instance FlagType Char where
   defineFlag n v = defineCustomFlag n [| v :: Char |] "CHAR" [| charRead |] [| charShow |]
 
 instance FlagType Int where
-  defineFlag n v = defineEQFlag n [| v :: Int |] "INT"
+  defineFlag n v = defineCustomFlag n [| v :: Int |] "INT" [| read |] [| show |]
 
 instance FlagType Integer where
-  defineFlag n v = defineEQFlag n [| v :: Integer |] "INTEGER"
+  defineFlag n v = defineCustomFlag n [| v :: Integer |] "INTEGER" [| read |] [| show |]
 
 instance FlagType String where
   defineFlag n v = defineCustomFlag n [| v :: String |] "STRING" [| id |] [| id |]
 
 instance FlagType Double where
-  defineFlag n v = defineEQFlag n (sigE (litE (RationalL (toRational v))) [t| Double |] ) "DOUBLE"
+  defineFlag n v = defineCustomFlag n (sigE (litE (RationalL (toRational v))) [t| Double |] ) "DOUBLE" [| read |] [| show |]
 
--- TODO(errge): hflags-instances cabal package, so the base hflags
--- doesn't depend on text, which is not in GHC.
-instance FlagType Data.Text.Text where
+instance FlagType Text where
   defineFlag n v =
     -- defer lifting of Data.Text.Text to String lifting
-    let s = Data.Text.unpack v
-    in defineCustomFlag n [| Data.Text.pack s :: Data.Text.Text |] "TEXT" [| Data.Text.pack |] [| Data.Text.unpack |]
+    let s = unpack v
+    in defineCustomFlag n [| pack s :: Text |] "TEXT" [| pack |] [| unpack |]
 
 -- | A global 'IORef' for the communication between 'initHFlags' and
 -- @flags_*@.  This is a map between flag name and current value.
-{-# NOINLINE globalHFlags #-}
-globalHFlags :: IORef (Maybe (Map String String))
-globalHFlags = unsafePerformIO $ newIORef Nothing
-
--- | A global 'IORef' for the easy access to the arguments.
-{-# NOINLINE globalArguments #-}
-globalArguments :: IORef (Maybe [String])
-globalArguments = unsafePerformIO $ newIORef Nothing
-
--- | Contains the non-parsed, non-option parts of the command line,
--- the arguments.  Can only be used after 'initHFlags' has been called.
-{-# NOINLINE arguments #-}
-arguments :: [String]
-arguments = unsafePerformIO $ do
-  margs <- readIORef globalArguments
-  case margs of
-    Just args -> return $ args
-    Nothing -> error $ "HFlags.arguments used before calling initHFlags."
-
--- | A global 'IORef' for the easy access to the undefined options, if
--- @--undefok@ is used.  Useful, if you have to pass these options to
--- another library, e.g. @criterion@ or @GTK@.
-{-# NOINLINE globalUndefinedOptions #-}
-globalUndefinedOptions :: IORef (Maybe [String])
-globalUndefinedOptions = unsafePerformIO $ newIORef Nothing
-
--- | Contains the non-parsed, option parts of the command line, if
--- @--undefok@ is in use.  This can be useful, when you have to pass
--- these options to other libraries, e.g. @criterion@ or @GTK@.  Can
--- only be used after 'initHFlags' has been called.
-{-# NOINLINE undefinedOptions #-}
-undefinedOptions :: [String]
-undefinedOptions = unsafePerformIO $ do
-  margs <- readIORef globalUndefinedOptions
-  case margs of
-    Just args -> return $ args
-    Nothing -> error $ "HFlags.globalUndefOpts used before calling initHFlags."
+{-# NOINLINE globalFlags #-}
+globalFlags :: IORef (Maybe (Map String String, [String], [String]))
+globalFlags = unsafePerformIO $ newIORef Nothing
 
 lookupFlag :: String -> String -> String
 lookupFlag fName fModuleName = unsafePerformIO $ do
-  flags <- readIORef globalHFlags
+  flags <- readIORef globalFlags
   case flags of
-    Just flagmap -> case Map.lookup fName flagmap of
+    Just (flagmap, _, _) -> case mapLookup fName flagmap of
       Just v -> return v
-      Nothing -> error $ "Flag " ++ fName ++ " not found at runtime, look into HFlags-source/examples/package/Tup.hs.  Sorry."
+      Nothing -> error $ "Flag " ++ fName ++ " not found at runtime"
     Nothing -> error $ "Flag " ++ fName ++ " (from module: " ++ fModuleName ++ ") used before calling initHFlags."
 
--- | Lisp like alist, key -> value pairs.
-type AList = [(String, String)]
-
--- | A function that gets three alists and returns a new one.
-type DependentDefaults = AList -> AList -> AList -> AList
-
--- | Initializes 'globalHFlags' and returns the non-option arguments.
-initFlags :: DependentDefaults -> String -> [FlagData] -> [String] -> IO [String]
-initFlags dependentDefaults progDescription flags args = do
+-- | Initializes 'globalFlags' and returns the non-option arguments.
+initFlags :: String -> [FlagData] -> [String] -> IO [String]
+initFlags progDescription flags args = do
   doHelp
   let (opts, nonopts, undefopts, errs)
         | doUndefok = getOpt' Permute getOptFlags args
@@ -342,10 +228,7 @@ initFlags dependentDefaults progDescription flags args = do
   let defaults = map (\FlagData { fName, fDefValue } -> (fName, fDefValue)) flags
   env <- getEnvironment
   let envDefaults = map (mapFst (fromJust . stripPrefix "HFLAGS_")) $ filter ((isPrefixOf "HFLAGS_") . fst) env
-  let depdef = dependentDefaults defaults envDefaults opts
-  writeIORef globalHFlags $ Just $ Map.fromList $ defaults ++ depdef ++ envDefaults ++ opts
-  writeIORef globalArguments $ Just nonopts
-  writeIORef globalUndefinedOptions $ Just undefopts
+  writeIORef globalFlags $ Just (mapFromList $ defaults ++ envDefaults ++ opts, nonopts, undefopts)
   mapM_ forceFlag flags
   return nonopts
     where
@@ -407,39 +290,11 @@ getFlagsData = do
                         sortBy (compare `on` snd) $
                         map instanceToModuleNamePair instances
 
--- | Same as initHFlags, but makes it possible to introduce
--- programmatic defaults based on user supplied flag values.
---
--- The second parameter has to be a function that gets the following
--- alists:
---
---   * defaults,
---
---   * values from HFLAGS_* environment variables,
---
---   * command line options.
---
--- Has to return an alist that contains the additional defaults that
--- will override the default flag values (but not the user supplied
--- values: environment or command line).
---
--- Type after splicing is @String -> DependentDefaults -> IO [String]@.
--- Where:
---
---   * @type AList = [(String, String)]@
---
---   * @type DependentDefaults = AList -> AList -> AList -> AList@
-initHFlagsDependentDefaults :: ExpQ -- (String -> DependentDefaults -> IO [String])
-initHFlagsDependentDefaults = do
-  [| \progDescription depDefaults ->
-        getArgs >>= initFlags depDefaults progDescription $getFlagsData |]
 
 -- | Has to be called from the main before doing anything else:
 --
 -- > main = do args <- $initHFlags "Simple program v0.1"
 -- >           ...
---
--- /Since version 0.2, you mustn't put the initHFlags in a parentheses with the program description.  Just/ @$initHFlags@, /it's cleaner./
 --
 -- Internally, it uses Template Haskell trickery to gather all the
 -- instances of the Flag class and then generates a call to
@@ -449,5 +304,5 @@ initHFlagsDependentDefaults = do
 -- Type after splicing is @String -> IO [String]@.
 initHFlags :: ExpQ -- (String -> IO [String])
 initHFlags = do
-  [| \progDescription ->
-        getArgs >>= initFlags (const $ const $ const []) progDescription $getFlagsData |]
+  [| \progDescription -> getArgs >>= initFlags progDescription $getFlagsData |]
+

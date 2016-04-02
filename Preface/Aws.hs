@@ -10,9 +10,6 @@ import Preface.Stringy
 import Preface.SecureHash
 import Preface.IOQuotes
 import Preface.Misc
-import Preface.JSONic
-
-import Bindings.Curl
 
 -- ag :: (Eq a, Show a) => String -> a -> a -> IO ()
 -- ag = assertEqualG

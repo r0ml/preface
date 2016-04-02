@@ -119,12 +119,14 @@ MNT_NOATIME     0x10000000      /* disable update of file access time */
 
 -- | Convert an integer to a list of enumeration values by testing
 -- each bit, and if set, convert it to an enumeration member.
+{-
 bitmaskToEnum :: (Enum a, Integral b) => b -> [a]
 bitmaskToEnum bmx = mapMaybe maybeBit [0 .. finiteBitSize bm - 1]
   where
     bm = fromIntegral bmx :: Int
     maybeBit b | testBit bm b = Just . toEnum . bit $ b
                | otherwise    = Nothing
+-}
                
 getStatFS :: IO (Either Errno [StatFS])
 getStatFS = do
